@@ -119,7 +119,7 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">Evaluating Band Score</h1>
                 <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-                  Hệ thống AI đang phân tích bài nói của bạn theo 4 tiêu chí IELTS (FC, LR, GRA, PR). Quá trình này thường mất khoảng 15 – 30 giây...
+                  The AI system is analyzing your speaking response across 4 IELTS criteria (FC, LR, GRA, PR). This usually takes 15–30 seconds...
                 </p>
               </div>
             </>
@@ -134,7 +134,7 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
                 </div>
                 <h1 className="text-3xl font-extrabold text-slate-900">AI Scoring Pending</h1>
                 <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-                  Bài thi Speaking của bạn đã được ghi nhận an toàn. Nhấn nút bên dưới để bắt đầu hoặc thử lại quá trình chấm điểm bằng AI.
+                  Your Speaking test response has been safely recorded. Click the button below to start or retry the AI evaluation.
                 </p>
               </div>
             </>
@@ -153,14 +153,14 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
               className="inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-2xl shadow-lg shadow-purple-200 transition-all disabled:opacity-50 active:scale-95"
             >
               <RefreshCw className={`w-4 h-4 ${rescoring ? 'animate-spin' : ''}`} />
-              <span>{rescoring ? 'Đang phân tích bài nói...' : '🤖 Chấm điểm lại với AI'}</span>
+              <span>{rescoring ? 'Analyzing speaking response...' : '🤖 Re-score with AI'}</span>
             </button>
 
             <button
               onClick={() => router.push('/ielts-speaking')}
               className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-2xl border border-slate-200 transition-all"
             >
-              <span>Quay lại trang đề thi</span>
+              <span>Back to test list</span>
             </button>
           </div>
         </main>

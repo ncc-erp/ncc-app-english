@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { UserSession } from '@/types';
-import { Mic, LogOut, User, Sparkles, History } from 'lucide-react';
+import { Mic, LogOut, User, Sparkles, History, Shield, BookOpen } from 'lucide-react';
 
 interface NavbarProps {
   user?: UserSession | null;
@@ -60,6 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
   };
 
   const activeUser = propUser !== undefined ? propUser : currentUser;
+  const isAdmin = Boolean(activeUser && (activeUser.mezon_username === 'admin' || activeUser.mezon_id === 'admin_sys_001'));
 
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
@@ -86,6 +87,24 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
 
         {activeUser ? (
           <div className="flex items-center space-x-3">
+            {isAdmin && (
+              <Link
+                href="/admin/topics"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl transition-all border border-amber-200"
+              >
+                <Shield className="w-3.5 h-3.5 text-amber-600" />
+                <span className="hidden sm:inline">Admin Portal</span>
+              </Link>
+            )}
+
+            <Link
+              href="/ielts-speaking"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-purple-50 hover:text-purple-700 rounded-xl transition-all border border-slate-200"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Test Topics</span>
+            </Link>
+
             <Link
               href="/ielts-speaking/history"
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-purple-50 hover:text-purple-700 rounded-xl transition-all border border-slate-200"

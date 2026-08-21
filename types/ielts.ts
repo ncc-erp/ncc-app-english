@@ -25,6 +25,7 @@ export interface IELTSSpeakingTopic {
   id: string;
   title: string;
   category: string;
+  description?: string;
   part1_questions: IELTSPart1Question[];
   part2_cue_card: IELTSPart2CueCard;
   part3_questions: IELTSPart3Question[];
