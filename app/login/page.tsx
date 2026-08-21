@@ -1,19 +1,64 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { BookOpen, ShieldCheck, Sparkles, AlertCircle, ArrowRight, Code } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { BookOpen, ShieldCheck, Sparkles, AlertCircle, ArrowRight, UserCheck, Lock, User, Loader2 } from 'lucide-react';
 
 function LoginContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const error = searchParams.get('error');
+  const oauthError = searchParams.get('error');
 
-  const errorMessages: Record<string, string> = {
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  const oauthErrorMessages: Record<string, string> = {
     no_code: 'Authentication cancelled or missing authorization code from Mezon.',
     state_mismatch: 'Security warning: OAuth state mismatch detected. Please try logging in again.',
     no_token: 'Failed to retrieve access token from Mezon server.',
     auth_failed: 'Authentication failed. Please verify your credentials or try again later.',
+  };
+
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError('');
+
+    if (!username || !password) {
+      setFormError('Vui lòng nhập tên đăng nhập và mật khẩu');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/auth/login-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        setFormError(data.error || 'Đăng nhập không thành công. Vui lòng kiểm tra lại.');
+        setLoading(false);
+        return;
+      }
+
+      // Redirect to home page on successful login
+      router.push('/');
+      router.refresh();
+    } catch (err) {
+      console.error('Password login error:', err);
+      setFormError('Lỗi kết nối máy chủ. Vui lòng thử lại sau.');
+      setLoading(false);
+    }
   };
 
   return (
@@ -30,47 +75,126 @@ function LoginContent() {
         <div className="space-y-2">
           <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-bold uppercase tracking-wider">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Mezon OAuth2 Auth</span>
+            <span>Mezon IELTS Platform</span>
           </div>
-          <h1 className="text-2xl font-extrabold text-white">Mezon IELTS Platform</h1>
+          <h1 className="text-2xl font-extrabold text-white">Xác thực tài khoản</h1>
           <p className="text-slate-400 text-sm">
-            Sign in with your Mezon account to access AI-powered IELTS Speaking evaluations.
+            {showPasswordForm
+              ? 'Nhập tài khoản và mật khẩu của bạn để đăng nhập.'
+              : 'Đăng nhập với tài khoản Mezon hoặc Tài khoản quản trị để truy cập hệ thống.'}
           </p>
         </div>
 
-        {error && (
+        {/* OAuth Error Alert */}
+        {oauthError && !showPasswordForm && (
           <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start space-x-2 text-left">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span>{errorMessages[error] || 'An unexpected error occurred during authentication.'}</span>
+            <span>{oauthErrorMessages[oauthError] || 'Đã xảy ra lỗi trong quá trình xác thực OAuth.'}</span>
           </div>
         )}
 
-        <div className="space-y-3 pt-2">
-          <a
-            href="/api/auth/login"
-            className="w-full py-3.5 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
-          >
-            <span>Login with Mezon</span>
-            <ArrowRight className="w-4 h-4" />
-          </a>
+        {!showPasswordForm ? (
+          /* Primary Login Selection Mode */
+          <div className="space-y-3 pt-2">
+            <a
+              href="/api/auth/login"
+              className="w-full py-3.5 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <span>Đăng nhập qua Mezon OAuth2</span>
+              <ArrowRight className="w-4 h-4" />
+            </a>
 
-          <a
-            href="/api/auth/login?mock=true"
-            className="w-full py-3 px-6 rounded-2xl bg-slate-800 hover:bg-slate-700/80 text-slate-300 hover:text-white font-semibold text-xs flex items-center justify-center space-x-2 border border-slate-700/50 transition-all"
-          >
-            <Code className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Dev Mock Login (Local Test)</span>
-          </a>
-        </div>
+            <button
+              type="button"
+              onClick={() => setShowPasswordForm(true)}
+              className="w-full py-3 px-6 rounded-2xl bg-slate-800 hover:bg-slate-700/80 text-slate-300 hover:text-white font-semibold text-xs flex items-center justify-center space-x-2 border border-slate-700/50 transition-all"
+            >
+              <UserCheck className="w-4 h-4 text-indigo-400" />
+              <span>Đăng nhập bằng Tài khoản / Mật khẩu</span>
+            </button>
+          </div>
+        ) : (
+          /* Username / Password Form Mode */
+          <form onSubmit={handlePasswordLogin} className="space-y-4 pt-1 text-left">
+            {formError && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start space-x-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300 block">Tên đăng nhập / Username</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <User className="w-4 h-4" />
+                </div>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Nhập tên đăng nhập (VD: admin)"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-300 block">Mật khẩu / Password</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Nhập mật khẩu"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 space-y-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-sm flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/30 transition-all"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang xác thực...</span>
+                  </>
+                ) : (
+                  <span>Đăng nhập</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPasswordForm(false);
+                  setFormError('');
+                }}
+                className="w-full py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-all"
+              >
+                ← Quay lại tùy chọn đăng nhập
+              </button>
+            </div>
+          </form>
+        )}
 
         <div className="flex items-center justify-center space-x-2 text-xs font-medium text-slate-400 pt-2">
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>OAuth2 Standard Authorization Code Flow</span>
+          <span>Xác thực an toàn • Mã hóa Cookie HTTP-Only</span>
         </div>
 
         <div className="border-t border-slate-800 pt-4">
           <Link href="/" className="text-xs font-bold text-indigo-400 hover:text-indigo-300 hover:underline">
-            ← Back to Home
+            ← Quay lại Trang chủ
           </Link>
         </div>
       </div>
@@ -80,13 +204,16 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 text-sm">
-        Loading Mezon Login...
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 text-sm">
+          Đang tải trang đăng nhập...
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );
 }
+
 
