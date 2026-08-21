@@ -44,6 +44,7 @@ export default function AdminTopicsPage() {
   // Form State
   const [formTitle, setFormTitle] = useState('');
   const [formCategory, setFormCategory] = useState('General');
+  const [formDescription, setFormDescription] = useState('');
   const [formPart1Questions, setFormPart1Questions] = useState<string[]>(['']);
   const [formPart2Title, setFormPart2Title] = useState('');
   const [formPart2PromptLead, setFormPart2PromptLead] = useState('You should say:');
@@ -99,6 +100,7 @@ export default function AdminTopicsPage() {
     setEditingTopic(null);
     setFormTitle('');
     setFormCategory('General');
+    setFormDescription('');
     setFormPart1Questions(['Do you work or are you a student?', 'What do you enjoy most about your daily routine?']);
     setFormPart2Title('Describe a memorable experience');
     setFormPart2PromptLead('You should say:');
@@ -114,6 +116,7 @@ export default function AdminTopicsPage() {
     setEditingTopic(t);
     setFormTitle(t.title);
     setFormCategory(t.category || 'General');
+    setFormDescription(t.description || '');
     setFormPart1Questions(t.part1_questions?.map((q) => q.question_text) || ['']);
     setFormPart2Title(t.part2_cue_card?.cue_card_title || t.title);
     setFormPart2PromptLead(t.part2_cue_card?.prompt_lead || 'You should say:');
@@ -140,6 +143,7 @@ export default function AdminTopicsPage() {
       const topicPayload = {
         title: formTitle.trim(),
         category: formCategory.trim(),
+        description: formDescription.trim() || undefined,
         part1_questions: formPart1Questions
           .filter((q) => q.trim().length > 0)
           .map((q, idx) => ({
@@ -422,6 +426,13 @@ export default function AdminTopicsPage() {
                   </div>
 
                   <h3 className="text-lg font-bold text-slate-900">{t.title}</h3>
+                  {t.description && (
+                    <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 overflow-hidden">
+                      <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed overflow-hidden text-ellipsis">
+                        {t.description}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-xs">
@@ -480,28 +491,41 @@ export default function AdminTopicsPage() {
 
             <form onSubmit={handleSaveTopic} className="space-y-6 text-xs text-slate-700">
               {/* General Metadata */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="font-bold text-slate-900 block">Topic Title *</label>
-                  <input
-                    type="text"
-                    value={formTitle}
-                    onChange={(e) => setFormTitle(e.target.value)}
-                    placeholder="e.g. Work and Studies, Technology in Daily Life"
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:bg-white focus:outline-none"
-                    required
-                  />
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-900 block">Topic Title *</label>
+                    <input
+                      type="text"
+                      value={formTitle}
+                      onChange={(e) => setFormTitle(e.target.value)}
+                      placeholder="e.g. Work and Studies, Technology in Daily Life"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:bg-white focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-900 block">Category *</label>
+                    <input
+                      type="text"
+                      value={formCategory}
+                      onChange={(e) => setFormCategory(e.target.value)}
+                      placeholder="e.g. Daily Life, Education, Technology, Travel"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:bg-white focus:outline-none"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-bold text-slate-900 block">Category *</label>
-                  <input
-                    type="text"
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    placeholder="e.g. Daily Life, Education, Technology, Travel"
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:bg-white focus:outline-none"
-                    required
+                  <label className="font-bold text-slate-900 block">Description (Optional)</label>
+                  <textarea
+                    rows={2}
+                    value={formDescription}
+                    onChange={(e) => setFormDescription(e.target.value)}
+                    placeholder="Provide a short overview of questions and themes covered in this test set..."
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:bg-white focus:outline-none resize-none"
                   />
                 </div>
               </div>

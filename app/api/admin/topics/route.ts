@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { title, category, part1_questions, part2_cue_card, part3_questions } = body || {};
+    const { title, category, description, part1_questions, part2_cue_card, part3_questions } = body || {};
 
     if (!title || !category) {
       return NextResponse.json({ success: false, error: 'Title and Category are required.' }, { status: 400 });
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       id: `topic-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       title,
       category,
+      description: description || undefined,
       part1_questions: part1_questions || [],
       part2_cue_card: part2_cue_card || {
         id: `cue-${Date.now()}`,

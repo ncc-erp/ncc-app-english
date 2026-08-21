@@ -237,9 +237,11 @@ export default function IELTSSpeakingPortalPage() {
                     <h3 className="text-base font-bold text-slate-900 leading-snug line-clamp-2">{t.title}</h3>
 
                     {t.description && (
-                      <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                        {t.description}
-                      </p>
+                      <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 overflow-hidden">
+                        <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed overflow-hidden text-ellipsis">
+                          {t.description}
+                        </p>
+                      </div>
                     )}
                   </div>
 
