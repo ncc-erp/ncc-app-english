@@ -46,7 +46,7 @@ export const SpeakingTimer: React.FC<SpeakingTimerProps> = ({
           {isWarning ? <AlertCircle className="w-5 h-5 text-rose-600" /> : <Volume2 className="w-5 h-5 text-indigo-600" />}
           <div>
             <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Thời gian phát biểu còn lại (Mục tiêu: 1 - 2 phút)
+              Remaining Speaking Time (Target: 1–2 minutes)
             </div>
             <div className="text-xl font-mono font-bold text-slate-900">
               {mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
@@ -54,7 +54,7 @@ export const SpeakingTimer: React.FC<SpeakingTimerProps> = ({
           </div>
         </div>
 
-        {isWarning && <div className="text-xs font-bold text-rose-700 px-3 py-1 bg-rose-100 rounded-lg border border-rose-200">Sắp hết giờ! Chuẩn bị kết bài</div>}
+        {isWarning && <div className="text-xs font-bold text-rose-700 px-3 py-1 bg-rose-100 rounded-lg border border-rose-200">Time running out! Prepare to wrap up</div>}
       </div>
     </div>
   );

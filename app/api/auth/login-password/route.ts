@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     const { username, password } = body || {};
 
     if (!username || !password) {
-      return NextResponse.json({ success: false, error: 'Tên đăng nhập và mật khẩu là bắt buộc' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'Username and password are required.' }, { status: 400 });
     }
 
     const trimmedUsername = username.trim();
@@ -31,11 +31,11 @@ export async function POST(req: NextRequest) {
 
     // Default error for invalid credentials
     return NextResponse.json(
-      { success: false, error: 'Tên đăng nhập hoặc mật khẩu không chính xác' },
+      { success: false, error: 'Invalid username or password.' },
       { status: 401 }
     );
   } catch (error) {
     console.error('[Login Password Error]:', error);
-    return NextResponse.json({ success: false, error: 'Đã xảy ra lỗi hệ thống' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'System error occurred. Please try again later.' }, { status: 500 });
   }
 }
