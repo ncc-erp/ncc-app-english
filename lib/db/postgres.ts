@@ -651,4 +651,75 @@ export const pgDb = {
       responses: {},
     }));
   },
+
+  async createIELTSTopic(topic: IELTSSpeakingTopic): Promise<IELTSSpeakingTopic> {
+    await ensureDbInitialized();
+    const id = topic.id || `topic-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const query = `
+      INSERT INTO ielts_speaking_topics (id, title, category, part1_questions, part2_cue_card, part3_questions, active)
+      VALUES ($1, $2, $3, $4, $5, $6, true)
+      RETURNING *;
+    `;
+    const values = [
+      id,
+      topic.title,
+      topic.category || 'General',
+      JSON.stringify(topic.part1_questions || []),
+      JSON.stringify(topic.part2_cue_card || {}),
+      JSON.stringify(topic.part3_questions || []),
+    ];
+
+    const { rows } = await pool.query(query, values);
+    const r = rows[0];
+    return {
+      id: r.id,
+      title: r.title,
+      category: r.category,
+      part1_questions: typeof r.part1_questions === 'string' ? JSON.parse(r.part1_questions) : r.part1_questions,
+      part2_cue_card: typeof r.part2_cue_card === 'string' ? JSON.parse(r.part2_cue_card) : r.part2_cue_card,
+      part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions,
+    };
+  },
+
+  async updateIELTSTopic(id: string, topic: Partial<IELTSSpeakingTopic>): Promise<IELTSSpeakingTopic | null> {
+    await ensureDbInitialized();
+    const fields: string[] = [];
+    const values: unknown[] = [id];
+    let paramIndex = 2;
+
+    if (topic.title !== undefined) {
+      fields.push(`title = $${paramIndex++}`);
+      values.push(topic.title);
+    }
+    if (topic.category !== undefined) {
+      fields.push(`category = $${paramIndex++}`);
+      values.push(topic.category);
+    }
+    if (topic.part1_questions !== undefined) {
+      fields.push(`part1_questions = $${paramIndex++}`);
+      values.push(JSON.stringify(topic.part1_questions));
+    }
+    if (topic.part2_cue_card !== undefined) {
+      fields.push(`part2_cue_card = $${paramIndex++}`);
+      values.push(JSON.stringify(topic.part2_cue_card));
+    }
+    if (topic.part3_questions !== undefined) {
+      fields.push(`part3_questions = $${paramIndex++}`);
+      values.push(JSON.stringify(topic.part3_questions));
+    }
+
+    if (fields.length > 0) {
+      const updateQuery = `UPDATE ielts_speaking_topics SET ${fields.join(', ')} WHERE id = $1`;
+      await pool.query(updateQuery, values);
+    }
+
+    return this.getIELTSTopic(id);
+  },
+
+  async deleteIELTSTopic(id: string): Promise<boolean> {
+    await ensureDbInitialized();
+    const query = `DELETE FROM ielts_speaking_topics WHERE id = $1`;
+    const result = await pool.query(query, [id]);
+    return (result.rowCount ?? 0) > 0;
+  },
 };
