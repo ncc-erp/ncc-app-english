@@ -4,6 +4,7 @@ import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { QuestionAudioReviewer } from '@/components/ielts/QuestionAudioReviewer';
+import { ClanJoinCTA } from '@/components/result/ClanJoinCTA';
 import { IELTSScoreResult } from '@/types/ielts';
 import { Award, Sparkles, AlertCircle, ArrowUpRight, RefreshCw, ChevronRight, Clock } from 'lucide-react';
 
@@ -15,39 +16,40 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchResult() {
-      try {
-        setLoading(true);
-        const res = await fetch(`/api/ielts/${attemptId}`);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        let data: any;
-        const contentType = res.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          data = await res.json();
-        } else {
-          const text = await res.text();
-          throw new Error(text || `Server returned non-JSON response (${res.status})`);
-        }
-
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || 'Failed to load result report');
-        }
-
-        if (data.result) {
-          setResult(data.result);
-        } else {
-          // Instant submit case: result is not yet generated. Auto-trigger AI evaluation!
-          setResult(null);
-          handleRescoreWithAI();
-        }
-      } catch (err) {
-        console.error('Fetch result error:', err);
-        setError((err as Error).message);
-      } finally {
-        setLoading(false);
+  const fetchResult = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/ielts/${attemptId}`);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let data: any;
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(text || `Server returned non-JSON response (${res.status})`);
       }
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to load result report');
+      }
+
+      if (data.result) {
+        setResult(data.result);
+      } else {
+        // Instant submit case: result is not yet generated. Auto-trigger AI evaluation!
+        setResult(null);
+        handleRescoreWithAI();
+      }
+    } catch (err) {
+      console.error('Fetch result error:', err);
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchResult();
   }, [attemptId]);
 
@@ -330,6 +332,9 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
             </div>
           </div>
         </div>
+
+        {/* Join Mezon English Clan CTA Banner */}
+        <ClanJoinCTA attemptId={attemptId} onVerifySuccess={fetchResult} />
 
         {/* Action Controls */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6">
