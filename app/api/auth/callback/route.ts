@@ -42,13 +42,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // If savedState exists, verify it matches
+  // If savedState exists, verify state match for CSRF protection
   if (savedState && state && state !== savedState) {
     console.warn('[OAuth Callback] State mismatch warning:', { state, savedState });
+    return NextResponse.redirect(new URL('/login?error=state_mismatch', req.url));
   }
 
   try {
-    const tokens = await exchangeOAuthCodeForToken(code);
+    const tokens = await exchangeOAuthCodeForToken(code, state || undefined);
     console.log('[OAuth Callback] Tokens received:', { hasAccessToken: !!tokens?.access_token });
 
     if (!tokens.access_token) {
@@ -76,9 +77,12 @@ export async function GET(req: NextRequest) {
 
     console.log('[OAuth Callback] Logged in successfully:', userSession.display_name);
 
-    return NextResponse.redirect(new URL('/', req.url));
+    const response = NextResponse.redirect(new URL('/', req.url));
+    response.cookies.delete('oauth_state');
+    return response;
   } catch (error) {
     console.error('[OAuth Callback] Authentication failed:', error);
     return NextResponse.redirect(new URL('/login?error=auth_failed', req.url));
   }
 }
+

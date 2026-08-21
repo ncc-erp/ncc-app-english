@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
-import { getMezonOAuthAuthUrl } from '@/lib/mezon/oauth';
+import { getMezonOAuthAuthUrl, generateMezonState } from '@/lib/mezon/oauth';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -14,7 +13,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(new URL('/api/auth/callback?code=mock_dev_code', req.url));
   }
 
-  const state = crypto.randomBytes(16).toString('hex');
+  const state = generateMezonState();
   const authUrl = getMezonOAuthAuthUrl(state);
 
   const response = NextResponse.redirect(authUrl);
@@ -27,3 +26,4 @@ export async function GET(req: NextRequest) {
 
   return response;
 }
+

@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 export interface MezonTokenResponse {
   access_token: string;
   token_type: string;
@@ -20,6 +22,19 @@ export interface MezonUserInfo {
   picture?: string;
 }
 
+/**
+ * Mezon requires an 11-character alphanumeric string for the `state` parameter.
+ */
+export function generateMezonState(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  const randomBytes = crypto.randomBytes(11);
+  for (let i = 0; i < 11; i++) {
+    result += chars[randomBytes[i] % chars.length];
+  }
+  return result;
+}
+
 export function getMezonOAuthAuthUrl(state: string): string {
   const clientId = process.env.MEZON_CLIENT_ID || '';
   const redirectUri = process.env.MEZON_REDIRECT_URI || 'http://localhost:3000/api/auth/callback';
@@ -28,57 +43,64 @@ export function getMezonOAuthAuthUrl(state: string): string {
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: 'openid',
+    scope: 'openid offline',
     state,
   });
 
   return `https://oauth2.mezon.ai/oauth2/auth?${params.toString()}`;
 }
 
-export async function exchangeOAuthCodeForToken(code: string): Promise<MezonTokenResponse> {
+export async function exchangeOAuthCodeForToken(code: string, state?: string): Promise<MezonTokenResponse> {
   const clientId = process.env.MEZON_CLIENT_ID || '';
   const clientSecret = process.env.MEZON_CLIENT_SECRET || '';
   const redirectUri = process.env.MEZON_REDIRECT_URI || 'http://localhost:3000/api/auth/callback';
 
-  // RFC 6749 Section 2.3.1: URL-encode credentials before base64 for Basic Auth
-  const encodedClientId = encodeURIComponent(clientId);
-  const encodedClientSecret = encodeURIComponent(clientSecret);
-  const basicAuth = Buffer.from(`${encodedClientId}:${encodedClientSecret}`).toString('base64');
-
-  const bodyParams = new URLSearchParams({
+  // Per Mezon docs (and RFC 6749), parameters are sent via application/x-www-form-urlencoded
+  const postParams = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
+    client_id: clientId,
+    client_secret: clientSecret,
     redirect_uri: redirectUri,
   });
+
+  if (state) {
+    postParams.set('state', state);
+  }
 
   let res = await fetch('https://oauth2.mezon.ai/oauth2/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${basicAuth}`,
     },
-    body: bodyParams.toString(),
+    body: postParams.toString(),
   });
 
   if (!res.ok) {
     const errText = await res.text();
-    console.warn('[exchangeOAuthCodeForToken] Basic auth attempt returned:', res.status, errText);
+    console.warn('[exchangeOAuthCodeForToken] Form body auth attempt returned:', res.status, errText);
 
-    // Fallback: client_secret_post (Credentials in Body only, without Basic Auth header)
-    const postParams = new URLSearchParams({
+    // Fallback: Basic Auth Header attempt (RFC 6749 Section 2.3.1)
+    const encodedClientId = encodeURIComponent(clientId);
+    const encodedClientSecret = encodeURIComponent(clientSecret);
+    const basicAuth = Buffer.from(`${encodedClientId}:${encodedClientSecret}`).toString('base64');
+
+    const basicBodyParams = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
-      client_id: clientId,
-      client_secret: clientSecret,
       redirect_uri: redirectUri,
     });
+    if (state) {
+      basicBodyParams.set('state', state);
+    }
 
     const fallbackRes = await fetch('https://oauth2.mezon.ai/oauth2/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Basic ${basicAuth}`,
       },
-      body: postParams.toString(),
+      body: basicBodyParams.toString(),
     });
 
     if (fallbackRes.ok) {
@@ -86,8 +108,8 @@ export async function exchangeOAuthCodeForToken(code: string): Promise<MezonToke
     }
 
     const fallbackErr = await fallbackRes.text();
-    console.error('[exchangeOAuthCodeForToken] Post auth fallback failed:', fallbackRes.status, fallbackErr);
-    throw new Error(`Mezon token exchange failed: ${res.status} ${errText}`);
+    console.error('[exchangeOAuthCodeForToken] Basic auth fallback failed:', fallbackRes.status, fallbackErr);
+    throw new Error(`Mezon token exchange failed: ${res.status} - ${errText || fallbackErr}`);
   }
 
   return res.json();
@@ -107,3 +129,4 @@ export async function fetchMezonUserInfo(accessToken: string): Promise<MezonUser
 
   return res.json();
 }
+
