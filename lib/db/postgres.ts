@@ -75,7 +75,7 @@ export const pool = new Proxy({} as Pool, {
 
 let isInitializing = false;
 
-// Auto initialize schema & seed questions & IELTS topics
+// Auto initialize schema & seed questions & IELTS topics (seeded 8 topics)
 export async function ensureDbInitialized() {
   if (globalForPg.dbInitialized || isInitializing) return;
   isInitializing = true;
@@ -168,12 +168,15 @@ export async function ensureDbInitialized() {
             id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
             category TEXT NOT NULL,
+            description TEXT,
             part1_questions JSONB NOT NULL,
             part2_cue_card JSONB NOT NULL,
             part3_questions JSONB NOT NULL,
             active BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
+
+        ALTER TABLE ielts_speaking_topics ADD COLUMN IF NOT EXISTS description TEXT;
 
         CREATE TABLE IF NOT EXISTS ielts_speaking_attempts (
             id TEXT PRIMARY KEY,
@@ -225,26 +228,30 @@ export async function ensureDbInitialized() {
         console.log(`[PostgreSQL] Seeded ${SEED_QUESTIONS.length} exam questions into DB.`);
       }
 
-      // 3. Seed IELTS topics if empty
-      const { rows: ieltsRows } = await client.query('SELECT COUNT(*) as count FROM ielts_speaking_topics');
-      if (parseInt(ieltsRows[0].count, 10) === 0) {
-        for (const t of SEED_IELTS_TOPICS) {
-          await client.query(
-            `INSERT INTO ielts_speaking_topics (id, title, category, part1_questions, part2_cue_card, part3_questions)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT (id) DO NOTHING`,
-            [
-              t.id,
-              t.title,
-              t.category,
-              JSON.stringify(t.part1_questions),
-              JSON.stringify(t.part2_cue_card),
-              JSON.stringify(t.part3_questions),
-            ]
-          );
-        }
-        console.log(`[PostgreSQL] Seeded ${SEED_IELTS_TOPICS.length} IELTS Speaking topics into DB.`);
+      // 3. Seed/Upsert IELTS topics
+      for (const t of SEED_IELTS_TOPICS) {
+        await client.query(
+          `INSERT INTO ielts_speaking_topics (id, title, category, description, part1_questions, part2_cue_card, part3_questions)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (id) DO UPDATE SET
+             title = EXCLUDED.title,
+             category = EXCLUDED.category,
+             description = EXCLUDED.description,
+             part1_questions = EXCLUDED.part1_questions,
+             part2_cue_card = EXCLUDED.part2_cue_card,
+             part3_questions = EXCLUDED.part3_questions;`,
+          [
+            t.id,
+            t.title,
+            t.category,
+            t.description || null,
+            JSON.stringify(t.part1_questions),
+            JSON.stringify(t.part2_cue_card),
+            JSON.stringify(t.part3_questions),
+          ]
+        );
       }
+      console.log(`[PostgreSQL] Seeded/Upserted ${SEED_IELTS_TOPICS.length} IELTS Speaking topics into DB.`);
 
       // 4. Clear legacy multiple-choice exam attempt data safely & clean empty spammed IELTS attempts
       try {
@@ -472,14 +479,45 @@ export const pgDb = {
   // ============================================================
   async getIELTSTopics(): Promise<IELTSSpeakingTopic[]> {
     await ensureDbInitialized();
-    const query = `SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`;
-    const { rows } = await pool.query(query);
-    if (rows.length === 0) return SEED_IELTS_TOPICS;
+    try {
+      await pool.query(`ALTER TABLE ielts_speaking_topics ADD COLUMN IF NOT EXISTS description TEXT;`);
+    } catch {
+      // Ignore if alter fails
+    }
+    let { rows } = await pool.query(`SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`);
+
+    if (rows.length < SEED_IELTS_TOPICS.length) {
+      for (const t of SEED_IELTS_TOPICS) {
+        await pool.query(
+          `INSERT INTO ielts_speaking_topics (id, title, category, description, part1_questions, part2_cue_card, part3_questions)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (id) DO UPDATE SET
+             title = EXCLUDED.title,
+             category = EXCLUDED.category,
+             description = EXCLUDED.description,
+             part1_questions = EXCLUDED.part1_questions,
+             part2_cue_card = EXCLUDED.part2_cue_card,
+             part3_questions = EXCLUDED.part3_questions;`,
+          [
+            t.id,
+            t.title,
+            t.category,
+            t.description || null,
+            JSON.stringify(t.part1_questions),
+            JSON.stringify(t.part2_cue_card),
+            JSON.stringify(t.part3_questions),
+          ]
+        );
+      }
+      const reQuery = await pool.query(`SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`);
+      rows = reQuery.rows;
+    }
 
     return rows.map((r) => ({
       id: r.id,
       title: r.title,
       category: r.category,
+      description: r.description || undefined,
       part1_questions: typeof r.part1_questions === 'string' ? JSON.parse(r.part1_questions) : r.part1_questions,
       part2_cue_card: typeof r.part2_cue_card === 'string' ? JSON.parse(r.part2_cue_card) : r.part2_cue_card,
       part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions,
@@ -498,6 +536,7 @@ export const pgDb = {
       id: r.id,
       title: r.title,
       category: r.category,
+      description: r.description || undefined,
       part1_questions: typeof r.part1_questions === 'string' ? JSON.parse(r.part1_questions) : r.part1_questions,
       part2_cue_card: typeof r.part2_cue_card === 'string' ? JSON.parse(r.part2_cue_card) : r.part2_cue_card,
       part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions,
@@ -656,14 +695,15 @@ export const pgDb = {
     await ensureDbInitialized();
     const id = topic.id || `topic-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const query = `
-      INSERT INTO ielts_speaking_topics (id, title, category, part1_questions, part2_cue_card, part3_questions, active)
-      VALUES ($1, $2, $3, $4, $5, $6, true)
+      INSERT INTO ielts_speaking_topics (id, title, category, description, part1_questions, part2_cue_card, part3_questions, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, true)
       RETURNING *;
     `;
     const values = [
       id,
       topic.title,
       topic.category || 'General',
+      topic.description || null,
       JSON.stringify(topic.part1_questions || []),
       JSON.stringify(topic.part2_cue_card || {}),
       JSON.stringify(topic.part3_questions || []),
@@ -675,6 +715,7 @@ export const pgDb = {
       id: r.id,
       title: r.title,
       category: r.category,
+      description: r.description || undefined,
       part1_questions: typeof r.part1_questions === 'string' ? JSON.parse(r.part1_questions) : r.part1_questions,
       part2_cue_card: typeof r.part2_cue_card === 'string' ? JSON.parse(r.part2_cue_card) : r.part2_cue_card,
       part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions,
@@ -694,6 +735,10 @@ export const pgDb = {
     if (topic.category !== undefined) {
       fields.push(`category = $${paramIndex++}`);
       values.push(topic.category);
+    }
+    if (topic.description !== undefined) {
+      fields.push(`description = $${paramIndex++}`);
+      values.push(topic.description);
     }
     if (topic.part1_questions !== undefined) {
       fields.push(`part1_questions = $${paramIndex++}`);
