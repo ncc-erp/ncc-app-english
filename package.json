@@ -13,6 +13,7 @@
     "iron-session": "^8.0.4",
     "lucide-react": "^0.475.0",
     "mezon-english-exam-app": "file:../mezon-app-sample",
+    "mezon-sdk": "^2.8.57",
     "next": "^15.1.7",
     "pg": "^8.16.3",
     "react": "^19.0.0",

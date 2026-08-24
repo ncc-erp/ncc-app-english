@@ -11,12 +11,18 @@ interface ClanJoinCTAProps {
 export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuccess }) => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const clanInviteUrl = process.env.NEXT_PUBLIC_MEZON_CLAN_INVITE_URL || 'https://mezon.ai/invite/demo';
+  const clanInviteUrl =
+    process.env.NEXT_PUBLIC_MEZON_CLAN_INVITE_URL ||
+    process.env.MEZON_CLAN_INVITE_URL ||
+    'https://mezon.ai/invite/demo';
 
   const handleVerify = async () => {
     setIsVerifying(true);
     setErrorMsg(null);
+    setIsSuccess(false);
 
     try {
       const res = await fetch('/api/membership/verify', {
@@ -28,6 +34,8 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuc
       const data = await res.json();
 
       if (data.success && data.isMember) {
+        setIsSuccess(true);
+        setSuccessMsg('🎉 Xác thực thành viên Mezon Clan thành công! Chúc mừng bạn đã gia nhập Clan.');
         onVerifySuccess();
       } else {
         setErrorMsg(data.message || 'We could not confirm your clan membership yet. Please join the clan and try again.');
@@ -81,6 +89,14 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuc
           <span>{isVerifying ? 'Checking Membership...' : "I've Joined — Verify Now"}</span>
         </button>
       </div>
+
+      {/* Success message */}
+      {isSuccess && (
+        <div className="p-4 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 text-xs sm:text-sm flex items-center space-x-2.5 animate-fade-in shadow-lg">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span className="font-bold">{successMsg}</span>
+        </div>
+      )}
 
       {/* Error / Status message */}
       {errorMsg && (
