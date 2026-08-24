@@ -26,17 +26,38 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           isMember: false,
-          message: 'We could not verify your clan membership yet. Please ensure you have joined the clan and try again in a few moments.',
+          message: '⚠️ We could not verify your Mezon Clan membership yet. Please click the "Join Mezon Clan" button above to join the clan, then click "I\'ve Joined — Verify Now" again.',
         },
         { status: 200 }
       );
     }
 
-    // Member verified! Update user session & attempt
+    // Member verified! Update user session & DB membership status
     session.user.clan_member = true;
     await session.save();
 
     await pgDb.updateUserClanMembership(session.user.mezon_id, true);
+
+    // Support IELTS Speaking attempts (starting with ielts-att-)
+    if (attemptId.startsWith('ielts-att-')) {
+      await pgDb.updateIELTSAttemptUnlocked(attemptId, true);
+      const ieltsAttempt = await pgDb.getIELTSAttempt(attemptId);
+      if (!ieltsAttempt) {
+        return NextResponse.json({ success: false, error: 'IELTS Speaking attempt not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        success: true,
+        isMember: true,
+        result: {
+          attempt_id: attemptId,
+          unlocked: true,
+          result_status: 'full',
+          overall_band: ieltsAttempt.band_score,
+          score_result: ieltsAttempt.score_result,
+        },
+      });
+    }
 
     const updatedAttempt = await pgDb.updateAttempt(attemptId, {
       unlocked: true,

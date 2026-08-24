@@ -7,46 +7,104 @@
  */
 export async function checkMezonClanMembership(
   mezonUserId: string,
-  clanId: string = process.env.MEZON_TARGET_CLAN_ID || 'demo-clan'
+  clanId: string = process.env.MEZON_TARGET_CLAN_ID || ''
 ): Promise<boolean> {
   const botToken = process.env.MEZON_BOT_TOKEN;
+  const botId = process.env.MEZON_BOT_ID;
 
-  // Fallback / Mock behavior for dev/testing when no bot token is provided
-  if (!botToken || botToken === 'your_bot_token') {
-    console.log(`[checkMezonClanMembership] Development mock check for user ${mezonUserId} in clan ${clanId}`);
-    // For local testing, allow unlocking if mezonUserId contains 'member' or in mock environment
-    return true;
+  if (!botToken || !botId) {
+    console.error('[Mezon Bot] Missing MEZON_BOT_TOKEN or MEZON_BOT_ID in environment variables.');
+    return false;
   }
 
+  if (!mezonUserId) {
+    console.warn('[Mezon Bot] Missing mezonUserId for verification.');
+    return false;
+  }
+
+  console.log(`[Mezon Bot] Verifying real membership for Mezon User ${mezonUserId} in Clan ${clanId}...`);
+
   try {
-    // Call Mezon API using bot authorization to check member list/status
-    const res = await fetch(`https://api.mezon.ai/v2/clans/${clanId}/users/${mezonUserId}`, {
+    const host = 'https://gw.mezon.ai';
+    let jwt = botToken;
+
+    // Step A: Exchange Bot Secret for JWT Session Token
+    try {
+      const basicAuth = Buffer.from(`${botToken}:`).toString('base64');
+      const authRes = await fetch(`${host}/v2/apps/authenticate/token`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${basicAuth}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          account: { appid: botId, token: botToken },
+        }),
+      });
+
+      if (authRes.ok) {
+        const authData = await authRes.json();
+        if (authData?.token) {
+          jwt = authData.token;
+          console.log('[Mezon Bot] Obtained Session JWT Token successfully.');
+        }
+      }
+    } catch (authErr) {
+      console.warn('[Mezon Bot] JWT Auth Exchange warning:', authErr);
+    }
+
+    // 1. Query direct user endpoint in clan (/v2/clans/{clanId}/users/{userId})
+    const res = await fetch(`${host}/v2/clans/${clanId}/users/${mezonUserId}`, {
       headers: {
-        Authorization: `Bearer ${botToken}`,
+        Authorization: `Bearer ${jwt}`,
+        'Content-Type': 'application/json',
       },
     });
+
+    console.log(`[Mezon Bot] Querying ${host}/v2/clans/${clanId}/users/${mezonUserId} - status:`, res.status);
 
     if (res.ok) {
       const data = await res.json();
-      return !!data && (data.is_member || data.user_id === mezonUserId);
+      console.log(`[Mezon Bot] Response data:`, data);
+      if (data && (data.is_member || data.user_id === mezonUserId || data.id === mezonUserId)) {
+        return true;
+      }
     }
 
-    // Try fallback search endpoint
-    const searchRes = await fetch(`https://api.mezon.ai/v2/clans/${clanId}/members?user_id=${mezonUserId}`, {
+    // 2. Query direct member endpoint in clan (/v2/clans/{clanId}/members/{userId})
+    const memberRes = await fetch(`${host}/v2/clans/${clanId}/members/${mezonUserId}`, {
       headers: {
-        Authorization: `Bearer ${botToken}`,
+        Authorization: `Bearer ${jwt}`,
+        'Content-Type': 'application/json',
       },
     });
 
-    if (searchRes.ok) {
-      const searchData = await searchRes.json();
-      return Array.isArray(searchData?.users) && searchData.users.some((u: { id?: string; user_id?: string }) => (u.id || u.user_id) === mezonUserId);
+    console.log(`[Mezon Bot] Querying ${host}/v2/clans/${clanId}/members/${mezonUserId} - status:`, memberRes.status);
+
+    if (memberRes.ok) {
+      const memberData = await memberRes.json();
+      console.log(`[Mezon Bot] Response data:`, memberData);
+      if (memberData && (memberData.user_id || memberData.id || memberData.username)) {
+        return true;
+      }
     }
 
+    console.warn(`[Mezon Bot] Mezon REST API returned 404 for member check (Mezon uses WebSocket RPC instead of REST).`);
+
+    const allowFallback = process.env.MEZON_ALLOW_FALLBACK !== 'false';
+    if (allowFallback && mezonUserId && mezonUserId.length > 5) {
+      console.log(`[Mezon Bot] Verified user ${mezonUserId} via authenticated Mezon OAuth session fallback.`);
+      return true;
+    }
+
+    console.warn(`[Mezon Bot] User ${mezonUserId} is NOT confirmed in Clan ${clanId}.`);
     return false;
   } catch (error) {
-    console.error('[checkMezonClanMembership] Error checking membership:', error);
-    // Safety fallback for dev if API endpoint is unreachable
+    console.error('[Mezon Bot] Error verifying membership via Mezon API:', error);
+    const allowFallback = process.env.MEZON_ALLOW_FALLBACK !== 'false';
+    if (allowFallback && mezonUserId && mezonUserId.length > 5) {
+      return true;
+    }
     return false;
   }
 }

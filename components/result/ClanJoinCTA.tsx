@@ -11,12 +11,19 @@ interface ClanJoinCTAProps {
 export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuccess }) => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const clanInviteUrl = process.env.NEXT_PUBLIC_MEZON_CLAN_INVITE_URL || 'https://mezon.ai/invite/demo';
+  const clanInviteUrl =
+    process.env.NEXT_PUBLIC_MEZON_CLAN_INVITE_URL ||
+    process.env.MEZON_CLAN_INVITE_URL ||
+    'https://mezon.ai/invite/demo';
 
-  const handleVerify = async () => {
+  const handleVerify = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
     setIsVerifying(true);
     setErrorMsg(null);
+    setIsSuccess(false);
 
     try {
       const res = await fetch('/api/membership/verify', {
@@ -28,6 +35,8 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuc
       const data = await res.json();
 
       if (data.success && data.isMember) {
+        setIsSuccess(true);
+        setSuccessMsg('🎉 Mezon Clan membership verified successfully! Full report unlocked.');
         onVerifySuccess();
       } else {
         setErrorMsg(data.message || 'We could not confirm your clan membership yet. Please join the clan and try again.');
@@ -73,6 +82,7 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuc
 
         {/* Button 2: Re-check membership */}
         <button
+          type="button"
           onClick={handleVerify}
           disabled={isVerifying}
           className="w-full py-4 px-6 rounded-2xl bg-indigo-600/80 hover:bg-indigo-600 text-white border border-indigo-400/30 font-bold text-sm sm:text-base flex items-center justify-center space-x-2 backdrop-blur-md transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
@@ -82,11 +92,19 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuc
         </button>
       </div>
 
+      {/* Success message */}
+      {isSuccess && (
+        <div className="p-4 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 text-xs sm:text-sm flex items-center space-x-2.5 animate-fade-in shadow-lg">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span className="font-bold">{successMsg}</span>
+        </div>
+      )}
+
       {/* Error / Status message */}
       {errorMsg && (
-        <div className="p-4 rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-100 text-xs sm:text-sm flex items-start space-x-2.5">
+        <div className="p-4 rounded-2xl bg-amber-500/25 border border-amber-400/40 text-amber-100 text-xs sm:text-sm flex items-start space-x-3 shadow-lg animate-fade-in">
           <AlertCircle className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
-          <span>{errorMsg}</span>
+          <span className="font-medium leading-relaxed">{errorMsg}</span>
         </div>
       )}
 
