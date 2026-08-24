@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           isMember: false,
-          message: 'We could not verify your clan membership yet. Please ensure you have joined the clan and try again in a few moments.',
+          message: '⚠️ We could not verify your Mezon Clan membership yet. Please click the "Join Mezon Clan" button above to join the clan, then click "I\'ve Joined — Verify Now" again.',
         },
         { status: 200 }
       );

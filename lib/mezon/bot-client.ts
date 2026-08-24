@@ -90,17 +90,19 @@ export async function checkMezonClanMembership(
     }
 
     console.warn(`[Mezon Bot] Mezon REST API returned 404 for member check (Mezon uses WebSocket RPC instead of REST).`);
-    // Fallback: If user has a valid Mezon User ID from Mezon OAuth login, confirm verification.
-    if (mezonUserId && mezonUserId.length > 5) {
+
+    const allowFallback = process.env.MEZON_ALLOW_FALLBACK !== 'false';
+    if (allowFallback && mezonUserId && mezonUserId.length > 5) {
       console.log(`[Mezon Bot] Verified user ${mezonUserId} via authenticated Mezon OAuth session fallback.`);
       return true;
     }
 
+    console.warn(`[Mezon Bot] User ${mezonUserId} is NOT confirmed in Clan ${clanId}.`);
     return false;
   } catch (error) {
     console.error('[Mezon Bot] Error verifying membership via Mezon API:', error);
-    // Graceful fallback for authenticated Mezon users
-    if (mezonUserId && mezonUserId.length > 5) {
+    const allowFallback = process.env.MEZON_ALLOW_FALLBACK !== 'false';
+    if (allowFallback && mezonUserId && mezonUserId.length > 5) {
       return true;
     }
     return false;

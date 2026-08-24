@@ -35,7 +35,7 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuc
 
       if (data.success && data.isMember) {
         setIsSuccess(true);
-        setSuccessMsg('🎉 Xác thực thành viên Mezon Clan thành công! Chúc mừng bạn đã gia nhập Clan.');
+        setSuccessMsg('🎉 Mezon Clan membership verified successfully! Full report unlocked.');
         onVerifySuccess();
       } else {
         setErrorMsg(data.message || 'We could not confirm your clan membership yet. Please join the clan and try again.');
@@ -100,9 +100,9 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuc
 
       {/* Error / Status message */}
       {errorMsg && (
-        <div className="p-4 rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-100 text-xs sm:text-sm flex items-start space-x-2.5">
+        <div className="p-4 rounded-2xl bg-amber-500/25 border border-amber-400/40 text-amber-100 text-xs sm:text-sm flex items-start space-x-3 shadow-lg animate-fade-in">
           <AlertCircle className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
-          <span>{errorMsg}</span>
+          <span className="font-medium leading-relaxed">{errorMsg}</span>
         </div>
       )}
 
