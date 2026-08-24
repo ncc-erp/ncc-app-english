@@ -16,9 +16,9 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchResult = async () => {
+  const fetchResult = async (showLoadingSpinner = true) => {
     try {
-      setLoading(true);
+      if (showLoadingSpinner) setLoading(true);
       const res = await fetch(`/api/ielts/${attemptId}`);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let data: any;
@@ -45,7 +45,7 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
       console.error('Fetch result error:', err);
       setError((err as Error).message);
     } finally {
-      setLoading(false);
+      if (showLoadingSpinner) setLoading(false);
     }
   };
 
@@ -334,7 +334,7 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
         </div>
 
         {/* Join Mezon English Clan CTA Banner */}
-        <ClanJoinCTA attemptId={attemptId} onVerifySuccess={fetchResult} />
+        <ClanJoinCTA attemptId={attemptId} onVerifySuccess={() => fetchResult(false)} />
 
         {/* Action Controls */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6">

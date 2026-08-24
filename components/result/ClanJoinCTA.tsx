@@ -19,7 +19,8 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuc
     process.env.MEZON_CLAN_INVITE_URL ||
     'https://mezon.ai/invite/demo';
 
-  const handleVerify = async () => {
+  const handleVerify = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
     setIsVerifying(true);
     setErrorMsg(null);
     setIsSuccess(false);
@@ -81,6 +82,7 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuc
 
         {/* Button 2: Re-check membership */}
         <button
+          type="button"
           onClick={handleVerify}
           disabled={isVerifying}
           className="w-full py-4 px-6 rounded-2xl bg-indigo-600/80 hover:bg-indigo-600 text-white border border-indigo-400/30 font-bold text-sm sm:text-base flex items-center justify-center space-x-2 backdrop-blur-md transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
