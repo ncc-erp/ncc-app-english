@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
 
     // Support IELTS Speaking attempts (starting with ielts-att-)
     if (attemptId.startsWith('ielts-att-')) {
+      await pgDb.updateIELTSAttemptUnlocked(attemptId, true);
       const ieltsAttempt = await pgDb.getIELTSAttempt(attemptId);
       if (!ieltsAttempt) {
         return NextResponse.json({ success: false, error: 'IELTS Speaking attempt not found' }, { status: 404 });

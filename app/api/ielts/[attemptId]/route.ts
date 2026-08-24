@@ -21,19 +21,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ atte
       return NextResponse.json({ success: false, error: 'IELTS topic not found' }, { status: 404 });
     }
 
+    const isUnlocked = session.user?.clan_member === true || attempt.unlocked === true;
+
     if (attempt.status === 'submitted') {
       return NextResponse.json({
         success: true,
-        attempt,
+        attempt: { ...attempt, unlocked: isUnlocked },
         topic,
-        result: attempt.score_result || null,
+        isUnlocked,
+        result: attempt.score_result ? { ...attempt.score_result, unlocked: isUnlocked } : null,
       });
     }
 
     return NextResponse.json({
       success: true,
-      attempt,
+      attempt: { ...attempt, unlocked: isUnlocked },
       topic,
+      isUnlocked,
     });
   } catch (error) {
     console.error('[GET /api/ielts/[attemptId]] Error:', error);

@@ -189,8 +189,11 @@ export async function ensureDbInitialized() {
             part2_notes TEXT,
             overall_band NUMERIC(3, 1),
             score_result JSONB,
+            unlocked BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
+
+        ALTER TABLE ielts_speaking_attempts ADD COLUMN IF NOT EXISTS unlocked BOOLEAN DEFAULT FALSE;
 
         CREATE TABLE IF NOT EXISTS ielts_speaking_responses (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -611,6 +614,7 @@ export const pgDb = {
       submitted_at: r.submitted_at ? new Date(r.submitted_at).toISOString() : undefined,
       part2_notes: r.part2_notes || undefined,
       band_score: r.overall_band ? parseFloat(r.overall_band) : undefined,
+      unlocked: r.unlocked === true,
       score_result: r.score_result ? (typeof r.score_result === 'string' ? JSON.parse(r.score_result) : r.score_result) : undefined,
       responses: responsesRecord,
     };
@@ -638,6 +642,11 @@ export const pgDb = {
   async saveIELTSPart2Notes(attemptId: string, notes: string): Promise<void> {
     await ensureDbInitialized();
     await pool.query(`UPDATE ielts_speaking_attempts SET part2_notes = $1 WHERE id = $2`, [notes, attemptId]);
+  },
+
+  async updateIELTSAttemptUnlocked(attemptId: string, unlocked: boolean = true): Promise<void> {
+    await ensureDbInitialized();
+    await pool.query(`UPDATE ielts_speaking_attempts SET unlocked = $1 WHERE id = $2`, [unlocked, attemptId]);
   },
 
   async updateIELTSAttemptStatus(

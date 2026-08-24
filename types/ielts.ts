@@ -54,6 +54,7 @@ export interface IELTSSpeakingAttempt {
   responses: Record<string, IELTSSpeakingResponse>; // question_id -> response
   part2_notes?: string;
   band_score?: number;
+  unlocked?: boolean;
   score_result?: IELTSScoreResult;
 }
 
@@ -91,6 +92,7 @@ export interface IELTSPerQuestionAnalysis {
 export interface IELTSScoreResult {
   attempt_id: string;
   topic_title: string;
+  unlocked?: boolean;
   overall_band: number; // Band 1.0 - 9.0 (e.g. 7.5)
   status_title: string;
   summary_feedback: string;
