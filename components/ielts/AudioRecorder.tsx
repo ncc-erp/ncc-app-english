@@ -328,51 +328,6 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     console.log("[Deepgram STT] Audio streaming started");
   };
 
-  /**
-   * Final transcription using the existing REST API.
-   */
-  const transcribeFinalAudio = async (audioBlob: Blob): Promise<string> => {
-    try {
-      const formData = new FormData();
-
-      formData.append("audio", audioBlob, `recording-${questionId}.webm`);
-
-      console.log("[Final STT] Sending audio for transcription");
-
-      const response = await fetch("/api/ielts/transcribe", {
-        method: "POST",
-        body: formData,
-      });
-
-      const responseText = await response.text();
-      let data: { success?: boolean; transcript?: string; error?: string } = {};
-
-      try {
-        data = JSON.parse(responseText) as typeof data;
-      } catch {
-        console.error("[Final STT] Non-JSON response:", {
-          status: response.status,
-          body: responseText,
-        });
-      }
-
-      if (!response.ok || !data.success) {
-        console.error("[Final STT] Error:", {
-          status: response.status,
-          error: data.error || responseText || "Unknown transcription error",
-        });
-
-        return "";
-      }
-
-      return typeof data.transcript === "string" ? data.transcript.trim() : "";
-    } catch (error) {
-      console.error("[Final STT] Request failed:", error);
-
-      return "";
-    }
-  };
-
   const stopRecording = () => {
     stopTimer();
 
@@ -472,15 +427,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
         setAudioUrl(objectUrl);
 
-        /**
-         * Use final REST transcription
-         * as the source of truth.
-         */
-        const finalTranscript = await transcribeFinalAudio(audioBlob);
-
-        const fallbackTranscript = transcriptRef.current.trim();
-
-        const transcript = finalTranscript || fallbackTranscript;
+        const transcript = transcriptRef.current.trim();
 
         if (recordingSession !== recordingSessionRef.current) {
           stream.getTracks().forEach((track) => track.stop());
