@@ -12,11 +12,13 @@ import {
 } from "lucide-react";
 
 interface AudioRecorderProps {
+  attemptId: string;
   questionId: string;
   onAudioRecorded?: (
     audioUrl: string,
     transcript: string,
     duration: number,
+    audioStoragePath?: string,
   ) => void;
   autoStart?: boolean;
   maxDurationSeconds?: number;
@@ -25,6 +27,7 @@ interface AudioRecorderProps {
 type SttSource = "deepgram" | null;
 
 export const AudioRecorder: React.FC<AudioRecorderProps> = ({
+  attemptId,
   questionId,
   onAudioRecorded,
   autoStart = false,
@@ -73,7 +76,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
   };
 
   const stopStreamingSTT = () => {
-    console.log("[STT] Stopping Deepgram streaming");
+    // console.log("[STT] Stopping Deepgram streaming");
 
     if (sttSocketRef.current) {
       try {
@@ -105,7 +108,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
    * Deepgram Streaming STT
    */
   const connectStreamingSTT = async (stream: MediaStream) => {
-    console.log("[Deepgram STT] Starting");
+    // console.log("[Deepgram STT] Starting");
 
     const response = await fetch("/api/ielts/deepgram-token", {
       method: "GET",
@@ -114,13 +117,13 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
     const data = await response.json();
 
-    console.log("[Deepgram STT] Token response:", {
-      ok: response.ok,
-      status: response.status,
-      success: data.success,
-      hasToken: Boolean(data.token),
-      error: data.error,
-    });
+    // console.log("[Deepgram STT] Token response:", {
+    //   ok: response.ok,
+    //   status: response.status,
+    //   success: data.success,
+    //   hasToken: Boolean(data.token),
+    //   error: data.error,
+    // });
 
     if (!response.ok || !data.success || !data.token) {
       throw new Error(data.error || "Could not start Deepgram transcription.");
@@ -134,11 +137,11 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
     await audioContext.resume();
 
-    console.log(
-      "[Deepgram STT] AudioContext:",
-      audioContext.state,
-      audioContext.sampleRate,
-    );
+    // console.log(
+    //   "[Deepgram STT] AudioContext:",
+    //   audioContext.state,
+    //   audioContext.sampleRate,
+    // );
 
     const params = new URLSearchParams({
       model: "nova-3",
@@ -169,7 +172,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
       }, 10000);
 
       socket.onopen = () => {
-        console.log("[Deepgram STT] WebSocket OPEN");
+        // console.log("[Deepgram STT] WebSocket OPEN");
 
         if (settled) {
           return;
@@ -225,7 +228,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
       socket.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          console.log("[Deepgram STT] Message:", message.type);
+          // console.log("[Deepgram STT] Message:", message.type);
           const transcript =
             typeof message.channel?.alternatives?.[0]?.transcript === "string"
               ? message.channel.alternatives[0].transcript.trim()
@@ -239,12 +242,12 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
             return;
           }
 
-          console.log(
-            "[Deepgram STT] Transcript:",
-            transcript,
-            "final:",
-            message.is_final,
-          );
+          // console.log(
+          //   "[Deepgram STT] Transcript:",
+          //   transcript,
+          //   "final:",
+          //   message.is_final,
+          // );
 
           if (message.is_final) {
             finalTranscriptRef.current =
@@ -318,14 +321,14 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
         audioPacketCount++;
 
         if (audioPacketCount % 20 === 0) {
-          console.log("[Deepgram STT] Audio packets:", audioPacketCount);
+          // console.log("[Deepgram STT] Audio packets:", audioPacketCount);
         }
       } catch (error) {
         console.warn("[Deepgram STT] Failed to send audio:", error);
       }
     };
 
-    console.log("[Deepgram STT] Audio streaming started");
+    // console.log("[Deepgram STT] Audio streaming started");
   };
 
   const stopRecording = () => {
@@ -384,7 +387,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
         },
       });
 
-      console.log("[Recorder] Microphone permission granted");
+      // console.log("[Recorder] Microphone permission granted");
 
       const mediaRecorder = new MediaRecorder(stream);
       const recordingSession = ++recordingSessionRef.current;
@@ -412,7 +415,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
       };
 
       mediaRecorder.onstop = async () => {
-        console.log("[Recorder] MediaRecorder stopped");
+        // console.log("[Recorder] MediaRecorder stopped");
 
         isRecordingRef.current = false;
 
@@ -443,7 +446,37 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
         stream.getTracks().forEach((track) => track.stop());
 
         if (onAudioRecorded) {
-          onAudioRecorded(objectUrl, transcript, recordingTimeRef.current);
+          try {
+            const formData = new FormData();
+            formData.append("file", audioBlob, "recording.webm");
+            formData.append("attemptId", attemptId);
+            formData.append("questionId", questionId);
+
+            const uploadResponse = await fetch("/api/ielts/upload-audio", {
+              method: "POST",
+              body: formData,
+            });
+            const uploadData = await uploadResponse.json();
+
+            if (!uploadResponse.ok || !uploadData.success) {
+              throw new Error(uploadData.error || "Audio upload failed.");
+            }
+
+            URL.revokeObjectURL(objectUrl);
+            setAudioUrl(uploadData.audioUrl);
+            onAudioRecorded(
+              uploadData.audioUrl,
+              transcript,
+              recordingTimeRef.current,
+              uploadData.path,
+            );
+          } catch (error) {
+            console.error("[Recorder] Audio upload failed:", error);
+            setPermissionError(
+              "Recording finished, but saving the audio failed. Please try again.",
+            );
+            onAudioRecorded(objectUrl, transcript, recordingTimeRef.current);
+          }
         }
 
         isFinalizingRef.current = false;

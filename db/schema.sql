@@ -135,6 +135,7 @@ CREATE TABLE IF NOT EXISTS ielts_speaking_responses (
     question_id TEXT NOT NULL,
     part TEXT NOT NULL,
     audio_url TEXT,
+    audio_storage_path TEXT,
     transcript TEXT,
     duration_seconds INT DEFAULT 0,
     answered_at TIMESTAMPTZ DEFAULT NOW(),
