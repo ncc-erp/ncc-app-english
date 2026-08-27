@@ -18,6 +18,18 @@ export async function GET(
   }
 
   try {
+    // Refresh clan_member from DB in case session is stale
+    const dbUser = await pgDb.findOrCreateUser({
+      mezon_id: session.user.mezon_id,
+      username: session.user.mezon_username,
+      display_name: session.user.display_name,
+      avatar_url: session.user.avatar_url,
+    });
+    if (dbUser.clan_member && !session.user.clan_member) {
+      session.user.clan_member = true;
+      await session.save();
+    }
+
     const attempt = await pgDb.getIELTSAttempt(attemptId);
     if (!attempt) {
       return NextResponse.json(
