@@ -1,16 +1,34 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useRef, use } from 'react';
-import { useRouter } from 'next/navigation';
-import { Navbar } from '@/components/Navbar';
-import { AudioRecorder } from '@/components/ielts/AudioRecorder';
-import { PrepTimer } from '@/components/ielts/PrepTimer';
-import { IELTSSpeakingAttempt, IELTSSpeakingTopic, IELTSPart, IELTSSpeakingResponse } from '@/types/ielts';
-import { Mic, ArrowRight, CheckCircle2, Send, Sparkles, Clock, BookOpen, Flag } from 'lucide-react';
+import React, { useState, useEffect, useRef, use } from "react";
+import { useRouter } from "next/navigation";
+import { Navbar } from "@/components/Navbar";
+import { AudioRecorder } from "@/components/ielts/AudioRecorder";
+import { PrepTimer } from "@/components/ielts/PrepTimer";
+import {
+  IELTSSpeakingAttempt,
+  IELTSSpeakingTopic,
+  IELTSPart,
+  IELTSSpeakingResponse,
+} from "@/types/ielts";
+import {
+  Mic,
+  ArrowRight,
+  CheckCircle2,
+  Send,
+  Sparkles,
+  Clock,
+  BookOpen,
+  Flag,
+} from "lucide-react";
 
 const pendingCancels = new Map<string, NodeJS.Timeout>();
 
-export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ attemptId: string }> }) {
+export default function IELTSSpeakingTestPage({
+  params,
+}: {
+  params: Promise<{ attemptId: string }>;
+}) {
   const { attemptId } = use(params);
   const router = useRouter();
 
@@ -19,10 +37,12 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
   const [part3Index, setPart3Index] = useState(0);
   const [attempt, setAttempt] = useState<IELTSSpeakingAttempt | null>(null);
   const [topic, setTopic] = useState<IELTSSpeakingTopic | null>(null);
-  const [currentPart, setCurrentPart] = useState<IELTSPart>('part1');
-  const [part2Step, setPart2Step] = useState<'prep' | 'speaking'>('prep');
-  const [part2Notes, setPart2Notes] = useState('');
-  const [responses, setResponses] = useState<Record<string, IELTSSpeakingResponse>>({});
+  const [currentPart, setCurrentPart] = useState<IELTSPart>("part1");
+  const [part2Step, setPart2Step] = useState<"prep" | "speaking">("prep");
+  const [part2Notes, setPart2Notes] = useState("");
+  const [responses, setResponses] = useState<
+    Record<string, IELTSSpeakingResponse>
+  >({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,11 +55,13 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-          throw new Error(data.error || 'Failed to load test attempt');
+          throw new Error(data.error || "Failed to load test attempt");
         }
 
-        if (data.attempt.status === 'cancelled') {
-          setError('This test attempt was cancelled because it was interrupted before completion.');
+        if (data.attempt.status === "cancelled") {
+          setError(
+            "This test attempt was cancelled because it was interrupted before completion.",
+          );
           return;
         }
 
@@ -52,7 +74,7 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
           setPart2Notes(data.attempt.part2_notes);
         }
       } catch (err) {
-        console.error('Fetch error:', err);
+        console.error("Fetch error:", err);
         setError((err as Error).message);
       } finally {
         setLoading(false);
@@ -71,9 +93,9 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
 
     const triggerCancel = () => {
       if (!isSubmittedRef.current) {
-        fetch('/api/ielts/cancel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        fetch("/api/ielts/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ attemptId }),
           keepalive: true,
         });
@@ -84,10 +106,10 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
       triggerCancel();
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
 
       // When unmounting due to SPA navigation (Back / Home button), schedule cancellation after 500ms
       if (!isSubmittedRef.current) {
@@ -101,13 +123,21 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
     };
   }, [attemptId]);
 
-  const handleAudioRecorded = (questionId: string, part: IELTSPart, audioUrl: string, transcript: string, duration: number) => {
+  const handleAudioRecorded = (
+    questionId: string,
+    part: IELTSPart,
+    audioUrl: string,
+    transcript: string,
+    duration: number,
+    audioStoragePath?: string,
+  ) => {
     setResponses((prev) => ({
       ...prev,
       [questionId]: {
         question_id: questionId,
         part,
         audio_url: audioUrl,
+        audio_storage_path: audioStoragePath,
         transcript,
         duration_seconds: duration,
         answered_at: new Date().toISOString(),
@@ -121,9 +151,9 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
       setSubmitting(true);
       setError(null);
 
-      const res = await fetch('/api/ielts/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/ielts/submit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           attemptId,
           responses,
@@ -133,21 +163,23 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let data: any;
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
         data = await res.json();
       } else {
         const text = await res.text();
-        throw new Error(text || `Server returned non-JSON response (${res.status})`);
+        throw new Error(
+          text || `Server returned non-JSON response (${res.status})`,
+        );
       }
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to submit exam');
+        throw new Error(data.error || "Failed to submit exam");
       }
 
       router.push(`/ielts-speaking/result/${attemptId}`);
     } catch (err) {
-      console.error('Submit error:', err);
+      console.error("Submit error:", err);
       setError((err as Error).message);
       setSubmitting(false);
     }
@@ -157,7 +189,9 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-center items-center">
         <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-slate-600 font-medium">Preparing your IELTS Speaking environment...</p>
+        <p className="text-slate-600 font-medium">
+          Preparing your IELTS Speaking environment...
+        </p>
       </div>
     );
   }
@@ -168,10 +202,10 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
         <Navbar />
         <main className="flex-1 max-w-xl mx-auto px-4 py-16 text-center space-y-6">
           <div className="p-6 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl text-sm font-medium">
-            {error || 'Unable to load IELTS topic or test session.'}
+            {error || "Unable to load IELTS topic or test session."}
           </div>
           <button
-            onClick={() => router.push('/ielts-speaking')}
+            onClick={() => router.push("/ielts-speaking")}
             className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-md shadow-purple-200"
           >
             Return to IELTS Speaking Portal
@@ -181,10 +215,12 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
     );
   }
 
-  const currentP1Question = topic.part1_questions[part1Index] || topic.part1_questions[0];
+  const currentP1Question =
+    topic.part1_questions[part1Index] || topic.part1_questions[0];
   const p1Recorded = responses[currentP1Question.id];
 
-  const currentP3Question = topic.part3_questions[part3Index] || topic.part3_questions[0];
+  const currentP3Question =
+    topic.part3_questions[part3Index] || topic.part3_questions[0];
   const p3Recorded = responses[currentP3Question.id];
 
   return (
@@ -198,7 +234,9 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
             <div className="text-xs uppercase tracking-wider font-bold text-purple-600">
               IELTS Speaking Mock Test
             </div>
-            <h1 className="text-xl font-extrabold text-slate-900">{topic.title}</h1>
+            <h1 className="text-xl font-extrabold text-slate-900">
+              {topic.title}
+            </h1>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -206,27 +244,27 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
             <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
               <div
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-default select-none ${
-                  currentPart === 'part1'
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'text-slate-400 bg-slate-200/60'
+                  currentPart === "part1"
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "text-slate-400 bg-slate-200/60"
                 }`}
               >
                 Part 1
               </div>
               <div
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-default select-none ${
-                  currentPart === 'part2'
-                    ? 'bg-amber-500 text-slate-950 shadow-sm'
-                    : 'text-slate-400 bg-slate-200/60'
+                  currentPart === "part2"
+                    ? "bg-amber-500 text-slate-950 shadow-sm"
+                    : "text-slate-400 bg-slate-200/60"
                 }`}
               >
                 Part 2
               </div>
               <div
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-default select-none ${
-                  currentPart === 'part3'
-                    ? 'bg-indigo-600 text-white shadow-sm'
-                    : 'text-slate-400 bg-slate-200/60'
+                  currentPart === "part3"
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-slate-400 bg-slate-200/60"
                 }`}
               >
                 Part 3
@@ -241,7 +279,7 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
               title="Finish test immediately and calculate band score"
             >
               <Flag className="w-4 h-4 text-rose-600" />
-              <span>{submitting ? 'Scoring...' : 'End Test & Score Now'}</span>
+              <span>{submitting ? "Scoring..." : "End Test & Score Now"}</span>
             </button>
           </div>
         </div>
@@ -253,16 +291,19 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
         )}
 
         {/* PART 1 VIEW (1 Question at a time, Next Only) */}
-        {currentPart === 'part1' && (
+        {currentPart === "part1" && (
           <div className="space-y-6">
             <div className="bg-purple-50/80 border border-purple-200 rounded-2xl p-6 flex items-center justify-between">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-full uppercase tracking-wider mb-2">
                   Part 1 • Introduction & Interview
                 </div>
-                <h2 className="text-xl font-bold text-slate-900">General Questions</h2>
+                <h2 className="text-xl font-bold text-slate-900">
+                  General Questions
+                </h2>
                 <p className="text-sm text-slate-600 mt-1">
-                  Answer each question concisely in 2–3 sentences. Press the microphone button to record.
+                  Answer each question concisely in 2–3 sentences. Press the
+                  microphone button to record.
                 </p>
               </div>
 
@@ -292,9 +333,17 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
 
               <AudioRecorder
                 key={currentP1Question.id}
+                attemptId={attemptId}
                 questionId={currentP1Question.id}
-                onAudioRecorded={(url, transcript, duration) =>
-                  handleAudioRecorded(currentP1Question.id, 'part1', url, transcript, duration)
+                onAudioRecorded={(url, transcript, duration, audioStoragePath) =>
+                  handleAudioRecorded(
+                    currentP1Question.id,
+                    "part1",
+                    url,
+                    transcript,
+                    duration,
+                    audioStoragePath,
+                  )
                 }
                 maxDurationSeconds={60}
               />
@@ -312,7 +361,7 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
                 </button>
               ) : (
                 <button
-                  onClick={() => setCurrentPart('part2')}
+                  onClick={() => setCurrentPart("part2")}
                   className="flex items-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-200"
                 >
                   <span>Proceed to Part 2 (Cue Card)</span>
@@ -324,23 +373,32 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
         )}
 
         {/* PART 2 VIEW */}
-        {currentPart === 'part2' && (
+        {currentPart === "part2" && (
           <div className="space-y-6">
             <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-6">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full uppercase tracking-wider mb-2">
                 Part 2 • Individual Long Turn (Cue Card)
               </div>
-              <h2 className="text-xl font-bold text-slate-900">{topic.part2_cue_card.cue_card_title}</h2>
+              <h2 className="text-xl font-bold text-slate-900">
+                {topic.part2_cue_card.cue_card_title}
+              </h2>
             </div>
 
             {/* Cue Card Card */}
             <div className="bg-white border border-amber-200 rounded-2xl p-6 md:p-8 shadow-sm">
-              <h3 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3">Topic Cue Card</h3>
-              <p className="text-slate-900 font-bold text-base mb-4">{topic.part2_cue_card.prompt_lead}</p>
+              <h3 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3">
+                Topic Cue Card
+              </h3>
+              <p className="text-slate-900 font-bold text-base mb-4">
+                {topic.part2_cue_card.prompt_lead}
+              </p>
 
               <ul className="space-y-2.5 mb-6">
                 {topic.part2_cue_card.bullet_points.map((point, idx) => (
-                  <li key={idx} className="flex items-center gap-3 text-slate-700 text-sm font-medium">
+                  <li
+                    key={idx}
+                    className="flex items-center gap-3 text-slate-700 text-sm font-medium"
+                  >
                     <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
                     <span>{point}</span>
                   </li>
@@ -349,9 +407,12 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
             </div>
 
             {/* Preparation Step */}
-            {part2Step === 'prep' && (
+            {part2Step === "prep" && (
               <div className="space-y-6">
-                <PrepTimer durationSeconds={60} onTimerComplete={() => setPart2Step('speaking')} />
+                <PrepTimer
+                  durationSeconds={60}
+                  onTimerComplete={() => setPart2Step("speaking")}
+                />
 
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                   <label className="block text-sm font-bold text-slate-800 mb-2">
@@ -369,25 +430,43 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
             )}
 
             {/* Speaking Step */}
-            {part2Step === 'speaking' && (
+            {part2Step === "speaking" && (
               <div className="space-y-6">
                 {/* Candidate Reference Notes */}
                 <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-6 shadow-sm">
                   <div className="flex items-center gap-2 text-xs font-bold text-amber-800 uppercase tracking-wider mb-2">
                     <BookOpen className="w-4 h-4 text-amber-700" />
-                    <span>Your Preparation Notes (Reference while speaking)</span>
+                    <span>
+                      Your Preparation Notes (Reference while speaking)
+                    </span>
                   </div>
                   <div className="bg-white border border-amber-200/80 rounded-xl p-4 text-slate-800 text-sm font-medium whitespace-pre-wrap min-h-[80px]">
-                    {part2Notes.trim() ? part2Notes : <span className="text-slate-400 italic">No notes written during preparation.</span>}
+                    {part2Notes.trim() ? (
+                      part2Notes
+                    ) : (
+                      <span className="text-slate-400 italic">
+                        No notes written during preparation.
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
-                  <h3 className="text-lg font-bold text-slate-900">Record Speech (Up to 2 Minutes)</h3>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    Record Speech (Up to 2 Minutes)
+                  </h3>
                   <AudioRecorder
+                    attemptId={attemptId}
                     questionId={topic.part2_cue_card.id}
-                    onAudioRecorded={(url, transcript, duration) =>
-                      handleAudioRecorded(topic.part2_cue_card.id, 'part2', url, transcript, duration)
+                    onAudioRecorded={(url, transcript, duration, audioStoragePath) =>
+                      handleAudioRecorded(
+                        topic.part2_cue_card.id,
+                        "part2",
+                        url,
+                        transcript,
+                        duration,
+                        audioStoragePath,
+                      )
                     }
                     maxDurationSeconds={120}
                   />
@@ -395,7 +474,7 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
 
                 <div className="flex justify-end pt-4">
                   <button
-                    onClick={() => setCurrentPart('part3')}
+                    onClick={() => setCurrentPart("part3")}
                     className="flex items-center gap-2 px-6 py-3.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-all shadow-md shadow-amber-200"
                   >
                     <span>Proceed to Part 3 (Discussion)</span>
@@ -408,16 +487,19 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
         )}
 
         {/* PART 3 VIEW (1 Question at a time, Next Only) */}
-        {currentPart === 'part3' && (
+        {currentPart === "part3" && (
           <div className="space-y-6">
             <div className="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-6 flex items-center justify-between">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full uppercase tracking-wider mb-2">
                   Part 3 • Two-Way Discussion
                 </div>
-                <h2 className="text-xl font-bold text-slate-900">Abstract & Social Discussion</h2>
+                <h2 className="text-xl font-bold text-slate-900">
+                  Abstract & Social Discussion
+                </h2>
                 <p className="text-sm text-slate-600 mt-1">
-                  Elaborate on your personal viewpoint with supporting reasons and examples.
+                  Elaborate on your personal viewpoint with supporting reasons
+                  and examples.
                 </p>
               </div>
 
@@ -447,9 +529,17 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
 
               <AudioRecorder
                 key={currentP3Question.id}
+                attemptId={attemptId}
                 questionId={currentP3Question.id}
-                onAudioRecorded={(url, transcript, duration) =>
-                  handleAudioRecorded(currentP3Question.id, 'part3', url, transcript, duration)
+                onAudioRecorded={(url, transcript, duration, audioStoragePath) =>
+                  handleAudioRecorded(
+                    currentP3Question.id,
+                    "part3",
+                    url,
+                    transcript,
+                    duration,
+                    audioStoragePath,
+                  )
                 }
                 maxDurationSeconds={90}
               />
@@ -472,7 +562,11 @@ export default function IELTSSpeakingTestPage({ params }: { params: Promise<{ at
                   className="flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-emerald-200 hover:scale-[1.02] disabled:opacity-50"
                 >
                   <Send className="w-5 h-5" />
-                  <span>{submitting ? 'Evaluating Test...' : 'Complete & Submit IELTS Speaking Test'}</span>
+                  <span>
+                    {submitting
+                      ? "Evaluating Test..."
+                      : "Complete & Submit IELTS Speaking Test"}
+                  </span>
                 </button>
               )}
             </div>

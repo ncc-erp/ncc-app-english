@@ -1,4 +1,4 @@
-export type IELTSPart = 'part1' | 'part2' | 'part3';
+export type IELTSPart = "part1" | "part2" | "part3";
 
 export interface IELTSPart1Question {
   id: string;
@@ -31,12 +31,19 @@ export interface IELTSSpeakingTopic {
   part3_questions: IELTSPart3Question[];
 }
 
-export type IELTSSpeakingStatus = 'in_progress' | 'part1_completed' | 'part2_completed' | 'part3_completed' | 'submitted' | 'cancelled';
+export type IELTSSpeakingStatus =
+  | "in_progress"
+  | "part1_completed"
+  | "part2_completed"
+  | "part3_completed"
+  | "submitted"
+  | "cancelled";
 
 export interface IELTSSpeakingResponse {
   question_id: string;
   part: IELTSPart;
   audio_url?: string;
+  audio_storage_path?: string;
   transcript?: string;
   duration_seconds?: number;
   answered_at?: string;
@@ -59,7 +66,7 @@ export interface IELTSSpeakingAttempt {
 }
 
 export interface IELTSCriteriaScore {
-  code: 'FC' | 'LR' | 'GRA' | 'PR';
+  code: "FC" | "LR" | "GRA" | "PR";
   name: string;
   score: number; // Band 1.0 - 9.0
   summary: string;
@@ -69,7 +76,7 @@ export interface IELTSCriteriaScore {
 export interface IELTSFillerWordCount {
   word: string;
   count: number;
-  impact: 'low' | 'moderate' | 'high';
+  impact: "low" | "moderate" | "high";
 }
 
 export interface IELTSVocabUpgrade {

@@ -1,11 +1,21 @@
-import { Pool } from 'pg';
-import { ExamAttempt, Question, UserSession } from '@/types';
-import { SEED_QUESTIONS } from '@/lib/exam/questions';
-import { SEED_IELTS_TOPICS } from '@/lib/ielts/questions';
-import { IELTSSpeakingAttempt, IELTSSpeakingResponse, IELTSSpeakingTopic, IELTSSpeakingStatus, IELTSPart, IELTSScoreResult } from '@/types/ielts';
+import { Pool } from "pg";
+import { ExamAttempt, Question, UserSession } from "@/types";
+import { SEED_QUESTIONS } from "@/lib/exam/questions";
+import { SEED_IELTS_TOPICS } from "@/lib/ielts/questions";
+import {
+  IELTSSpeakingAttempt,
+  IELTSSpeakingResponse,
+  IELTSSpeakingTopic,
+  IELTSSpeakingStatus,
+  IELTSPart,
+  IELTSScoreResult,
+} from "@/types/ielts";
 
 // Global PostgreSQL connection pool instance for Next.js hot-reload handling
-const globalForPg = global as unknown as { pgPool: Pool; dbInitialized?: boolean };
+const globalForPg = global as unknown as {
+  pgPool: Pool;
+  dbInitialized?: boolean;
+};
 
 export function getPool(): Pool {
   if (globalForPg.pgPool) return globalForPg.pgPool;
@@ -32,13 +42,16 @@ export function getPool(): Pool {
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
     });
-  } else if (host && host !== '127.0.0.1' && host !== 'localhost') {
+  } else if (host && host !== "127.0.0.1" && host !== "localhost") {
     newPool = new Pool({
       host,
-      port: parseInt(process.env.POSTGRES_PORT || process.env.DB_PORT || '5432', 10),
-      user: user || 'postgres',
-      password: password || '',
-      database: database || 'postgres',
+      port: parseInt(
+        process.env.POSTGRES_PORT || process.env.DB_PORT || "5432",
+        10,
+      ),
+      user: user || "postgres",
+      password: password || "",
+      database: database || "postgres",
       ssl: { rejectUnauthorized: false },
       max: 10,
       idleTimeoutMillis: 30000,
@@ -46,11 +59,11 @@ export function getPool(): Pool {
     });
   } else {
     newPool = new Pool({
-      host: process.env.DB_HOST || '127.0.0.1',
-      port: parseInt(process.env.DB_PORT || '8104', 10),
-      user: process.env.DB_USERNAME || 'postgres',
-      password: process.env.DB_PASSWORD || '123qwe',
-      database: process.env.DB_NAME || 'ncc_app_english',
+      host: process.env.DB_HOST || "127.0.0.1",
+      port: parseInt(process.env.DB_PORT || "8104", 10),
+      user: process.env.DB_USERNAME || "postgres",
+      password: process.env.DB_PASSWORD || "123qwe",
+      database: process.env.DB_NAME || "ncc_app_english",
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
@@ -66,7 +79,7 @@ export const pool = new Proxy({} as Pool, {
     const activePool = getPool();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const value = (activePool as any)[prop];
-    if (typeof value === 'function') {
+    if (typeof value === "function") {
       return value.bind(activePool);
     }
     return value;
@@ -201,15 +214,20 @@ export async function ensureDbInitialized() {
             question_id TEXT NOT NULL,
             part TEXT NOT NULL,
             audio_url TEXT,
+            audio_storage_path TEXT,
             transcript TEXT,
             duration_seconds INT DEFAULT 0,
             answered_at TIMESTAMPTZ DEFAULT NOW(),
             CONSTRAINT unique_ielts_attempt_question UNIQUE(attempt_id, question_id)
         );
+
+        ALTER TABLE ielts_speaking_responses ADD COLUMN IF NOT EXISTS audio_storage_path TEXT;
       `);
 
       // 2. Check if questions table is populated
-      const { rows: qRows } = await client.query('SELECT COUNT(*) as count FROM questions');
+      const { rows: qRows } = await client.query(
+        "SELECT COUNT(*) as count FROM questions",
+      );
       if (parseInt(qRows[0].count, 10) === 0) {
         for (const q of SEED_QUESTIONS) {
           await client.query(
@@ -223,12 +241,14 @@ export async function ensureDbInitialized() {
               q.question_text,
               q.reading_passage || null,
               JSON.stringify(q.options),
-              q.correct_option_id || '',
+              q.correct_option_id || "",
               q.explanation || null,
-            ]
+            ],
           );
         }
-        console.log(`[PostgreSQL] Seeded ${SEED_QUESTIONS.length} exam questions into DB.`);
+        console.log(
+          `[PostgreSQL] Seeded ${SEED_QUESTIONS.length} exam questions into DB.`,
+        );
       }
 
       // 3. Seed/Upsert IELTS topics
@@ -251,14 +271,16 @@ export async function ensureDbInitialized() {
             JSON.stringify(t.part1_questions),
             JSON.stringify(t.part2_cue_card),
             JSON.stringify(t.part3_questions),
-          ]
+          ],
         );
       }
-      console.log(`[PostgreSQL] Seeded/Upserted ${SEED_IELTS_TOPICS.length} IELTS Speaking topics into DB.`);
+      console.log(
+        `[PostgreSQL] Seeded/Upserted ${SEED_IELTS_TOPICS.length} IELTS Speaking topics into DB.`,
+      );
 
       // 4. Clear legacy multiple-choice exam attempt data safely & clean empty spammed IELTS attempts
       try {
-        await client.query('DELETE FROM answers; DELETE FROM attempts;');
+        await client.query("DELETE FROM answers; DELETE FROM attempts;");
         await client.query(`
           DELETE FROM ielts_speaking_attempts
           WHERE status = 'in_progress'
@@ -269,12 +291,14 @@ export async function ensureDbInitialized() {
       }
 
       globalForPg.dbInitialized = true;
-      console.log('[PostgreSQL] Database tables & schema initialized successfully.');
+      console.log(
+        "[PostgreSQL] Database tables & schema initialized successfully.",
+      );
     } finally {
       client.release();
     }
   } catch (err) {
-    console.error('[PostgreSQL Initialization Error]:', err);
+    console.error("[PostgreSQL Initialization Error]:", err);
   } finally {
     isInitializing = false;
   }
@@ -318,10 +342,15 @@ export const pgDb = {
     };
   },
 
-  async createAttempt(userId: string, timeLimitSeconds: number = 900): Promise<ExamAttempt> {
+  async createAttempt(
+    userId: string,
+    timeLimitSeconds: number = 900,
+  ): Promise<ExamAttempt> {
     await ensureDbInitialized();
 
-    const { rows: questionRows } = await pool.query('SELECT id FROM questions WHERE active = true ORDER BY RANDOM() LIMIT 20');
+    const { rows: questionRows } = await pool.query(
+      "SELECT id FROM questions WHERE active = true ORDER BY RANDOM() LIMIT 20",
+    );
     let questionIds = questionRows.map((r) => r.id);
 
     if (questionIds.length === 0) {
@@ -335,7 +364,13 @@ export const pgDb = {
       VALUES ($1, $2, 'in_progress', 'none', $3, $4, false, $5)
       RETURNING *;
     `;
-    const values = [attemptId, userId, timeLimitSeconds, questionIds.length, questionIds];
+    const values = [
+      attemptId,
+      userId,
+      timeLimitSeconds,
+      questionIds.length,
+      questionIds,
+    ];
 
     const { rows } = await pool.query(query, values);
     const att = rows[0];
@@ -377,7 +412,9 @@ export const pgDb = {
       status: att.status,
       result_status: att.result_status,
       started_at: new Date(att.started_at).toISOString(),
-      submitted_at: att.submitted_at ? new Date(att.submitted_at).toISOString() : undefined,
+      submitted_at: att.submitted_at
+        ? new Date(att.submitted_at).toISOString()
+        : undefined,
       time_limit_seconds: att.time_limit_seconds,
       raw_score: att.raw_score,
       weighted_score: att.weighted_score,
@@ -389,7 +426,11 @@ export const pgDb = {
     };
   },
 
-  async saveAnswer(attemptId: string, questionId: string, optionId: string): Promise<ExamAttempt | null> {
+  async saveAnswer(
+    attemptId: string,
+    questionId: string,
+    optionId: string,
+  ): Promise<ExamAttempt | null> {
     await ensureDbInitialized();
     const upsertQuery = `
       INSERT INTO answers (attempt_id, question_id, selected_option_id)
@@ -402,7 +443,10 @@ export const pgDb = {
     return this.getAttempt(attemptId);
   },
 
-  async updateAttempt(attemptId: string, updates: Partial<ExamAttempt>): Promise<ExamAttempt | null> {
+  async updateAttempt(
+    attemptId: string,
+    updates: Partial<ExamAttempt>,
+  ): Promise<ExamAttempt | null> {
     await ensureDbInitialized();
 
     const fields: string[] = [];
@@ -443,7 +487,7 @@ export const pgDb = {
     }
 
     if (fields.length > 0) {
-      const updateQuery = `UPDATE attempts SET ${fields.join(', ')} WHERE id = $1`;
+      const updateQuery = `UPDATE attempts SET ${fields.join(", ")} WHERE id = $1`;
       await pool.query(updateQuery, values);
     }
 
@@ -463,17 +507,21 @@ export const pgDb = {
       difficulty: r.difficulty,
       question_text: r.question_text,
       reading_passage: r.reading_passage || undefined,
-      options: typeof r.options === 'string' ? JSON.parse(r.options) : r.options,
+      options:
+        typeof r.options === "string" ? JSON.parse(r.options) : r.options,
       correct_option_id: r.correct_option_id,
       explanation: r.explanation || undefined,
     }));
   },
 
-  async updateUserClanMembership(mezonId: string, isMember: boolean): Promise<void> {
+  async updateUserClanMembership(
+    mezonId: string,
+    isMember: boolean,
+  ): Promise<void> {
     await ensureDbInitialized();
     await pool.query(
       `UPDATE users SET clan_member = $1, clan_joined_at = NOW() WHERE mezon_id = $2`,
-      [isMember, mezonId]
+      [isMember, mezonId],
     );
   },
 
@@ -483,11 +531,15 @@ export const pgDb = {
   async getIELTSTopics(): Promise<IELTSSpeakingTopic[]> {
     await ensureDbInitialized();
     try {
-      await pool.query(`ALTER TABLE ielts_speaking_topics ADD COLUMN IF NOT EXISTS description TEXT;`);
+      await pool.query(
+        `ALTER TABLE ielts_speaking_topics ADD COLUMN IF NOT EXISTS description TEXT;`,
+      );
     } catch {
       // Ignore if alter fails
     }
-    let { rows } = await pool.query(`SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`);
+    let { rows } = await pool.query(
+      `SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`,
+    );
 
     if (rows.length < SEED_IELTS_TOPICS.length) {
       for (const t of SEED_IELTS_TOPICS) {
@@ -509,10 +561,12 @@ export const pgDb = {
             JSON.stringify(t.part1_questions),
             JSON.stringify(t.part2_cue_card),
             JSON.stringify(t.part3_questions),
-          ]
+          ],
         );
       }
-      const reQuery = await pool.query(`SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`);
+      const reQuery = await pool.query(
+        `SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`,
+      );
       rows = reQuery.rows;
     }
 
@@ -521,9 +575,18 @@ export const pgDb = {
       title: r.title,
       category: r.category,
       description: r.description || undefined,
-      part1_questions: typeof r.part1_questions === 'string' ? JSON.parse(r.part1_questions) : r.part1_questions,
-      part2_cue_card: typeof r.part2_cue_card === 'string' ? JSON.parse(r.part2_cue_card) : r.part2_cue_card,
-      part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions,
+      part1_questions:
+        typeof r.part1_questions === "string"
+          ? JSON.parse(r.part1_questions)
+          : r.part1_questions,
+      part2_cue_card:
+        typeof r.part2_cue_card === "string"
+          ? JSON.parse(r.part2_cue_card)
+          : r.part2_cue_card,
+      part3_questions:
+        typeof r.part3_questions === "string"
+          ? JSON.parse(r.part3_questions)
+          : r.part3_questions,
     }));
   },
 
@@ -540,20 +603,32 @@ export const pgDb = {
       title: r.title,
       category: r.category,
       description: r.description || undefined,
-      part1_questions: typeof r.part1_questions === 'string' ? JSON.parse(r.part1_questions) : r.part1_questions,
-      part2_cue_card: typeof r.part2_cue_card === 'string' ? JSON.parse(r.part2_cue_card) : r.part2_cue_card,
-      part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions,
+      part1_questions:
+        typeof r.part1_questions === "string"
+          ? JSON.parse(r.part1_questions)
+          : r.part1_questions,
+      part2_cue_card:
+        typeof r.part2_cue_card === "string"
+          ? JSON.parse(r.part2_cue_card)
+          : r.part2_cue_card,
+      part3_questions:
+        typeof r.part3_questions === "string"
+          ? JSON.parse(r.part3_questions)
+          : r.part3_questions,
     };
   },
 
-  async createIELTSAttempt(userId: string, topicId: string): Promise<IELTSSpeakingAttempt> {
+  async createIELTSAttempt(
+    userId: string,
+    topicId: string,
+  ): Promise<IELTSSpeakingAttempt> {
     await ensureDbInitialized();
     const topic = await this.getIELTSTopic(topicId);
 
     // Cancel any older 'in_progress' attempts for this user
     await pool.query(
       `UPDATE ielts_speaking_attempts SET status = 'cancelled' WHERE user_id = $1 AND status = 'in_progress'`,
-      [userId]
+      [userId],
     );
 
     const attemptId = `ielts-att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -570,7 +645,7 @@ export const pgDb = {
       id: r.id,
       user_id: r.user_id,
       topic_id: r.topic_id,
-      topic_title: topic?.title || 'IELTS Speaking Topic',
+      topic_title: topic?.title || "IELTS Speaking Topic",
       status: r.status as IELTSSpeakingStatus,
       current_part: r.current_part as IELTSPart,
       started_at: r.started_at.toISOString(),
@@ -578,7 +653,9 @@ export const pgDb = {
     };
   },
 
-  async getIELTSAttempt(attemptId: string): Promise<IELTSSpeakingAttempt | null> {
+  async getIELTSAttempt(
+    attemptId: string,
+  ): Promise<IELTSSpeakingAttempt | null> {
     await ensureDbInitialized();
     const query = `SELECT * FROM ielts_speaking_attempts WHERE id = $1`;
     const { rows } = await pool.query(query, [attemptId]);
@@ -597,9 +674,12 @@ export const pgDb = {
         question_id: ans.question_id,
         part: ans.part as IELTSPart,
         audio_url: ans.audio_url || undefined,
+        audio_storage_path: ans.audio_storage_path || undefined,
         transcript: ans.transcript || undefined,
         duration_seconds: ans.duration_seconds || 0,
-        answered_at: ans.answered_at ? new Date(ans.answered_at).toISOString() : undefined,
+        answered_at: ans.answered_at
+          ? new Date(ans.answered_at).toISOString()
+          : undefined,
       };
     });
 
@@ -607,15 +687,21 @@ export const pgDb = {
       id: r.id,
       user_id: r.user_id,
       topic_id: r.topic_id,
-      topic_title: topic?.title || 'IELTS Speaking Topic',
+      topic_title: topic?.title || "IELTS Speaking Topic",
       status: r.status as IELTSSpeakingStatus,
       current_part: r.current_part as IELTSPart,
       started_at: new Date(r.started_at).toISOString(),
-      submitted_at: r.submitted_at ? new Date(r.submitted_at).toISOString() : undefined,
+      submitted_at: r.submitted_at
+        ? new Date(r.submitted_at).toISOString()
+        : undefined,
       part2_notes: r.part2_notes || undefined,
       band_score: r.overall_band ? parseFloat(r.overall_band) : undefined,
       unlocked: r.unlocked === true,
-      score_result: r.score_result ? (typeof r.score_result === 'string' ? JSON.parse(r.score_result) : r.score_result) : undefined,
+      score_result: r.score_result
+        ? typeof r.score_result === "string"
+          ? JSON.parse(r.score_result)
+          : r.score_result
+        : undefined,
       responses: responsesRecord,
     };
   },
@@ -626,27 +712,45 @@ export const pgDb = {
     part: IELTSPart,
     audioUrl?: string,
     transcript?: string,
-    durationSeconds: number = 0
+    durationSeconds: number = 0,
+    audioStoragePath?: string,
   ): Promise<IELTSSpeakingAttempt | null> {
     await ensureDbInitialized();
     const query = `
-      INSERT INTO ielts_speaking_responses (attempt_id, question_id, part, audio_url, transcript, duration_seconds)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO ielts_speaking_responses (attempt_id, question_id, part, audio_url, audio_storage_path, transcript, duration_seconds)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (attempt_id, question_id)
-      DO UPDATE SET audio_url = EXCLUDED.audio_url, transcript = EXCLUDED.transcript, duration_seconds = EXCLUDED.duration_seconds, answered_at = NOW();
+      DO UPDATE SET audio_url = EXCLUDED.audio_url, audio_storage_path = EXCLUDED.audio_storage_path, transcript = EXCLUDED.transcript, duration_seconds = EXCLUDED.duration_seconds, answered_at = NOW();
     `;
-    await pool.query(query, [attemptId, questionId, part, audioUrl || null, transcript || null, durationSeconds]);
+    await pool.query(query, [
+      attemptId,
+      questionId,
+      part,
+      audioUrl || null,
+      audioStoragePath || null,
+      transcript || null,
+      durationSeconds,
+    ]);
     return this.getIELTSAttempt(attemptId);
   },
 
   async saveIELTSPart2Notes(attemptId: string, notes: string): Promise<void> {
     await ensureDbInitialized();
-    await pool.query(`UPDATE ielts_speaking_attempts SET part2_notes = $1 WHERE id = $2`, [notes, attemptId]);
+    await pool.query(
+      `UPDATE ielts_speaking_attempts SET part2_notes = $1 WHERE id = $2`,
+      [notes, attemptId],
+    );
   },
 
-  async updateIELTSAttemptUnlocked(attemptId: string, unlocked: boolean = true): Promise<void> {
+  async updateIELTSAttemptUnlocked(
+    attemptId: string,
+    unlocked: boolean = true,
+  ): Promise<void> {
     await ensureDbInitialized();
-    await pool.query(`UPDATE ielts_speaking_attempts SET unlocked = $1 WHERE id = $2`, [unlocked, attemptId]);
+    await pool.query(
+      `UPDATE ielts_speaking_attempts SET unlocked = $1 WHERE id = $2`,
+      [unlocked, attemptId],
+    );
   },
 
   async updateIELTSAttemptStatus(
@@ -654,7 +758,7 @@ export const pgDb = {
     status: IELTSSpeakingStatus,
     currentPart: IELTSPart,
     overallBand?: number,
-    scoreResult?: IELTSScoreResult
+    scoreResult?: IELTSScoreResult,
   ): Promise<IELTSSpeakingAttempt | null> {
     await ensureDbInitialized();
     const query = `
@@ -662,7 +766,13 @@ export const pgDb = {
       SET status = $1, current_part = $2, overall_band = $3, score_result = $4, submitted_at = NOW()
       WHERE id = $5;
     `;
-    await pool.query(query, [status, currentPart, overallBand || null, scoreResult ? JSON.stringify(scoreResult) : null, attemptId]);
+    await pool.query(query, [
+      status,
+      currentPart,
+      overallBand || null,
+      scoreResult ? JSON.stringify(scoreResult) : null,
+      attemptId,
+    ]);
     return this.getIELTSAttempt(attemptId);
   },
 
@@ -670,7 +780,7 @@ export const pgDb = {
     await ensureDbInitialized();
     await pool.query(
       `UPDATE ielts_speaking_attempts SET status = 'cancelled' WHERE id = $1 AND status != 'submitted'`,
-      [attemptId]
+      [attemptId],
     );
   },
 
@@ -689,20 +799,26 @@ export const pgDb = {
       id: r.id,
       user_id: r.user_id,
       topic_id: r.topic_id,
-      topic_title: r.topic_title || 'IELTS Speaking Topic',
+      topic_title: r.topic_title || "IELTS Speaking Topic",
       status: r.status as IELTSSpeakingStatus,
       current_part: r.current_part as IELTSPart,
       started_at: new Date(r.started_at).toISOString(),
-      submitted_at: r.submitted_at ? new Date(r.submitted_at).toISOString() : undefined,
+      submitted_at: r.submitted_at
+        ? new Date(r.submitted_at).toISOString()
+        : undefined,
       part2_notes: r.part2_notes || undefined,
       band_score: r.overall_band ? parseFloat(r.overall_band) : undefined,
       responses: {},
     }));
   },
 
-  async createIELTSTopic(topic: IELTSSpeakingTopic): Promise<IELTSSpeakingTopic> {
+  async createIELTSTopic(
+    topic: IELTSSpeakingTopic,
+  ): Promise<IELTSSpeakingTopic> {
     await ensureDbInitialized();
-    const id = topic.id || `topic-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const id =
+      topic.id ||
+      `topic-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const query = `
       INSERT INTO ielts_speaking_topics (id, title, category, description, part1_questions, part2_cue_card, part3_questions, active)
       VALUES ($1, $2, $3, $4, $5, $6, $7, true)
@@ -711,7 +827,7 @@ export const pgDb = {
     const values = [
       id,
       topic.title,
-      topic.category || 'General',
+      topic.category || "General",
       topic.description || null,
       JSON.stringify(topic.part1_questions || []),
       JSON.stringify(topic.part2_cue_card || {}),
@@ -725,13 +841,25 @@ export const pgDb = {
       title: r.title,
       category: r.category,
       description: r.description || undefined,
-      part1_questions: typeof r.part1_questions === 'string' ? JSON.parse(r.part1_questions) : r.part1_questions,
-      part2_cue_card: typeof r.part2_cue_card === 'string' ? JSON.parse(r.part2_cue_card) : r.part2_cue_card,
-      part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions,
+      part1_questions:
+        typeof r.part1_questions === "string"
+          ? JSON.parse(r.part1_questions)
+          : r.part1_questions,
+      part2_cue_card:
+        typeof r.part2_cue_card === "string"
+          ? JSON.parse(r.part2_cue_card)
+          : r.part2_cue_card,
+      part3_questions:
+        typeof r.part3_questions === "string"
+          ? JSON.parse(r.part3_questions)
+          : r.part3_questions,
     };
   },
 
-  async updateIELTSTopic(id: string, topic: Partial<IELTSSpeakingTopic>): Promise<IELTSSpeakingTopic | null> {
+  async updateIELTSTopic(
+    id: string,
+    topic: Partial<IELTSSpeakingTopic>,
+  ): Promise<IELTSSpeakingTopic | null> {
     await ensureDbInitialized();
     const fields: string[] = [];
     const values: unknown[] = [id];
@@ -763,7 +891,7 @@ export const pgDb = {
     }
 
     if (fields.length > 0) {
-      const updateQuery = `UPDATE ielts_speaking_topics SET ${fields.join(', ')} WHERE id = $1`;
+      const updateQuery = `UPDATE ielts_speaking_topics SET ${fields.join(", ")} WHERE id = $1`;
       await pool.query(updateQuery, values);
     }
 

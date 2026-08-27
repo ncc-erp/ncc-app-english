@@ -13,6 +13,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ atte
   }
 
   try {
+    // Refresh clan_member from DB in case session is stale
+    const dbUser = await pgDb.findOrCreateUser({
+      mezon_id: session.user.mezon_id,
+      username: session.user.mezon_username,
+      display_name: session.user.display_name,
+      avatar_url: session.user.avatar_url,
+    });
+    if (dbUser.clan_member && !session.user.clan_member) {
+      session.user.clan_member = true;
+      await session.save();
+    }
+
     const attempt = await pgDb.getAttempt(attemptId);
     if (!attempt) {
       return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });
@@ -41,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ atte
     // Attempt is submitted
     const calculated = calculateExamResult(attempt, questions);
     const levelInfo = getCEFRDescription(calculated.cefr_level);
-    const isUnlocked = attempt.unlocked;
+    const isUnlocked = session.user?.clan_member === true || attempt.unlocked;
 
     const resultResponse: ExamResultResponse = {
       attempt_id: attemptId,

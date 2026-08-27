@@ -1,14 +1,23 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { ExternalLink, RefreshCw, Users, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useState } from "react";
+import {
+  ExternalLink,
+  RefreshCw,
+  Users,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
 
 interface ClanJoinCTAProps {
   attemptId: string;
   onVerifySuccess: () => void;
 }
 
-export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuccess }) => {
+export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({
+  attemptId,
+  onVerifySuccess,
+}) => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -17,7 +26,7 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuc
   const clanInviteUrl =
     process.env.NEXT_PUBLIC_MEZON_CLAN_INVITE_URL ||
     process.env.MEZON_CLAN_INVITE_URL ||
-    'https://mezon.ai/invite/demo';
+    "https://mezon.ai/invite/demo";
 
   const handleVerify = async (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
@@ -26,23 +35,52 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuc
     setIsSuccess(false);
 
     try {
-      const res = await fetch('/api/membership/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/membership/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ attemptId }),
       });
 
-      const data = await res.json();
+      const responseText = await res.text();
+      let data: {
+        success?: boolean;
+        isMember?: boolean;
+        message?: string;
+        error?: string;
+      } = {};
+
+      if (responseText) {
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          throw new Error(
+            `Membership verification returned invalid JSON (${res.status})`,
+          );
+        }
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          data.error ||
+            data.message ||
+            `Membership verification failed (${res.status})`,
+        );
+      }
 
       if (data.success && data.isMember) {
         setIsSuccess(true);
-        setSuccessMsg('🎉 Mezon Clan membership verified successfully! Full report unlocked.');
+        setSuccessMsg(
+          "🎉 Mezon Clan membership verified successfully! Full report unlocked.",
+        );
         onVerifySuccess();
       } else {
-        setErrorMsg(data.message || 'We could not confirm your clan membership yet. Please join the clan and try again.');
+        setErrorMsg(
+          data.message ||
+            "We could not confirm your clan membership yet. Please join the clan and try again.",
+        );
       }
     } catch {
-      setErrorMsg('Network error. Please try verifying again.');
+      setErrorMsg("Network error. Please try verifying again.");
     } finally {
       setIsVerifying(false);
     }
@@ -58,13 +96,18 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuc
           <Users className="w-6 h-6" />
         </div>
         <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">Exclusive Unlock</span>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-white">Join Mezon English Clan</h2>
+          <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">
+            Exclusive Unlock
+          </span>
+          <h2 className="text-xl sm:text-2xl font-extrabold text-white">
+            Join Mezon English Clan
+          </h2>
         </div>
       </div>
 
       <p className="text-indigo-100 text-sm sm:text-base leading-relaxed">
-        Connect with 5,000+ English learners, access weekly quizzes, practice speaking in channels, and immediately unlock your full exam breakdown!
+        Connect with 5,000+ English learners, access weekly quizzes, practice
+        speaking in channels, and immediately unlock your full exam breakdown!
       </p>
 
       {/* CTA Buttons */}
@@ -87,8 +130,14 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuc
           disabled={isVerifying}
           className="w-full py-4 px-6 rounded-2xl bg-indigo-600/80 hover:bg-indigo-600 text-white border border-indigo-400/30 font-bold text-sm sm:text-base flex items-center justify-center space-x-2 backdrop-blur-md transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
         >
-          <RefreshCw className={`w-4 h-4 ${isVerifying ? 'animate-spin' : ''}`} />
-          <span>{isVerifying ? 'Checking Membership...' : "I've Joined — Verify Now"}</span>
+          <RefreshCw
+            className={`w-4 h-4 ${isVerifying ? "animate-spin" : ""}`}
+          />
+          <span>
+            {isVerifying
+              ? "Checking Membership..."
+              : "I've Joined — Verify Now"}
+          </span>
         </button>
       </div>
 
