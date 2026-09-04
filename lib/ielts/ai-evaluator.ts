@@ -3,81 +3,63 @@ import {
   IELTSSpeakingTopic,
   IELTSScoreResult,
   IELTSPerQuestionAnalysis,
-} from '@/types/ielts';
-import { calculateIELTSScore, getIELTSStatusTitle } from './score-calculator';
-
+} from "@/types/ielts";
+import { getIELTSStatusTitle } from "./score-calculator";
+import { downloadAudioAsBase64 } from "@/lib/supabase/storage";
 
 export const OFFICIAL_IELTS_EXAMINER_PROMPT = `# ROLE
 
-You are a certified IELTS Speaking Examiner.
+You are a certified, senior IELTS Speaking Examiner.
 
 Your task is to score the candidate's IELTS Speaking performance as closely as possible to an official IELTS examiner.
+You have been provided with the candidate's actual audio recordings (and question prompts) for each question.
 
-Do NOT be generous or harsh.
-Be objective, evidence-based, and consistent.
-
-Evaluate only what the candidate actually says.
+Do NOT be generous or harsh. Be objective, evidence-based, and consistent.
 
 --------------------------------------------------
-IMPORTANT INSTRUCTION: 100% FAITHFUL AUDIO TRANSCRIPT ONLY
+MULTIMODAL AUDIO EVALUATION INSTRUCTIONS
 --------------------------------------------------
-1. "ai_generated_transcript" MUST MATCH THE CANDIDATE'S ACTUAL SPOKEN AUDIO 100%.
-2. STRICTLY FORBIDDEN: DO NOT ADD, INVENT, OR EXTEND ANY SENTENCES, CLAUSES, REASONS, OR EXAMPLES THAT THE CANDIDATE DID NOT UTTER IN THEIR AUDIO.
-   - If the candidate spoke only 1 sentence, the transcript MUST BE EXACTLY THAT 1 SENTENCE.
-   - ABSOLUTELY DO NOT APPEND EXTRA SENTENCES to pad, expand, or lengthen the candidate's response.
-3. STRICTLY FORBIDDEN: DO NOT OMIT, CUT OFF, OR SHORTEN ANY WORDS SPOKEN BY THE CANDIDATE.
-4. PERMISSIBLE CLEANUP ONLY: You may only correct minor Speech-to-Text (STT) phonetic recognition glitches and add proper punctuation/capitalization to the candidate's exact words (e.g., fixing "make is" to "makes it" or "live in a city is" to "live in a city, which is").
-5. "match_percentage": Calculate the similarity percentage between the raw Browser STT text snippet and the candidate's 100% faithful audio transcript (0–100%).
-6. BASE BAND SCORE: Score FC, LR, GRA, PR based strictly on what the candidate actually uttered in their audio.
+1. AUDIO-BASED PRONUNCIATION (PR):
+   - Listen directly to the attached audio clips.
+   - Evaluate phonological features: individual sound/phoneme clarity, word stress, sentence stress, rhythm, intonation patterns, and connected speech (linking, elision, assimilation).
+   - Local or non-native accent does NOT penalize the score if speech remains clear and intelligible.
+   - Explicitly note any mispronounced words, lost final sounds, or flat intonation in "pronunciation" key observations and feedback.
+
+2. AUDIO-BASED FLUENCY & COHERENCE (FC):
+   - Listen to the flow of speech, natural rhythm, and speaking rate (words per minute).
+   - Differentiate between natural pauses (content thinking) vs. unnatural language search hesitations, repetitions, and self-corrections.
+   - Count and note filler words (e.g., "uh", "um", "like", "you know") and quantify their impact.
+
+3. 100% FAITHFUL AUDIO TRANSCRIPT ("ai_generated_transcript"):
+   - Listen to the audio and transcribe EXACTLY what the candidate actually uttered.
+   - Correct Speech-to-Text (STT) mishearings, acoustic glitches, and add correct punctuation/capitalization.
+   - STRICTLY FORBIDDEN: DO NOT ADD, INVENT, OR EXTEND ANY EXTRA SENTENCES OR CLAUSES THAT THE CANDIDATE DID NOT SPEAK.
+   - If the candidate spoke only 1 short sentence, the transcript MUST BE EXACTLY THAT 1 SENTENCE.
+   - STRICTLY FORBIDDEN: DO NOT OMIT, CUT OFF, OR SHORTEN WORDS SPOKEN BY THE CANDIDATE.
+   - "match_percentage": Calculate the similarity (0-100%) between the raw Browser STT text snippet and the actual spoken audio transcript.
+
+4. LEXICAL RESOURCE (LR) & GRAMMATICAL RANGE & ACCURACY (GRA):
+   - Score LR based on vocabulary precision, collocations, idiomatic expressions, and topic flexibility heard in the audio.
+   - Score GRA based on sentence structure variety (complex vs simple clauses), tense consistency, and error density.
 
 --------------------------------------------------
-SCORING CRITERIA
+SCORING CRITERIA (HALF-BAND INCREMENTS: 0.0 - 9.0)
 --------------------------------------------------
-
-The IELTS Speaking test consists of four equally weighted criteria.
-
+The IELTS Speaking test consists of four equally weighted criteria:
 1. Fluency and Coherence (FC)
 2. Lexical Resource (LR)
 3. Grammatical Range and Accuracy (GRA)
 4. Pronunciation (PR)
 
-Each criterion is scored independently.
-
-Use only half-band increments:
+Each criterion is scored independently using half-band increments:
 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9
 
 The overall score is (FC + LR + GRA + PR) / 4
 Then round using official IELTS rules:
-Average 6.00–6.24 → 6.0
-Average 6.25–6.74 → 6.5
-Average 6.75–7.00 → 7.0
+- Average 6.00–6.24 → 6.0
+- Average 6.25–6.74 → 6.5
+- Average 6.75–7.00 → 7.0
 
-Examples:
-6.125 → 6.0
-6.25 → 6.5
-6.74 → 6.5
-6.75 → 7.0
-7.88 → 8.0
-
---------------------------------------------------
-FLUENCY & COHERENCE
---------------------------------------------------
-Evaluate: ability to keep speaking, hesitation, pauses, self-correction, repetition, logical organization, coherence, use of linking devices.
-
---------------------------------------------------
-LEXICAL RESOURCE
---------------------------------------------------
-Evaluate: vocabulary range, vocabulary precision, paraphrasing, collocations, natural word choice, repetition.
-
---------------------------------------------------
-GRAMMATICAL RANGE & ACCURACY
---------------------------------------------------
-Evaluate: sentence variety, complexity, accuracy, error frequency.
-
---------------------------------------------------
-PRONUNCIATION
---------------------------------------------------
-Accent does NOT affect score. Evaluate intelligibility, stress, rhythm, connected speech, word/sentence stress.
 --------------------------------------------------
 OUTPUT FORMAT (STRICT JSON ONLY)
 --------------------------------------------------
@@ -85,17 +67,17 @@ Return ONLY valid JSON matching this exact structure:
 
 {
   "overall_band": 6.5,
-  "estimated_band_reason": "Detailed rationale explaining why this overall band score was awarded based on official IELTS criteria.",
+  "estimated_band_reason": "Detailed rationale explaining why this overall band score was awarded based on official IELTS criteria and audio observations.",
   "fluency_coherence": 6.5,
   "lexical_resource": 6.5,
   "grammatical_range_accuracy": 6.0,
   "pronunciation": 7.0,
   "overall_feedback": "Summary assessment of performance.",
   "criterion_feedback": {
-    "fluency": "Detailed fluency feedback...",
+    "fluency": "Detailed fluency feedback based on speaking rhythm, pauses, and flow...",
     "vocabulary": "Detailed vocabulary feedback...",
     "grammar": "Detailed grammar feedback...",
-    "pronunciation": "Detailed pronunciation feedback..."
+    "pronunciation": "Detailed pronunciation feedback based on acoustic clarity, stress, and intonation..."
   },
   "criterion_key_observations": {
     "fluency": ["Observation 1", "Observation 2"],
@@ -109,15 +91,15 @@ Return ONLY valid JSON matching this exact structure:
   "vocab_upgrades": [
     {"original": "good", "upgrade": "beneficial", "context_example": "It is beneficial for students."}
   ],
-  "strengths": ["Clear pronunciation", "Good topic extension"],
-  "weaknesses": ["Frequent self-correction", "Limited complex grammar structures"],
+  "strengths": ["Clear pronunciation of consonant clusters", "Good topic extension in Part 2"],
+  "weaknesses": ["Frequent self-correction in Part 3", "Limited complex grammar structures"],
   "per_question_items": [
     {
       "question_id": "p1_q1",
-      "live_stt_transcript": "Raw Browser STT snippet (may be truncated)",
-      "ai_generated_transcript": "EXACT transcript of what candidate actually spoke in audio. Correct STT mishearings, but DO NOT invent extra sentences or omit words.",
-      "match_percentage": 75,
-      "feedback": "Concise 1-2 sentence examiner assessment of candidate's fluency, vocabulary, and grammar for this answer.",
+      "live_stt_transcript": "Raw Browser STT snippet (may be truncated or have typos)",
+      "ai_generated_transcript": "EXACT transcript of what candidate actually spoke in the audio.",
+      "match_percentage": 80,
+      "feedback": "Concise 1-2 sentence examiner assessment of candidate's pronunciation, fluency, vocabulary, and grammar for this answer.",
       "grammar_corrections": [
         "Incorrect: 'I live in city' → Correct: 'I live in a big city'",
         "Word choice: Replace 'good' with 'vibrant'"
@@ -128,22 +110,7 @@ Return ONLY valid JSON matching this exact structure:
 }
 
 DO NOT include any text outside the JSON object.
-
---------------------------------------------------
-FEW-SHOT TRANSCRIPT FAITHFULNESS EXAMPLES:
---------------------------------------------------
-
-EXAMPLE 1 (Candidate spoke 1 short sentence):
-Browser STT: "I would like to talk about Sunrise park it is a very big and beautiful party"
-ai_generated_transcript: "I would like to talk about Sunrise Park. It is a very big and beautiful park."
-(EXPLANATION: Corrected "party" to "park" based on audio context. NO EXTRA SENTENCES ADDED.)
-
-EXAMPLE 2 (Candidate paused or stopped after 15 seconds):
-Browser STT: "so I think there are two main ways to manage tourism sustainably first the management bus route"
-ai_generated_transcript: "So I think there are two main ways to manage tourism sustainably. First, the management must..."
-(EXPLANATION: FAITHFUL to actual audio capture. Did NOT generate 3 extra paragraphs of unsaid essay text.)
 `;
-
 function computeWordSimilarity(text1: string, text2: string): number {
   const words1 = text1.toLowerCase().split(/\s+/).filter(Boolean);
   const words2 = text2.toLowerCase().split(/\s+/).filter(Boolean);
@@ -154,170 +121,125 @@ function computeWordSimilarity(text1: string, text2: string): number {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function repairTruncatedJson(jsonStr: string): any {
-  const str = jsonStr.trim();
-  try {
-    return JSON.parse(str);
-  } catch {
-    console.warn('[AI Evaluator] Truncated JSON detected. Attempting automatic repair...');
+function parseAiJson(jsonStr: string): any {
+  let str = jsonStr.trim();
+  const codeBlockMatch = str.match(/```(?:json)?\s*([\s\S]*?)(?:```|$)/);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    str = codeBlockMatch[1].trim();
   }
-
-  // Iterative repair: progressively backtrack from the truncated tail to find the last clean JSON state
-  for (let len = str.length; len > 10; len--) {
-    let candidate = str.substring(0, len).trim();
-
-    // Strip trailing incomplete syntax like commas, colons, or unclosed quotes
-    candidate = candidate.replace(/[,:\s]+$/, '');
-
-    // Check string quotation balance
-    let quoteCount = 0;
-    let isEscaped = false;
-    for (let i = 0; i < candidate.length; i++) {
-      if (candidate[i] === '\\' && !isEscaped) {
-        isEscaped = true;
-      } else {
-        if (candidate[i] === '"' && !isEscaped) {
-          quoteCount++;
-        }
-        isEscaped = false;
-      }
-    }
-
-    if (quoteCount % 2 !== 0) {
-      candidate += '"';
-    }
-
-    // Clean any trailing comma before closing structural elements
-    candidate = candidate.replace(/,[\s]*$/, '');
-
-    // Track and balance opening brackets & braces
-    const stack: string[] = [];
-    let inString = false;
-    isEscaped = false;
-
-    for (let i = 0; i < candidate.length; i++) {
-      const ch = candidate[i];
-      if (ch === '\\' && !isEscaped) {
-        isEscaped = true;
-        continue;
-      }
-      if (ch === '"' && !isEscaped) {
-        inString = !inString;
-      } else if (!inString) {
-        if (ch === '{' || ch === '[') {
-          stack.push(ch);
-        } else if (ch === '}' || ch === ']') {
-          const expected = ch === '}' ? '{' : '[';
-          if (stack.length > 0 && stack[stack.length - 1] === expected) {
-            stack.pop();
-          }
-        }
-      }
-      isEscaped = false;
-    }
-
-    // Append closing brackets/braces in reverse order
-    while (stack.length > 0) {
-      const open = stack.pop();
-      if (open === '{') candidate += '}';
-      if (open === '[') candidate += ']';
-    }
-
-    try {
-      const parsed = JSON.parse(candidate);
-      console.log(`[AI Evaluator] Successfully repaired truncated JSON (recovered ${candidate.length}/${str.length} chars).`);
-      return parsed;
-    } catch {
-      // Step back further and try again
-      continue;
-    }
+  const firstBrace = str.indexOf("{");
+  if (firstBrace > 0) {
+    str = str.substring(firstBrace).trim();
   }
-
-  throw new SyntaxError('Failed to parse truncated JSON after full repair attempts.');
+  return JSON.parse(str);
 }
 
 export async function evaluateIELTSAttemptWithAI(
   attempt: IELTSSpeakingAttempt,
-  topic: IELTSSpeakingTopic
+  topic: IELTSSpeakingTopic,
 ): Promise<IELTSScoreResult | null> {
-  const apiKey =
-    process.env.AI_API_KEY ||
-    process.env.GEMINI_API_KEY ||
-    process.env.ANTHROPIC_API_KEY ||
-    process.env.OPENAI_API_KEY ||
-    '';
-
+  const apiKey = process.env.AI_API_KEY || "";
   const endpoint =
-    process.env.AI_ENDPOINT ||
-    process.env.ANTHROPIC_ENDPOINT ||
-    (process.env.GEMINI_API_KEY
-      ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash-high:generateContent?key=${process.env.GEMINI_API_KEY}`
-      : '');
+    process.env.AI_ENDPOINT || "https://llm.mrdnd.dev/v1/chat/completions";
+  const model = process.env.AI_MODEL || "gemini-3.7-flash-high";
 
-  const model = process.env.AI_MODEL || process.env.ANTHROPIC_MODEL || 'gemini-3.7-flash-high';
-
-  if (!apiKey || !endpoint) {
-    console.warn('[AI Evaluator Warning] No AI API Key or Endpoint found in env.');
+  if (!apiKey) {
+    console.warn("[AI Evaluator Warning] Missing AI_API_KEY.");
     return null;
   }
 
-  // Construct structured question & transcript prompt
-  const questionItems: Array<{ id: string; part: string; questionText: string; liveTranscript: string; duration: number }> = [];
+  // Helper fetch audio qua Supabase Storage hoặc Direct URL
+  const fetchAudioForResponse = async (qId: string) => {
+    const resp = attempt.responses?.[qId];
+    if (!resp) return null;
 
-  // Part 1
-  topic.part1_questions.forEach((q) => {
-    const resp = attempt.responses?.[q.id];
-    questionItems.push({
+    let storagePath = resp.audio_storage_path;
+    if (!storagePath && resp.audio_url) {
+      const match = resp.audio_url.match(
+        /(?:ielts-recordings|ielts-speaking-recordings)\/([^?#]+)/,
+      );
+      if (match?.[1]) storagePath = decodeURIComponent(match[1]);
+    }
+
+    if (storagePath) {
+      const downloaded = await downloadAudioAsBase64(storagePath);
+      if (downloaded) return downloaded;
+    }
+
+    if (resp.audio_url) {
+      try {
+        const audioRes = await fetch(resp.audio_url);
+        if (audioRes.ok) {
+          const arr = await audioRes.arrayBuffer();
+          const cType = audioRes.headers.get("content-type") || "audio/webm";
+          return {
+            base64: Buffer.from(arr).toString("base64"),
+            mimeType: cType.split(";")[0].trim(),
+          };
+        }
+      } catch (err) {
+        console.warn(`[AI Evaluator] Failed to fetch audio for ${qId}:`, err);
+      }
+    }
+    return null;
+  };
+
+  // Gom toàn bộ câu hỏi
+  const allQuestions = [
+    ...topic.part1_questions.map((q) => ({
       id: q.id,
-      part: 'Part 1',
+      part: "Part 1",
       questionText: q.question_text,
-      liveTranscript: resp?.transcript || 'No transcript recorded',
-      duration: resp?.duration_seconds || 0,
-    });
-  });
-
-  // Part 2
-  if (topic.part2_cue_card) {
-    const card = topic.part2_cue_card;
-    const resp = attempt.responses?.[card.id];
-    questionItems.push({
-      id: card.id,
-      part: 'Part 2 Cue Card',
-      questionText: `${card.prompt_lead} Points: ${card.bullet_points.join(', ')}`,
-      liveTranscript: resp?.transcript || 'No transcript recorded',
-      duration: resp?.duration_seconds || 0,
-    });
-  }
-
-  // Part 3
-  topic.part3_questions.forEach((q) => {
-    const resp = attempt.responses?.[q.id];
-    questionItems.push({
+    })),
+    ...(topic.part2_cue_card
+      ? [
+          {
+            id: topic.part2_cue_card.id,
+            part: "Part 2 Cue Card",
+            questionText: `${topic.part2_cue_card.prompt_lead} Points: ${topic.part2_cue_card.bullet_points.join(", ")}`,
+          },
+        ]
+      : []),
+    ...topic.part3_questions.map((q) => ({
       id: q.id,
-      part: 'Part 3',
+      part: "Part 3",
       questionText: q.question_text,
-      liveTranscript: resp?.transcript || 'No transcript recorded',
-      duration: resp?.duration_seconds || 0,
-    });
-  });
+    })),
+  ];
 
-  // Check if candidate produced any spoken transcript
+  // Tải file audio song song
+  const questionItems = await Promise.all(
+    allQuestions.map(async (q) => {
+      const resp = attempt.responses?.[q.id];
+      const audioData = await fetchAudioForResponse(q.id);
+      return {
+        id: q.id,
+        part: q.part,
+        questionText: q.questionText,
+        liveTranscript: resp?.transcript || "",
+        duration: resp?.duration_seconds || 0,
+        audioBase64: audioData?.base64,
+        audioMimeType: audioData?.mimeType,
+      };
+    }),
+  );
+
+  // Kiểm tra nếu không có transcript nào
   const hasSpokenContent = questionItems.some(
-    (item) => item.liveTranscript && item.liveTranscript.trim().length > 0 && item.liveTranscript !== 'No transcript recorded'
+    (item) =>
+      Boolean(item.liveTranscript) && item.liveTranscript.trim().length > 2,
   );
 
   if (!hasSpokenContent) {
-    console.log('[AI Evaluator] No spoken responses detected across all questions. Awarding Band 0.0.');
+    console.log("[AI Evaluator] No assessable speech detected. Return Band 0.");
     const zeroPerQuestionRecord: Record<string, IELTSPerQuestionAnalysis> = {};
     questionItems.forEach((qItem) => {
       zeroPerQuestionRecord[qItem.id] = {
         question_id: qItem.id,
-        live_stt_transcript: 'No transcript recorded',
-        ai_generated_transcript: 'No transcript recorded',
+        live_stt_transcript: "No transcript recorded",
+        ai_generated_transcript: "No spoken response recorded in audio",
         match_percentage: 100,
-        feedback: 'No response was recorded for this question.',
-        improved_version: undefined,
-        grammar_corrections: undefined,
+        feedback: "No audio or spoken response was recorded for this question.",
       };
     });
 
@@ -331,168 +253,139 @@ export async function evaluateIELTSAttemptWithAI(
       part2_notes: attempt.part2_notes,
       overall_band: 0.0,
       status_title: getIELTSStatusTitle(0.0),
-      summary_feedback: 'No spoken response was detected for any of the questions. To receive a valid evaluation and score, please ensure your microphone is working correctly and provide spoken answers to each prompt.',
+      summary_feedback:
+        "No spoken response detected. Please check microphone settings.",
       criteria_scores: [
         {
-          code: 'FC',
-          name: 'Fluency & Coherence',
+          code: "FC",
+          name: "Fluency & Coherence",
           score: 0.0,
-          summary: 'No language was produced to assess fluency, rhythm, or coherence.',
-          key_observations: ['No speech attempted or recorded.', 'Unable to evaluate fluency features.'],
+          summary: "No speech produced.",
+          key_observations: [],
         },
         {
-          code: 'LR',
-          name: 'Lexical Resource',
+          code: "LR",
+          name: "Lexical Resource",
           score: 0.0,
-          summary: 'No vocabulary was produced for assessment.',
-          key_observations: ['No lexical items produced.', 'Unable to evaluate vocabulary range.'],
+          summary: "No vocabulary produced.",
+          key_observations: [],
         },
         {
-          code: 'GRA',
-          name: 'Grammatical Range & Accuracy',
+          code: "GRA",
+          name: "Grammatical Range & Accuracy",
           score: 0.0,
-          summary: 'No grammatical structures were attempted.',
-          key_observations: ['No sentence structures produced.', 'Unable to evaluate grammatical range or accuracy.'],
+          summary: "No grammar produced.",
+          key_observations: [],
         },
         {
-          code: 'PR',
-          name: 'Pronunciation',
+          code: "PR",
+          name: "Pronunciation",
           score: 0.0,
-          summary: 'No spoken output was available to evaluate phonological features or intelligibility.',
-          key_observations: ['No audio content detected.', 'Unable to assess pronunciation.'],
+          summary: "No audio available.",
+          key_observations: [],
         },
       ],
       filler_words: [],
       vocab_upgrades: [],
       strengths: [],
-      areas_for_improvement: ['Provide spoken answers to each question prompt.', 'Ensure microphone permissions and audio recording are active.'],
+      areas_for_improvement: ["Provide spoken answers to each prompt."],
       criterion_feedback: {
-        fluency: 'No spoken response detected.',
-        vocabulary: 'No spoken response detected.',
-        grammar: 'No spoken response detected.',
-        pronunciation: 'No spoken response detected.',
+        fluency: "No speech detected.",
+        vocabulary: "No speech detected.",
+        grammar: "No speech detected.",
+        pronunciation: "No speech detected.",
       },
-      estimated_band_reason: 'The candidate provided no audible speech or assessable language across all sections of the test. Under official IELTS assessment criteria, Band 0 is awarded when there is no assessable language produced.',
+      estimated_band_reason:
+        "Band 0 is awarded when no assessable language is produced.",
       per_question_analysis: zeroPerQuestionRecord,
     };
   }
 
-  const formattedResponses = questionItems
-    .map(
-      (item) => `[Question ID: ${item.id} | ${item.part}]
-Question Prompt: "${item.questionText}"
-Recording Duration: ${item.duration > 0 ? `${item.duration} seconds` : 'Recorded'}
-Browser STT Transcript (Raw/Partial): "${item.liveTranscript}"`
-    )
-    .join('\n\n');
+  const audioCount = questionItems.filter((item) =>
+    Boolean(item.audioBase64),
+  ).length;
+  if (audioCount === 0) {
+    console.warn("[AI Evaluator] Cannot evaluate: no audio files downloaded.");
+    return null;
+  }
 
-  const userPrompt = `Exam Topic: "${topic.title}" (Category: ${topic.category})
-Part 2 Preparation Notes by Candidate: "${attempt.part2_notes || 'None'}"
+  // Chuẩn bị payload OpenAI multimodal (input_audio)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const contentParts: any[] = [
+    {
+      type: "text",
+      text: `Exam Topic: "${topic.title}" (Category: ${topic.category})\nPart 2 Preparation Notes: "${attempt.part2_notes || "None"}"\n\nListen to each audio attached below and evaluate:`,
+    },
+  ];
 
-CANDIDATE QUESTION RESPONSES:
-${formattedResponses}
+  questionItems.forEach((item) => {
+    const isSilent =
+      !item.liveTranscript || item.liveTranscript.trim().length === 0;
+    const sttNote = isSilent
+      ? "\n🔇 Browser STT was empty."
+      : `\n📝 STT reference: "${item.liveTranscript.trim().slice(0, 80)}"`;
 
-REMINDER: For "ai_generated_transcript", provide a 100% FAITHFUL transcript of what the candidate ACTUALLY SPOKE in their audio recording. Clean up STT recognition typos and punctuation, BUT STRICTLY DO NOT ADD, INVENT, OR EXTEND ANY EXTRA SENTENCES OR CLAUSES THAT WERE NOT SPOKEN BY THE CANDIDATE. If the candidate spoke only 1 sentence, return ONLY that 1 sentence.
+    contentParts.push({
+      type: "text",
+      text: `\n---\n[Question ID: ${item.id} | ${item.part}]\nPrompt: "${item.questionText}"\nDuration: ${item.duration}s${sttNote}`,
+    });
 
-Please evaluate the candidate according to the official IELTS Examiner instructions and return JSON only.`;
+    if (item.audioBase64 && item.audioMimeType) {
+      const format = item.audioMimeType.split("/")[1]?.split(";")[0] || "webm";
+      contentParts.push({
+        type: "input_audio",
+        input_audio: {
+          data: item.audioBase64,
+          format: format === "mpeg" ? "mp3" : format,
+        },
+      });
+    }
+  });
+
+  contentParts.push({
+    type: "text",
+    text: "\nOutput ONLY valid JSON matching the system instructions. Do not include markdown code ticks outside the response.",
+  });
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
-
-    const isOpenAIFormat = endpoint.includes('/chat/completions');
-    console.log(`[AI Evaluator] Requesting endpoint: ${endpoint} (Model: ${model}, Format: ${isOpenAIFormat ? 'OpenAI' : 'Anthropic'})`);
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    };
-
-    const reqBody = isOpenAIFormat
-      ? {
-        model,
-        max_tokens: 8192,
-        stream: true,
-        messages: [
-          { role: 'system', content: OFFICIAL_IELTS_EXAMINER_PROMPT },
-          { role: 'user', content: userPrompt },
-        ],
-      }
-      : {
-        model,
-        max_tokens: 8192,
-        stream: true,
-        system: OFFICIAL_IELTS_EXAMINER_PROMPT,
-        messages: [{ role: 'user', content: userPrompt }],
-      };
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
 
     const res = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(reqBody),
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 8192,
+        messages: [
+          { role: "system", content: OFFICIAL_IELTS_EXAMINER_PROMPT },
+          { role: "user", content: contentParts },
+        ],
+      }),
       signal: controller.signal,
     });
 
     clearTimeout(timeoutId);
 
-    if (!res.ok || !res.body) {
-      console.warn(`[AI Evaluator Warning] API status ${res.status}. AI evaluation pending.`);
+    if (!res.ok) {
+      console.warn(
+        `[AI Evaluator Warning] API status ${res.status}: ${await res.text()}`,
+      );
       return null;
     }
 
-    // Stream SSE aggregation
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let rawContent = '';
+    const resJson = await res.json();
+    const rawContent = resJson.choices?.[0]?.message?.content || "";
+    if (!rawContent) return null;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
+    const parsed = parseAiJson(rawContent);
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr && jsonStr !== '[DONE]') {
-            try {
-              const parsedChunk = JSON.parse(jsonStr);
-              const textChunk =
-                parsedChunk.choices?.[0]?.delta?.content ||
-                parsedChunk.delta?.text ||
-                parsedChunk.content?.[0]?.text ||
-                '';
-              rawContent += textChunk;
-            } catch {
-              // ignore invalid JSON chunks in SSE stream
-            }
-          }
-        }
-      }
-    }
-
-    if (!rawContent) {
-      console.warn('[AI Evaluator Warning] Empty response content. AI evaluation pending.');
-      return null;
-    }
-
-    console.log(`[AI Evaluator] Received response (${rawContent.length} chars). Parsing JSON...`);
-
-    // Strip any markdown code block wrap (e.g. ```json ... ```)
-    const jsonMatch = rawContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    const jsonString = jsonMatch ? jsonMatch[1] : rawContent;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const parsed: any = repairTruncatedJson(jsonString);
-
-    const parseScore = (val: any) => {
+    const parseScore = (val: unknown) => {
       const num = Number(val);
-      if (!isNaN(num) && num >= 0.0 && num <= 9.0) {
-        return num;
-      }
-      return 0.0;
+      return !isNaN(num) && num >= 0.0 && num <= 9.0 ? num : 0.0;
     };
 
     const fcScore = parseScore(parsed.fluency_coherence);
@@ -501,46 +394,40 @@ Please evaluate the candidate according to the official IELTS Examiner instructi
     const prScore = parseScore(parsed.pronunciation);
 
     const rawOverall = Number(parsed.overall_band);
-    const overallBand = !isNaN(rawOverall) && rawOverall >= 0.0 && rawOverall <= 9.0
-      ? rawOverall
-      : Math.round(((fcScore + lrScore + graScore + prScore) / 4) * 2) / 2;
+    const overallBand =
+      !isNaN(rawOverall) && rawOverall >= 0.0 && rawOverall <= 9.0
+        ? rawOverall
+        : Math.round(((fcScore + lrScore + graScore + prScore) / 4) * 2) / 2;
+
+    const parsedItems = Array.isArray(parsed.per_question_items)
+      ? parsed.per_question_items
+      : [];
 
     const perQuestionRecord: Record<string, IELTSPerQuestionAnalysis> = {};
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const parsedItems: any[] = Array.isArray(parsed.per_question_items) ? parsed.per_question_items : [];
-
     questionItems.forEach((qItem, idx) => {
-      // 1. Try exact ID match
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let matchedItem = parsedItems.find((item: any) => item.question_id === qItem.id);
+      const matched =
+        parsedItems.find((item: any) => item.question_id === qItem.id) ||
+        parsedItems[idx];
 
-      // 2. Try fuzzy string match on question_id
-      if (!matchedItem) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        matchedItem = parsedItems.find(
-          (item: any) =>
-            typeof item.question_id === 'string' &&
-            (item.question_id.includes(qItem.id) || qItem.id.includes(item.question_id))
-        );
-      }
-
-      // 3. Fallback to index-based position matching
-      if (!matchedItem && parsedItems[idx]) {
-        matchedItem = parsedItems[idx];
-      }
-
-      const liveStt = attempt.responses?.[qItem.id]?.transcript || matchedItem?.live_stt_transcript || '';
-      const aiTranscript = matchedItem?.ai_generated_transcript || liveStt;
-      const matchPct = matchedItem?.match_percentage || computeWordSimilarity(liveStt, aiTranscript);
+      const liveStt =
+        attempt.responses?.[qItem.id]?.transcript ||
+        matched?.live_stt_transcript ||
+        qItem.liveTranscript ||
+        "";
+      const aiTranscript =
+        matched?.ai_generated_transcript || liveStt || "Audio analyzed";
 
       perQuestionRecord[qItem.id] = {
         question_id: qItem.id,
         live_stt_transcript: liveStt,
         ai_generated_transcript: aiTranscript,
-        match_percentage: matchPct,
-        feedback: matchedItem?.feedback || 'Candidate provided response for this question.',
-        improved_version: matchedItem?.improved_version || undefined,
-        grammar_corrections: Array.isArray(matchedItem?.grammar_corrections) ? matchedItem.grammar_corrections : undefined,
+        match_percentage:
+          matched?.match_percentage ??
+          (liveStt ? computeWordSimilarity(liveStt, aiTranscript) : 100),
+        feedback: matched?.feedback || "Evaluated.",
+        improved_version: matched?.improved_version,
+        grammar_corrections: matched?.grammar_corrections,
       };
     });
 
@@ -554,47 +441,48 @@ Please evaluate the candidate according to the official IELTS Examiner instructi
       part2_notes: attempt.part2_notes,
       overall_band: overallBand,
       status_title: getIELTSStatusTitle(overallBand),
-      summary_feedback: parsed.overall_feedback || 'AI evaluation generated successfully.',
+      summary_feedback: parsed.overall_feedback || "AI evaluation complete.",
       criteria_scores: [
         {
-          code: 'FC',
-          name: 'Fluency & Coherence',
+          code: "FC",
+          name: "Fluency & Coherence",
           score: fcScore,
-          summary: parsed.criterion_feedback?.fluency || 'Fluency assessment provided.',
-          key_observations: Array.isArray(parsed.criterion_key_observations?.fluency) ? parsed.criterion_key_observations.fluency : [],
+          summary: parsed.criterion_feedback?.fluency || "",
+          key_observations: parsed.criterion_key_observations?.fluency || [],
         },
         {
-          code: 'LR',
-          name: 'Lexical Resource',
+          code: "LR",
+          name: "Lexical Resource",
           score: lrScore,
-          summary: parsed.criterion_feedback?.vocabulary || 'Vocabulary assessment provided.',
-          key_observations: Array.isArray(parsed.criterion_key_observations?.vocabulary) ? parsed.criterion_key_observations.vocabulary : [],
+          summary: parsed.criterion_feedback?.vocabulary || "",
+          key_observations: parsed.criterion_key_observations?.vocabulary || [],
         },
         {
-          code: 'GRA',
-          name: 'Grammatical Range & Accuracy',
+          code: "GRA",
+          name: "Grammatical Range & Accuracy",
           score: graScore,
-          summary: parsed.criterion_feedback?.grammar || 'Grammar assessment provided.',
-          key_observations: Array.isArray(parsed.criterion_key_observations?.grammar) ? parsed.criterion_key_observations.grammar : [],
+          summary: parsed.criterion_feedback?.grammar || "",
+          key_observations: parsed.criterion_key_observations?.grammar || [],
         },
         {
-          code: 'PR',
-          name: 'Pronunciation',
+          code: "PR",
+          name: "Pronunciation",
           score: prScore,
-          summary: parsed.criterion_feedback?.pronunciation || 'Pronunciation assessment provided.',
-          key_observations: Array.isArray(parsed.criterion_key_observations?.pronunciation) ? parsed.criterion_key_observations.pronunciation : [],
+          summary: parsed.criterion_feedback?.pronunciation || "",
+          key_observations:
+            parsed.criterion_key_observations?.pronunciation || [],
         },
       ],
-      filler_words: Array.isArray(parsed.filler_words) ? parsed.filler_words : [],
-      vocab_upgrades: Array.isArray(parsed.vocab_upgrades) ? parsed.vocab_upgrades : [],
-      strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
-      areas_for_improvement: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : [],
+      filler_words: parsed.filler_words || [],
+      vocab_upgrades: parsed.vocab_upgrades || [],
+      strengths: parsed.strengths || [],
+      areas_for_improvement: parsed.weaknesses || [],
       criterion_feedback: parsed.criterion_feedback,
       estimated_band_reason: parsed.estimated_band_reason,
       per_question_analysis: perQuestionRecord,
     };
   } catch (err) {
-    console.error('[AI Evaluator Error]:', err);
+    console.error("[AI Evaluator Error]:", err);
     return null;
   }
 }

@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { pgDb } from '@/lib/db/postgres';
 import { evaluateIELTSAttemptWithAI } from '@/lib/ielts/ai-evaluator';
+import { IELTSScoreResult } from '@/types/ielts';
 
-export const maxDuration = 60; // Extend Vercel function timeout for AI scoring
+export const maxDuration = 90; // Extend timeout for multimodal AI scoring
+
+// In-flight deduplication map to prevent multiple concurrent evaluations for the same attempt
+const inFlightRescores = new Map<string, Promise<IELTSScoreResult | null>>();
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -29,19 +33,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Topic not found' }, { status: 404 });
     }
 
-    console.log(`[Re-scoring Attempt]: ${attemptId} with AI...`);
+    let scoreResult: IELTSScoreResult | null = null;
 
-    // Execute AI evaluation
-    const scoreResult = await evaluateIELTSAttemptWithAI(attempt, topic);
+    if (inFlightRescores.has(attemptId)) {
+      console.log(`[Re-scoring Attempt]: ${attemptId} is already evaluating with AI. Sharing in-flight promise...`);
+      scoreResult = await inFlightRescores.get(attemptId)!;
+    } else {
+      console.log(`[Re-scoring Attempt]: Starting AI evaluation for attempt ${attemptId}...`);
+      const evaluationPromise = (async () => {
+        try {
+          const res = await evaluateIELTSAttemptWithAI(attempt, topic);
+          if (res) {
+            await pgDb.updateIELTSAttemptStatus(
+              attemptId,
+              'submitted',
+              attempt.current_part || 'part3',
+              res.overall_band,
+              res
+            );
+          }
+          return res;
+        } finally {
+          inFlightRescores.delete(attemptId);
+        }
+      })();
 
-    // Save updated score result to PostgreSQL
-    await pgDb.updateIELTSAttemptStatus(
-      attemptId,
-      'submitted',
-      attempt.current_part || 'part3',
-      scoreResult?.overall_band,
-      scoreResult || undefined
-    );
+      inFlightRescores.set(attemptId, evaluationPromise);
+      scoreResult = await evaluationPromise;
+    }
+
+    if (!scoreResult) {
+      return NextResponse.json(
+        { success: false, error: 'AI evaluation returned empty or failed. Please verify AI_API_KEY, AI_ENDPOINT (e.g. https://llm.mrdnd.dev), and model configuration.' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

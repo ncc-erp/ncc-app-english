@@ -65,6 +65,12 @@ export default function IELTSSpeakingTestPage({
           return;
         }
 
+        if (data.attempt.status === "submitted") {
+          isSubmittedRef.current = true;
+          router.replace(`/ielts-speaking/result/${attemptId}`);
+          return;
+        }
+
         setAttempt(data.attempt);
         setTopic(data.topic);
         if (data.attempt.responses) {
@@ -81,7 +87,7 @@ export default function IELTSSpeakingTestPage({
       }
     }
     fetchAttempt();
-  }, [attemptId]);
+  }, [attemptId, router]);
 
   // Handle auto-cancellation if candidate leaves page (back/home navigation or browser close) without submitting
   useEffect(() => {
@@ -177,7 +183,7 @@ export default function IELTSSpeakingTestPage({
         throw new Error(data.error || "Failed to submit exam");
       }
 
-      router.push(`/ielts-speaking/result/${attemptId}`);
+      router.replace(`/ielts-speaking/result/${attemptId}`);
     } catch (err) {
       console.error("Submit error:", err);
       setError((err as Error).message);
