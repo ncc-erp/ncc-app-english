@@ -4,7 +4,7 @@ import { pgDb } from '@/lib/db/postgres';
 import { evaluateIELTSAttemptWithAI } from '@/lib/ielts/ai-evaluator';
 import { IELTSScoreResult } from '@/types/ielts';
 
-export const maxDuration = 90; // Extend timeout for multimodal AI scoring
+export const maxDuration = 300; // Allow up to 2 retries (85s each) + backoff
 
 // In-flight deduplication map to prevent multiple concurrent evaluations for the same attempt
 const inFlightRescores = new Map<string, Promise<IELTSScoreResult | null>>();

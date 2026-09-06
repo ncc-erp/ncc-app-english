@@ -292,8 +292,8 @@ export async function evaluateIELTSAttemptWithAI(
       criterion_feedback: {
         fluency: "No speech detected.",
         vocabulary: "No speech detected.",
-        grammar: "No speech detected.",
-        pronunciation: "No speech detected.",
+      "grammar": "No speech detected.",
+        "pronunciation": "No speech detected.",
       },
       estimated_band_reason:
         "Band 0 is awarded when no assessable language is produced.",
@@ -301,9 +301,20 @@ export async function evaluateIELTSAttemptWithAI(
     };
   }
 
-  const audioCount = questionItems.filter((item) =>
-    Boolean(item.audioBase64),
-  ).length;
+  const MAX_AUDIO_BASE64_BYTES = 3 * 1024 * 1024; // 3 MB
+  const audioCount = questionItems.filter((item) => {
+    if (!item.audioBase64) return false;
+    if (item.audioBase64.length > MAX_AUDIO_BASE64_BYTES) {
+      console.warn(
+        `[AI Evaluator] Skipping oversized audio for ${item.id}: ${(item.audioBase64.length / 1024 / 1024).toFixed(1)} MB > 3 MB limit`,
+      );
+      item.audioBase64 = undefined;
+      item.audioMimeType = undefined;
+      return false;
+    }
+    return true;
+  }).length;
+
   if (audioCount === 0) {
     console.warn("[AI Evaluator] Cannot evaluate: no audio files downloaded.");
     return null;
@@ -347,35 +358,75 @@ export async function evaluateIELTSAttemptWithAI(
     text: "\nOutput ONLY valid JSON matching the system instructions. Do not include markdown code ticks outside the response.",
   });
 
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 90000);
+  const requestBody = JSON.stringify({
+    model,
+    max_tokens: 8192,
+    messages: [
+      { role: "system", content: OFFICIAL_IELTS_EXAMINER_PROMPT },
+      { role: "user", content: contentParts },
+    ],
+  });
 
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 8192,
-        messages: [
-          { role: "system", content: OFFICIAL_IELTS_EXAMINER_PROMPT },
-          { role: "user", content: contentParts },
-        ],
-      }),
-      signal: controller.signal,
-    });
+  // Log payload size to help diagnose upstream rejections
+  console.log(
+    `[AI Evaluator] Sending request: ${audioCount} audio clip(s), payload size: ${(requestBody.length / 1024 / 1024).toFixed(2)} MB`,
+  );
 
-    clearTimeout(timeoutId);
+  // Retry helper: up to maxAttempts tries with exponential backoff on 499/503/timeout
+  const MAX_RETRIES = 2;
+  const callAIWithRetry = async () => {
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 85000);
+      try {
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: requestBody,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
 
-    if (!res.ok) {
-      console.warn(
-        `[AI Evaluator Warning] API status ${res.status}: ${await res.text()}`,
-      );
-      return null;
+        // Retry on transient gateway errors
+        if ((res.status === 499 || res.status === 503) && attempt < MAX_RETRIES) {
+          const bodyText = await res.text();
+          console.warn(
+            `[AI Evaluator Warning] API status ${res.status} (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${bodyText}. Retrying in ${(attempt + 1) * 3}s…`,
+          );
+          await new Promise((r) => setTimeout(r, (attempt + 1) * 3000));
+          continue;
+        }
+
+        if (!res.ok) {
+          console.warn(
+            `[AI Evaluator Warning] API status ${res.status}: ${await res.text()}`,
+          );
+          return null;
+        }
+        return res;
+      } catch (fetchErr) {
+        clearTimeout(timeoutId);
+        const isTimeout =
+          fetchErr instanceof Error && fetchErr.name === "AbortError";
+        if (isTimeout && attempt < MAX_RETRIES) {
+          console.warn(
+            `[AI Evaluator Warning] Request timed out (attempt ${attempt + 1}/${MAX_RETRIES + 1}). Retrying in ${(attempt + 1) * 3}s…`,
+          );
+          await new Promise((r) => setTimeout(r, (attempt + 1) * 3000));
+          continue;
+        }
+        throw fetchErr;
+      }
     }
+    return null;
+  };
+
+  try {
+    const res = await callAIWithRetry();
+    if (!res) return null;
 
     const resJson = await res.json();
     const rawContent = resJson.choices?.[0]?.message?.content || "";
