@@ -69,3 +69,75 @@ export async function createSignedAudioUrl(path: string, expiresIn = 3600) {
     ? signedPath
     : `${baseUrl}/storage/v1${signedPath}`;
 }
+
+export async function downloadAudioAsBase64(
+  path: string,
+): Promise<{ base64: string; mimeType: string } | null> {
+  try {
+    const { baseUrl, serviceRoleKey } = getConfig();
+
+    // 1. Try authenticated object endpoint (standard for private buckets)
+    let response = await fetch(
+      `${baseUrl}/storage/v1/object/authenticated/${bucket}/${path}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${serviceRoleKey}`,
+          apikey: serviceRoleKey,
+        },
+      },
+    );
+
+    // 2. Fallback to direct object endpoint
+    if (!response.ok) {
+      response = await fetch(
+        `${baseUrl}/storage/v1/object/${bucket}/${path}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${serviceRoleKey}`,
+            apikey: serviceRoleKey,
+          },
+        },
+      );
+    }
+
+    // 3. Fallback to fresh signed URL
+    if (!response.ok) {
+      try {
+        const signedUrl = await createSignedAudioUrl(path, 60);
+        response = await fetch(signedUrl);
+      } catch (signErr) {
+        console.warn(`[Supabase Storage] Failed to create signed URL fallback for ${path}:`, signErr);
+      }
+    }
+
+    if (!response.ok) {
+      console.warn(
+        `[Supabase Storage] Failed to download audio ${path}: ${response.status} ${response.statusText}`,
+      );
+      return null;
+    }
+
+    const contentType =
+      response.headers.get("content-type") ||
+      (path.endsWith(".ogg")
+        ? "audio/ogg"
+        : path.endsWith(".mp3")
+          ? "audio/mp3"
+          : path.endsWith(".wav")
+            ? "audio/wav"
+            : "audio/webm");
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    return {
+      base64: buffer.toString("base64"),
+      mimeType: contentType.split(";")[0].trim(),
+    };
+  } catch (error) {
+    console.error(`[Supabase Storage] Error downloading audio ${path}:`, error);
+    return null;
+  }
+}
+

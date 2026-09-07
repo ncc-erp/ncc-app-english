@@ -34,7 +34,7 @@ export default function ActiveExamPage({ params }: { params: Promise<{ attemptId
         const data = await res.json();
         if (data.success) {
           if (data.attempt.status === 'submitted') {
-            router.push(`/exam/${attemptId}/result`);
+            router.replace(`/exam/${attemptId}/result`);
             return;
           }
 
@@ -89,7 +89,7 @@ export default function ActiveExamPage({ params }: { params: Promise<{ attemptId
 
       const data = await res.json();
       if (data.success) {
-        router.push(`/exam/${attemptId}/result`);
+        router.replace(`/exam/${attemptId}/result`);
       } else {
         setErrorMsg(data.error || 'Failed to submit exam.');
         setIsSubmitting(false);

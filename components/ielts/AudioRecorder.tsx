@@ -24,7 +24,7 @@ interface AudioRecorderProps {
   maxDurationSeconds?: number;
 }
 
-type SttSource = "deepgram" | null;
+type SttSource = "web-speech" | "deepgram" | null;
 
 export const AudioRecorder: React.FC<AudioRecorderProps> = ({
   attemptId,
@@ -40,6 +40,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [liveTranscript, setLiveTranscript] = useState("");
+  const [sttSource, setSttSource] = useState<SttSource>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -63,10 +64,60 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
   // Which STT is active
   const activeSttSourceRef = useRef<SttSource>(null);
 
+  // Web Speech API
+  const speechRecognitionRef = useRef<any | null>(null);
+  const speechSessionFinalRef = useRef<string>("");
+  const activeStreamRef = useRef<MediaStream | null>(null);
+
   // Deepgram
   const sttSocketRef = useRef<WebSocket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
+
+  const isMobileOrWebView = () => {
+    if (typeof window === "undefined" || typeof navigator === "undefined") {
+      return false;
+    }
+
+    const userAgent =
+      navigator.userAgent || navigator.vendor || (window as any).opera || "";
+
+    // Detect mobile OS / devices / in-app browsers
+    const mobileRegex =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|mobile|CriOS|FxiOS|KAIOS/i;
+
+    // Detect tablets or iOS devices presenting as desktop (e.g. iPad Safari desktop mode)
+    const isTouchDevice =
+      typeof navigator.maxTouchPoints === "number" &&
+      navigator.maxTouchPoints > 1 &&
+      /Macintosh|iPad|iPhone|Android/i.test(userAgent);
+
+    // Detect in-app webviews (Mezon App, Messenger, Zalo, Android WebView, etc.)
+    const isWebView =
+      /wv|WebView|Mezon/i.test(userAgent) ||
+      Boolean((window as any).Mezon) ||
+      Boolean((window as any).ReactNativeWebView);
+
+    return mobileRegex.test(userAgent) || isTouchDevice || isWebView;
+  };
+
+  const getSpeechRecognitionClass = () => {
+    if (typeof window === "undefined") return null;
+
+    // On mobile devices & WebViews (iOS Safari, Android Chrome/WebView, Mezon App),
+    // Web Speech API has significant limitations (conflicts with MediaRecorder microphone capture,
+    // unsupported continuous listening, or dummy window.webkitSpeechRecognition stubs).
+    // Therefore, mobile devices always use Deepgram directly.
+    if (isMobileOrWebView()) {
+      return null;
+    }
+
+    return (
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition ||
+      null
+    );
+  };
 
   const stopTimer = () => {
     if (timerIntervalRef.current) {
@@ -75,8 +126,23 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     }
   };
 
+  const stopSpeechRecognition = () => {
+    if (speechRecognitionRef.current) {
+      try {
+        const recognition = speechRecognitionRef.current;
+        recognition.onresult = null;
+        recognition.onerror = null;
+        recognition.onend = null;
+        recognition.stop();
+      } catch {
+        // Ignore
+      }
+      speechRecognitionRef.current = null;
+    }
+  };
+
   const stopStreamingSTT = () => {
-    // console.log("[STT] Stopping Deepgram streaming");
+    stopSpeechRecognition();
 
     if (sttSocketRef.current) {
       try {
@@ -99,8 +165,123 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
       audioContextRef.current = null;
     }
 
-    if (activeSttSourceRef.current === "deepgram") {
-      activeSttSourceRef.current = null;
+    activeSttSourceRef.current = null;
+    setSttSource(null);
+  };
+
+  const startWebSpeechRecognition = (
+    SpeechRecognitionClass: any,
+    stream: MediaStream,
+  ): boolean => {
+    try {
+      const recognition = new SpeechRecognitionClass();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+      recognition.maxAlternatives = 1;
+
+      speechRecognitionRef.current = recognition;
+      speechSessionFinalRef.current = "";
+
+      recognition.onresult = (event: any) => {
+        if (activeSttSourceRef.current !== "web-speech") {
+          return;
+        }
+
+        let sessionFinal = "";
+        let sessionInterim = "";
+
+        for (let i = 0; i < event.results.length; ++i) {
+          const result = event.results[i];
+          const transcriptPiece = result[0]?.transcript || "";
+          if (result.isFinal) {
+            sessionFinal += transcriptPiece + " ";
+          } else {
+            sessionInterim += transcriptPiece;
+          }
+        }
+
+        speechSessionFinalRef.current = sessionFinal;
+
+        const currentFull =
+          `${finalTranscriptRef.current} ${sessionFinal} ${sessionInterim}`
+            .replace(/\s+/g, " ")
+            .trim();
+
+        setLiveTranscript(currentFull);
+        transcriptRef.current = currentFull;
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn("[WebSpeech STT] Error:", event?.error);
+
+        if (event?.error === "no-speech") {
+          return;
+        }
+
+        // Fatal/blocking errors -> Fallback to Deepgram if still recording
+        if (
+          isRecordingRef.current &&
+          activeSttSourceRef.current === "web-speech" &&
+          (event?.error === "network" ||
+            event?.error === "not-allowed" ||
+            event?.error === "service-not-allowed" ||
+            event?.error === "audio-capture")
+        ) {
+          console.warn(
+            "[WebSpeech STT] Falling back to Deepgram due to error:",
+            event.error,
+          );
+          stopSpeechRecognition();
+          activeSttSourceRef.current = "deepgram";
+          setSttSource("deepgram");
+          void connectStreamingSTT(stream).catch((err) => {
+            console.warn("[Deepgram Fallback Failed]:", err);
+            activeSttSourceRef.current = null;
+            setSttSource(null);
+          });
+        }
+      };
+
+      recognition.onend = () => {
+        // Chromium Web Speech API may end on silence even in continuous mode.
+        // Restart if recording is still in progress.
+        if (
+          isRecordingRef.current &&
+          activeSttSourceRef.current === "web-speech"
+        ) {
+          finalTranscriptRef.current =
+            `${finalTranscriptRef.current} ${speechSessionFinalRef.current}`
+              .replace(/\s+/g, " ")
+              .trim();
+          speechSessionFinalRef.current = "";
+
+          try {
+            recognition.start();
+          } catch (err) {
+            console.warn(
+              "[WebSpeech STT] Restart failed, falling back to Deepgram:",
+              err,
+            );
+            stopSpeechRecognition();
+            activeSttSourceRef.current = "deepgram";
+            setSttSource("deepgram");
+            void connectStreamingSTT(stream).catch((deepgramErr) => {
+              console.warn("[Deepgram Fallback Failed]:", deepgramErr);
+              activeSttSourceRef.current = null;
+              setSttSource(null);
+            });
+          }
+        }
+      };
+
+      recognition.start();
+      activeSttSourceRef.current = "web-speech";
+      setSttSource("web-speech");
+      return true;
+    } catch (error) {
+      console.warn("[WebSpeech STT] Failed to start:", error);
+      return false;
     }
   };
 
@@ -389,6 +570,8 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
       // console.log("[Recorder] Microphone permission granted");
 
+      activeStreamRef.current = stream;
+
       const mediaRecorder = new MediaRecorder(stream);
       const recordingSession = ++recordingSessionRef.current;
 
@@ -396,16 +579,28 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
       audioChunksRef.current = [];
 
-      activeSttSourceRef.current = "deepgram";
+      // Auto-detect browser Speech Recognition support; fallback to Deepgram
+      const SpeechRecognitionClass = getSpeechRecognitionClass();
+      let sttStarted = false;
 
-      try {
-        await connectStreamingSTT(stream);
-      } catch (error) {
-        console.warn(
-          "[Recorder] Live Deepgram transcription unavailable; continuing with recording:",
-          error,
-        );
-        activeSttSourceRef.current = null;
+      if (SpeechRecognitionClass) {
+        sttStarted = startWebSpeechRecognition(SpeechRecognitionClass, stream);
+      }
+
+      if (!sttStarted) {
+        activeSttSourceRef.current = "deepgram";
+        setSttSource("deepgram");
+
+        try {
+          await connectStreamingSTT(stream);
+        } catch (error) {
+          console.warn(
+            "[Recorder] Live Deepgram transcription unavailable; continuing with recording:",
+            error,
+          );
+          activeSttSourceRef.current = null;
+          setSttSource(null);
+        }
       }
 
       mediaRecorder.ondataavailable = (event) => {
@@ -429,6 +624,16 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
         const objectUrl = URL.createObjectURL(audioBlob);
 
         setAudioUrl(objectUrl);
+
+        if (activeSttSourceRef.current === "web-speech") {
+          const finalTotal =
+            `${finalTranscriptRef.current} ${speechSessionFinalRef.current}`
+              .replace(/\s+/g, " ")
+              .trim();
+          if (finalTotal) {
+            transcriptRef.current = finalTotal;
+          }
+        }
 
         const transcript = transcriptRef.current.trim();
 
@@ -600,6 +805,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
     isStartingRef.current = false;
     isFinalizingRef.current = false;
     activeSttSourceRef.current = null;
+    setSttSource(null);
 
     if (autoStart) {
       const timer = window.setTimeout(() => {
@@ -728,10 +934,20 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
       {(isRecording || liveTranscript) && (
         <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-1 text-left">
-          <div className="flex items-center gap-2 text-xs font-bold text-purple-700 uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5 text-purple-600 animate-pulse" />
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-bold text-purple-700 uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5 text-purple-600 animate-pulse" />
 
-            <span>Live Speech-to-Text Transcript</span>
+              <span>Live Speech-to-Text Transcript</span>
+            </div>
+
+            {/* {sttSource && (
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+                {sttSource === "web-speech"
+                  ? "Browser Speech API"
+                  : "Deepgram AI"}
+              </span>
+            )} */}
           </div>
 
           <p className="text-sm text-slate-800 font-medium leading-relaxed italic">

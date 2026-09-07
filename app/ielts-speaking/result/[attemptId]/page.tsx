@@ -1,14 +1,28 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
-import { Navbar } from '@/components/Navbar';
-import { QuestionAudioReviewer } from '@/components/ielts/QuestionAudioReviewer';
-import { ClanJoinCTA } from '@/components/result/ClanJoinCTA';
-import { IELTSScoreResult } from '@/types/ielts';
-import { Award, Sparkles, AlertCircle, ArrowUpRight, RefreshCw, ChevronRight, Clock } from 'lucide-react';
+import React, { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
+import { Navbar } from "@/components/Navbar";
+import { QuestionAudioReviewer } from "@/components/ielts/QuestionAudioReviewer";
+import { ClanJoinCTA } from "@/components/result/ClanJoinCTA";
+import { IELTSScoreResult } from "@/types/ielts";
+import {
+  Award,
+  Sparkles,
+  AlertCircle,
+  ArrowUpRight,
+  RefreshCw,
+  ChevronRight,
+  Clock,
+  ArrowLeft,
+  History,
+} from "lucide-react";
 
-export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ attemptId: string }> }) {
+export default function IELTSSpeakingResultPage({
+  params,
+}: {
+  params: Promise<{ attemptId: string }>;
+}) {
   const { attemptId } = use(params);
   const router = useRouter();
 
@@ -23,28 +37,42 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
       const res = await fetch(`/api/ielts/${attemptId}`);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let data: any;
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
         data = await res.json();
       } else {
         const text = await res.text();
-        throw new Error(text || `Server returned non-JSON response (${res.status})`);
+        throw new Error(
+          text || `Server returned non-JSON response (${res.status})`,
+        );
       }
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to load result report');
+        throw new Error(data.error || "Failed to load result report");
+      }
+
+      if (data.attempt?.status === "cancelled") {
+        setError(
+          "This test attempt was cancelled because it was interrupted before completion.",
+        );
+        return;
       }
 
       if (data.result) {
         setResult(data.result);
-        setIsUnlocked(data.isUnlocked || data.attempt?.unlocked || data.result?.unlocked || false);
+        setIsUnlocked(
+          data.isUnlocked ||
+            data.attempt?.unlocked ||
+            data.result?.unlocked ||
+            false,
+        );
       } else {
         // Instant submit case: result is not yet generated. Auto-trigger AI evaluation!
         setResult(null);
         handleRescoreWithAI();
       }
     } catch (err) {
-      console.error('Fetch result error:', err);
+      console.error("Fetch result error:", err);
       setError((err as Error).message);
     } finally {
       if (showLoadingSpinner) setLoading(false);
@@ -66,31 +94,33 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
       setError(null);
       setRescoreSuccess(false);
 
-      const res = await fetch('/api/ielts/rescore', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/ielts/rescore", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ attemptId }),
       });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let data: any;
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
+      const contentType = res.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
         data = await res.json();
       } else {
         const text = await res.text();
-        throw new Error(text || `Server returned non-JSON response (${res.status})`);
+        throw new Error(
+          text || `Server returned non-JSON response (${res.status})`,
+        );
       }
 
       if (!res.ok || !data.success || !data.result) {
-        throw new Error(data.error || 'Failed to re-score attempt with AI');
+        throw new Error(data.error || "Failed to re-score attempt with AI");
       }
 
       setResult(data.result);
       setRescoreSuccess(true);
       setTimeout(() => setRescoreSuccess(false), 5000);
     } catch (err) {
-      console.error('Rescore error:', err);
+      console.error("Rescore error:", err);
       setError((err as Error).message);
     } finally {
       setRescoring(false);
@@ -101,7 +131,9 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-center items-center">
         <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-slate-600 font-medium">Loading IELTS test attempt details...</p>
+        <p className="text-slate-600 font-medium">
+          Loading IELTS test attempt details...
+        </p>
       </div>
     );
   }
@@ -121,9 +153,13 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
                 <div className="inline-block px-3 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-full uppercase tracking-wider animate-pulse">
                   🤖 AI Examiner Evaluating Speech...
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">Evaluating Band Score</h1>
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
+                  Evaluating Band Score
+                </h1>
                 <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-                  The AI system is analyzing your speaking response across 4 IELTS criteria (FC, LR, GRA, PR). This usually takes 15–30 seconds...
+                  The AI system is analyzing your speaking response across 4
+                  IELTS criteria (FC, LR, GRA, PR). This usually takes 15–30
+                  seconds...
                 </p>
               </div>
             </>
@@ -136,9 +172,12 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
                 <div className="inline-block px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full uppercase tracking-wider">
                   Status: Evaluation Pending
                 </div>
-                <h1 className="text-3xl font-extrabold text-slate-900">AI Scoring Pending</h1>
+                <h1 className="text-3xl font-extrabold text-slate-900">
+                  AI Scoring Pending
+                </h1>
                 <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-                  Your Speaking test response has been safely recorded. Click the button below to start or retry the AI evaluation.
+                  Your Speaking test response has been safely recorded. Click
+                  the button below to start or retry the AI evaluation.
                 </p>
               </div>
             </>
@@ -156,15 +195,28 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
               disabled={rescoring}
               className="inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-2xl shadow-lg shadow-purple-200 transition-all disabled:opacity-50 active:scale-95"
             >
-              <RefreshCw className={`w-4 h-4 ${rescoring ? 'animate-spin' : ''}`} />
-              <span>{rescoring ? 'Analyzing speaking response...' : '🤖 Re-score with AI'}</span>
+              <RefreshCw
+                className={`w-4 h-4 ${rescoring ? "animate-spin" : ""}`}
+              />
+              <span>
+                {rescoring
+                  ? "Analyzing speaking response..."
+                  : "🤖 Re-score with AI"}
+              </span>
             </button>
 
             <button
-              onClick={() => router.push('/ielts-speaking')}
+              onClick={() => {
+                if (window.history.length > 1) {
+                  router.back();
+                } else {
+                  router.push("/ielts-speaking/history");
+                }
+              }}
               className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-2xl border border-slate-200 transition-all"
             >
-              <span>Back to test list</span>
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
             </button>
           </div>
         </main>
@@ -176,7 +228,32 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       <Navbar />
 
-      <main className="flex-1 max-w-5xl mx-auto px-4 py-10 w-full space-y-8">
+      <main className="flex-1 max-w-5xl mx-auto px-4 py-10 w-full space-y-6">
+        {/* Navigation Back Bar */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => {
+              if (window.history.length > 1) {
+                router.back();
+              } else {
+                router.push("/ielts-speaking/history");
+              }
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all shadow-sm group"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+            <span>Back</span>
+          </button>
+
+          <button
+            onClick={() => router.push("/ielts-speaking/history")}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold rounded-xl border border-purple-200 transition-all shadow-sm"
+          >
+            <History className="w-4 h-4" />
+            <span>Test History</span>
+          </button>
+        </div>
+
         {/* Overall Band Hero Card */}
         <div className="relative overflow-hidden bg-gradient-to-br from-amber-500 via-amber-600 to-purple-700 text-white rounded-3xl p-8 md:p-12 shadow-xl">
           <div className="flex flex-col md:flex-row items-center justify-between gap-8">
@@ -193,13 +270,23 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
                   className="inline-flex items-center gap-2 px-4 py-1.5 bg-white hover:bg-amber-50 text-purple-900 text-xs font-extrabold rounded-full transition-all shadow-md active:scale-95 disabled:opacity-50"
                   title="Re-evaluate speaking attempt using AI Examiner"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${rescoring ? 'animate-spin' : ''}`} />
-                  <span>{rescoring ? 'Re-scoring with AI...' : '🤖 Re-score with AI'}</span>
+                  <RefreshCw
+                    className={`w-3.5 h-3.5 ${rescoring ? "animate-spin" : ""}`}
+                  />
+                  <span>
+                    {rescoring
+                      ? "Re-scoring with AI..."
+                      : "🤖 Re-score with AI"}
+                  </span>
                 </button>
               </div>
 
-              <h1 className="text-3xl md:text-4xl font-extrabold">{result.topic_title}</h1>
-              <p className="text-amber-50 max-w-xl text-sm leading-relaxed">{result.summary_feedback}</p>
+              <h1 className="text-3xl md:text-4xl font-extrabold">
+                {result.topic_title}
+              </h1>
+              <p className="text-amber-50 max-w-xl text-sm leading-relaxed">
+                {result.summary_feedback}
+              </p>
 
               {rescoreSuccess && (
                 <div className="inline-block px-3 py-1 bg-emerald-500/90 text-white text-xs font-bold rounded-lg animate-fade-in">
@@ -210,8 +297,12 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
 
             {/* Band Score Badge */}
             <div className="flex flex-col items-center justify-center p-6 bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl min-w-[200px] shadow-2xl shrink-0">
-              <div className="text-xs uppercase tracking-widest font-bold text-amber-200">Overall Band</div>
-              <div className="text-6xl font-extrabold text-white font-mono my-2">{result.overall_band.toFixed(1)}</div>
+              <div className="text-xs uppercase tracking-widest font-bold text-amber-200">
+                Overall Band
+              </div>
+              <div className="text-6xl font-extrabold text-white font-mono my-2">
+                {result.overall_band.toFixed(1)}
+              </div>
               <div className="text-xs font-bold text-slate-900 text-center px-3 py-1 bg-white rounded-full">
                 {result.status_title}
               </div>
@@ -250,7 +341,9 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
         )}
 
         {/* Detailed Breakdown Container (Slightly blurred when not verified) */}
-        <div className={`space-y-8 transition-all duration-500 ${!isUnlocked ? 'filter blur-[3px] select-none pointer-events-none opacity-60' : ''}`}>
+        <div
+          className={`space-y-8 transition-all duration-500 ${!isUnlocked ? "filter blur-[3px] select-none pointer-events-none opacity-60" : ""}`}
+        >
           {/* 4 Criteria Scores Section */}
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
@@ -260,25 +353,39 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {result.criteria_scores.map((crit) => (
-                <div key={crit.code} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+                <div
+                  key={crit.code}
+                  className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between"
+                >
                   <div>
                     <div className="flex items-center justify-between gap-4 mb-3">
                       <div>
-                        <span className="text-xs font-bold uppercase tracking-wider text-purple-600">{crit.code}</span>
-                        <h3 className="text-lg font-bold text-slate-900">{crit.name}</h3>
+                        <span className="text-xs font-bold uppercase tracking-wider text-purple-600">
+                          {crit.code}
+                        </span>
+                        <h3 className="text-lg font-bold text-slate-900">
+                          {crit.name}
+                        </h3>
                       </div>
                       <div className="text-2xl font-bold font-mono text-amber-600 bg-amber-50 px-3.5 py-1 rounded-xl border border-amber-200">
                         {crit.score.toFixed(1)}
                       </div>
                     </div>
 
-                    <p className="text-xs text-slate-600 mb-4 leading-relaxed">{crit.summary}</p>
+                    <p className="text-xs text-slate-600 mb-4 leading-relaxed">
+                      {crit.summary}
+                    </p>
                   </div>
 
                   <div className="space-y-2 pt-4 border-t border-slate-100">
-                    <div className="text-xs font-bold text-slate-900">Key Observations:</div>
+                    <div className="text-xs font-bold text-slate-900">
+                      Key Observations:
+                    </div>
                     {crit.key_observations.map((obs, idx) => (
-                      <div key={idx} className="flex items-center gap-2 text-xs text-slate-600">
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 text-xs text-slate-600"
+                      >
                         <ChevronRight className="w-3.5 h-3.5 text-purple-600 shrink-0" />
                         <span>{obs}</span>
                       </div>
@@ -303,20 +410,25 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
 
               <div className="space-y-3">
                 {result.filler_words.map((f, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200"
+                  >
                     <div className="flex items-center gap-3">
                       <span className="font-mono font-bold text-purple-700 bg-purple-100 px-2.5 py-1 rounded-lg text-sm">
                         "{f.word}"
                       </span>
-                      <span className="text-xs text-slate-600">Count: {f.count}</span>
+                      <span className="text-xs text-slate-600">
+                        Count: {f.count}
+                      </span>
                     </div>
                     <span
                       className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase ${
-                        f.impact === 'high'
-                          ? 'bg-rose-100 text-rose-700 border border-rose-200'
-                          : f.impact === 'moderate'
-                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                          : 'bg-slate-200 text-slate-700'
+                        f.impact === "high"
+                          ? "bg-rose-100 text-rose-700 border border-rose-200"
+                          : f.impact === "moderate"
+                            ? "bg-amber-100 text-amber-800 border border-amber-200"
+                            : "bg-slate-200 text-slate-700"
                       }`}
                     >
                       {f.impact} impact
@@ -335,13 +447,22 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
 
               <div className="space-y-3">
                 {result.vocab_upgrades.map((v, idx) => (
-                  <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                  <div
+                    key={idx}
+                    className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1"
+                  >
                     <div className="flex items-center gap-2 text-sm">
-                      <span className="line-through text-slate-400">{v.original}</span>
+                      <span className="line-through text-slate-400">
+                        {v.original}
+                      </span>
                       <span className="text-slate-400">→</span>
-                      <span className="font-bold text-emerald-700">{v.upgrade}</span>
+                      <span className="font-bold text-emerald-700">
+                        {v.upgrade}
+                      </span>
                     </div>
-                    <p className="text-xs text-slate-600 italic">"{v.context_example}"</p>
+                    <p className="text-xs text-slate-600 italic">
+                      "{v.context_example}"
+                    </p>
                   </div>
                 ))}
               </div>
@@ -351,16 +472,26 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
 
         {/* Action Controls */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6">
-          <button
-            onClick={() => router.push('/ielts-speaking')}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-2xl border border-slate-200 transition-all shadow-sm"
-          >
-            <RefreshCw className="w-4 h-4" />
-            <span>Practice Another Topic</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            <button
+              onClick={() => router.push("/ielts-speaking")}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-2xl border border-slate-200 transition-all shadow-sm"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Practice Another Topic</span>
+            </button>
+
+            {/* <button
+              onClick={() => router.push('/ielts-speaking/history')}
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-white hover:bg-purple-50 text-purple-700 font-bold rounded-2xl border border-purple-200 transition-all shadow-sm"
+            >
+              <History className="w-4 h-4" />
+              <span>View Test History</span>
+            </button> */}
+          </div>
 
           <button
-            onClick={() => router.push('/')}
+            onClick={() => router.push("/")}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-2xl transition-all shadow-md shadow-purple-200"
           >
             <span>Return to Home</span>
@@ -376,13 +507,19 @@ export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ 
                   <Sparkles className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">Re-evaluate with AI?</h3>
-                  <p className="text-xs text-slate-500 font-medium">IELTS Examiner AI Scoring</p>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    Re-evaluate with AI?
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    IELTS Examiner AI Scoring
+                  </p>
                 </div>
               </div>
 
               <p className="text-sm text-slate-600 leading-relaxed font-medium">
-                Are you sure you want to re-score this attempt using the AI Examiner? This will re-evaluate your recorded responses and update your Band Score report.
+                Are you sure you want to re-score this attempt using the AI
+                Examiner? This will re-evaluate your recorded responses and
+                update your Band Score report.
               </p>
 
               <div className="flex items-center justify-end gap-3 pt-2">
