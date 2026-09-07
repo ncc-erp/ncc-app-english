@@ -8,7 +8,7 @@ import { LockedTeaserCard } from '@/components/result/LockedTeaserCard';
 import { ClanJoinCTA } from '@/components/result/ClanJoinCTA';
 import { FullReportView } from '@/components/result/FullReportView';
 import { ExamResultResponse } from '@/types';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, ArrowLeft } from 'lucide-react';
 
 export default function ExamResultPage({ params }: { params: Promise<{ attemptId: string }> }) {
   const { attemptId } = use(params);
@@ -78,7 +78,24 @@ export default function ExamResultPage({ params }: { params: Promise<{ attemptId
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <Navbar />
 
-      <main className="flex-1 max-w-3xl mx-auto px-4 py-8 space-y-8 w-full">
+      <main className="flex-1 max-w-3xl mx-auto px-4 py-8 space-y-6 w-full">
+        {/* Navigation Back Bar */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => {
+              if (window.history.length > 1) {
+                router.back();
+              } else {
+                router.push('/exam');
+              }
+            }}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all shadow-sm group"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+            <span>Back</span>
+          </button>
+        </div>
+
         {/* Top Partial Score View (Always Visible) */}
         <PartialScoreView
           cefrLevel={result.cefr_level || 'B1'}
