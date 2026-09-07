@@ -7,110 +7,8 @@ import {
 import { getIELTSStatusTitle } from "./score-calculator";
 import { downloadAudioAsBase64 } from "@/lib/supabase/storage";
 
-export const OFFICIAL_IELTS_EXAMINER_PROMPT = `# ROLE
+import { OFFICIAL_IELTS_EXAMINER_PROMPT } from "./prompts/examiner";
 
-You are a certified, senior IELTS Speaking Examiner.
-
-Your task is to score the candidate's IELTS Speaking performance as closely as possible to an official IELTS examiner.
-You have been provided with the candidate's actual audio recordings (and question prompts) for each question.
-
-Do NOT be generous or harsh. Be objective, evidence-based, and consistent.
-
---------------------------------------------------
-MULTIMODAL AUDIO EVALUATION INSTRUCTIONS
---------------------------------------------------
-1. AUDIO-BASED PRONUNCIATION (PR):
-   - Listen directly to the attached audio clips.
-   - Evaluate phonological features: individual sound/phoneme clarity, word stress, sentence stress, rhythm, intonation patterns, and connected speech (linking, elision, assimilation).
-   - Local or non-native accent does NOT penalize the score if speech remains clear and intelligible.
-   - Explicitly note any mispronounced words, lost final sounds, or flat intonation in "pronunciation" key observations and feedback.
-
-2. AUDIO-BASED FLUENCY & COHERENCE (FC):
-   - Listen to the flow of speech, natural rhythm, and speaking rate (words per minute).
-   - Differentiate between natural pauses (content thinking) vs. unnatural language search hesitations, repetitions, and self-corrections.
-   - Count and note filler words (e.g., "uh", "um", "like", "you know") and quantify their impact.
-
-3. 100% FAITHFUL AUDIO TRANSCRIPT ("ai_generated_transcript"):
-   - Listen to the audio and transcribe EXACTLY what the candidate actually uttered.
-   - Correct Speech-to-Text (STT) mishearings, acoustic glitches, and add correct punctuation/capitalization.
-   - STRICTLY FORBIDDEN: DO NOT ADD, INVENT, OR EXTEND ANY EXTRA SENTENCES OR CLAUSES THAT THE CANDIDATE DID NOT SPEAK.
-   - If the candidate spoke only 1 short sentence, the transcript MUST BE EXACTLY THAT 1 SENTENCE.
-   - STRICTLY FORBIDDEN: DO NOT OMIT, CUT OFF, OR SHORTEN WORDS SPOKEN BY THE CANDIDATE.
-   - "match_percentage": Calculate the similarity (0-100%) between the raw Browser STT text snippet and the actual spoken audio transcript.
-
-4. LEXICAL RESOURCE (LR) & GRAMMATICAL RANGE & ACCURACY (GRA):
-   - Score LR based on vocabulary precision, collocations, idiomatic expressions, and topic flexibility heard in the audio.
-   - Score GRA based on sentence structure variety (complex vs simple clauses), tense consistency, and error density.
-
---------------------------------------------------
-SCORING CRITERIA (HALF-BAND INCREMENTS: 0.0 - 9.0)
---------------------------------------------------
-The IELTS Speaking test consists of four equally weighted criteria:
-1. Fluency and Coherence (FC)
-2. Lexical Resource (LR)
-3. Grammatical Range and Accuracy (GRA)
-4. Pronunciation (PR)
-
-Each criterion is scored independently using half-band increments:
-0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9
-
-The overall score is (FC + LR + GRA + PR) / 4
-Then round using official IELTS rules:
-- Average 6.00–6.24 → 6.0
-- Average 6.25–6.74 → 6.5
-- Average 6.75–7.00 → 7.0
-
---------------------------------------------------
-OUTPUT FORMAT (STRICT JSON ONLY)
---------------------------------------------------
-Return ONLY valid JSON matching this exact structure:
-
-{
-  "overall_band": 6.5,
-  "estimated_band_reason": "Detailed rationale explaining why this overall band score was awarded based on official IELTS criteria and audio observations.",
-  "fluency_coherence": 6.5,
-  "lexical_resource": 6.5,
-  "grammatical_range_accuracy": 6.0,
-  "pronunciation": 7.0,
-  "overall_feedback": "Summary assessment of performance.",
-  "criterion_feedback": {
-    "fluency": "Detailed fluency feedback based on speaking rhythm, pauses, and flow...",
-    "vocabulary": "Detailed vocabulary feedback...",
-    "grammar": "Detailed grammar feedback...",
-    "pronunciation": "Detailed pronunciation feedback based on acoustic clarity, stress, and intonation..."
-  },
-  "criterion_key_observations": {
-    "fluency": ["Observation 1", "Observation 2"],
-    "vocabulary": ["Observation 1", "Observation 2"],
-    "grammar": ["Observation 1", "Observation 2"],
-    "pronunciation": ["Observation 1", "Observation 2"]
-  },
-  "filler_words": [
-    {"word": "like", "count": 4, "impact": "moderate"}
-  ],
-  "vocab_upgrades": [
-    {"original": "good", "upgrade": "beneficial", "context_example": "It is beneficial for students."}
-  ],
-  "strengths": ["Clear pronunciation of consonant clusters", "Good topic extension in Part 2"],
-  "weaknesses": ["Frequent self-correction in Part 3", "Limited complex grammar structures"],
-  "per_question_items": [
-    {
-      "question_id": "p1_q1",
-      "live_stt_transcript": "Raw Browser STT snippet (may be truncated or have typos)",
-      "ai_generated_transcript": "EXACT transcript of what candidate actually spoke in the audio.",
-      "match_percentage": 80,
-      "feedback": "Concise 1-2 sentence examiner assessment of candidate's pronunciation, fluency, vocabulary, and grammar for this answer.",
-      "grammar_corrections": [
-        "Incorrect: 'I live in city' → Correct: 'I live in a big city'",
-        "Word choice: Replace 'good' with 'vibrant'"
-      ],
-      "improved_version": "Concise Band 8.5+ model answer (2-3 sentences max for Part 1/3, 4-5 sentences max for Part 2)."
-    }
-  ]
-}
-
-DO NOT include any text outside the JSON object.
-`;
 function computeWordSimilarity(text1: string, text2: string): number {
   const words1 = text1.toLowerCase().split(/\s+/).filter(Boolean);
   const words2 = text2.toLowerCase().split(/\s+/).filter(Boolean);
@@ -128,7 +26,10 @@ function parseAiJson(jsonStr: string): any {
     str = codeBlockMatch[1].trim();
   }
   const firstBrace = str.indexOf("{");
-  if (firstBrace > 0) {
+  const lastBrace = str.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    str = str.substring(firstBrace, lastBrace + 1).trim();
+  } else if (firstBrace > 0) {
     str = str.substring(firstBrace).trim();
   }
   return JSON.parse(str);
@@ -292,8 +193,8 @@ export async function evaluateIELTSAttemptWithAI(
       criterion_feedback: {
         fluency: "No speech detected.",
         vocabulary: "No speech detected.",
-      "grammar": "No speech detected.",
-        "pronunciation": "No speech detected.",
+        grammar: "No speech detected.",
+        pronunciation: "No speech detected.",
       },
       estimated_band_reason:
         "Band 0 is awarded when no assessable language is produced.",
@@ -355,7 +256,7 @@ export async function evaluateIELTSAttemptWithAI(
 
   contentParts.push({
     type: "text",
-    text: "\nOutput ONLY valid JSON matching the system instructions. Do not include markdown code ticks outside the response.",
+    text: "\nOutput ONLY valid JSON strictly conforming to the JSON Schema. Do NOT include markdown code ticks or commentary outside the JSON object.",
   });
 
   const requestBody = JSON.stringify({
@@ -365,6 +266,7 @@ export async function evaluateIELTSAttemptWithAI(
       { role: "system", content: OFFICIAL_IELTS_EXAMINER_PROMPT },
       { role: "user", content: contentParts },
     ],
+    response_format: { type: "json_object" },
   });
 
   // Log payload size to help diagnose upstream rejections
@@ -391,7 +293,10 @@ export async function evaluateIELTSAttemptWithAI(
         clearTimeout(timeoutId);
 
         // Retry on transient gateway errors
-        if ((res.status === 499 || res.status === 503) && attempt < MAX_RETRIES) {
+        if (
+          (res.status === 499 || res.status === 503) &&
+          attempt < MAX_RETRIES
+        ) {
           const bodyText = await res.text();
           console.warn(
             `[AI Evaluator Warning] API status ${res.status} (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${bodyText}. Retrying in ${(attempt + 1) * 3}s…`,
@@ -432,7 +337,16 @@ export async function evaluateIELTSAttemptWithAI(
     const rawContent = resJson.choices?.[0]?.message?.content || "";
     if (!rawContent) return null;
 
-    const parsed = parseAiJson(rawContent);
+    let parsed: any;
+    try {
+      parsed = parseAiJson(rawContent);
+    } catch (parseErr) {
+      console.error(
+        "[AI Evaluator Error] Failed to parse model response as JSON. Raw snippet:",
+        rawContent.slice(0, 500),
+      );
+      throw parseErr;
+    }
 
     const parseScore = (val: unknown) => {
       const num = Number(val);
