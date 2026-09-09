@@ -38,7 +38,10 @@ export async function GET(
       );
     }
 
-    if (attempt.user_id !== session.user.user_id) {
+    if (
+      attempt.user_id !== session.user.user_id &&
+      attempt.user_id !== session.user.mezon_id
+    ) {
       return NextResponse.json(
         { success: false, error: "IELTS attempt not found" },
         { status: 404 },

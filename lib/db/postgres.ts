@@ -1,4 +1,19 @@
+import path from "path";
 import { Pool } from "pg";
+import { loadEnvConfig } from "@next/env";
+
+// Ensure .env.local and .env are loaded even when run outside Next.js process (e.g. bot server worker)
+try {
+  loadEnvConfig(path.resolve(__dirname, "../.."));
+} catch {
+  // ignore
+}
+try {
+  loadEnvConfig(process.cwd());
+} catch {
+  // ignore
+}
+
 import { ExamAttempt, Question, UserSession } from "@/types";
 import { SEED_QUESTIONS } from "@/lib/exam/questions";
 import { SEED_IELTS_TOPICS } from "@/lib/ielts/questions";
@@ -27,31 +42,41 @@ export function getPool(): Pool {
     process.env.POSTGRES_URL_NON_POOLING ||
     process.env.POSTGRES_URL_NO_SSL;
 
-  const host = process.env.POSTGRES_HOST || process.env.DB_HOST;
-  const user = process.env.POSTGRES_USER || process.env.DB_USERNAME;
-  const password = process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD;
-  const database = process.env.POSTGRES_DATABASE || process.env.DB_NAME;
+  const host = process.env.POSTGRES_HOST || process.env.DB_HOST || "127.0.0.1";
+  const user =
+    process.env.POSTGRES_USER || process.env.DB_USERNAME || "postgres";
+  const password =
+    process.env.POSTGRES_PASSWORD !== undefined
+      ? process.env.POSTGRES_PASSWORD
+      : process.env.DB_PASSWORD !== undefined
+        ? process.env.DB_PASSWORD
+        : "123qwer";
+  const database =
+    process.env.POSTGRES_DATABASE || process.env.DB_NAME || "ncc_app_english";
+  const port = parseInt(
+    process.env.POSTGRES_PORT ||
+      process.env.DB_PORT ||
+      (host !== "127.0.0.1" && host !== "localhost" ? "5432" : "8104"),
+    10,
+  );
 
   let newPool: Pool;
 
   if (connectionString) {
     newPool = new Pool({
       connectionString,
-      ssl: { rejectUnauthorized: false },
+      ssl: process.env.POSTGRES_NO_SSL ? false : { rejectUnauthorized: false },
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
     });
-  } else if (host && host !== "127.0.0.1" && host !== "localhost") {
+  } else if (host !== "127.0.0.1" && host !== "localhost") {
     newPool = new Pool({
       host,
-      port: parseInt(
-        process.env.POSTGRES_PORT || process.env.DB_PORT || "5432",
-        10,
-      ),
-      user: user || "postgres",
-      password: password || "",
-      database: database || "postgres",
+      port,
+      user,
+      password,
+      database,
       ssl: { rejectUnauthorized: false },
       max: 10,
       idleTimeoutMillis: 30000,
@@ -59,11 +84,11 @@ export function getPool(): Pool {
     });
   } else {
     newPool = new Pool({
-      host: process.env.DB_HOST || "127.0.0.1",
-      port: parseInt(process.env.DB_PORT || "8104", 10),
-      user: process.env.DB_USERNAME || "postgres",
-      password: process.env.DB_PASSWORD || "123qwe",
-      database: process.env.DB_NAME || "ncc_app_english",
+      host,
+      port,
+      user,
+      password,
+      database,
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
@@ -299,6 +324,8 @@ export async function ensureDbInitialized() {
     }
   } catch (err) {
     console.error("[PostgreSQL Initialization Error]:", err);
+    // Invalidate cached pool so credentials can be re-evaluated
+    globalForPg.pgPool = undefined as any;
   } finally {
     isInitializing = false;
   }
@@ -903,5 +930,80 @@ export const pgDb = {
     const query = `DELETE FROM ielts_speaking_topics WHERE id = $1`;
     const result = await pool.query(query, [id]);
     return (result.rowCount ?? 0) > 0;
+  },
+
+  async getUserByMezonId(mezonId: string): Promise<UserSession | null> {
+    await ensureDbInitialized();
+    const query = `SELECT id, mezon_id, mezon_username, display_name, avatar_url, clan_member FROM users WHERE mezon_id = $1 OR id::text = $1`;
+    const { rows } = await pool.query(query, [mezonId]);
+    if (rows.length === 0) return null;
+    const u = rows[0];
+    return {
+      user_id: u.id,
+      mezon_id: u.mezon_id,
+      mezon_username: u.mezon_username,
+      display_name: u.display_name,
+      avatar_url: u.avatar_url,
+      clan_member: u.clan_member,
+      isLoggedIn: true,
+    };
+  },
+
+  async getLatestSubmittedIELTSAttempt(
+    userId: string,
+  ): Promise<IELTSSpeakingAttempt | null> {
+    await ensureDbInitialized();
+    const query = `
+      SELECT a.id
+      FROM ielts_speaking_attempts a
+      LEFT JOIN users u ON (u.id::text = a.user_id OR u.mezon_id = a.user_id)
+      WHERE (a.user_id = $1 OR u.id::text = $1 OR u.mezon_id = $1)
+        AND (a.status = 'submitted' OR a.overall_band IS NOT NULL OR a.score_result IS NOT NULL)
+      ORDER BY COALESCE(a.submitted_at, a.started_at) DESC
+      LIMIT 1;
+    `;
+    const { rows } = await pool.query(query, [userId]);
+    if (rows.length === 0) return null;
+    return this.getIELTSAttempt(rows[0].id);
+  },
+
+  async getRecentIELTSAttempts(
+    userId: string,
+    limit: number = 10,
+  ): Promise<IELTSSpeakingAttempt[]> {
+    await ensureDbInitialized();
+    const query = `
+      SELECT a.id
+      FROM ielts_speaking_attempts a
+      LEFT JOIN users u ON (u.id::text = a.user_id OR u.mezon_id = a.user_id)
+      WHERE (a.user_id = $1 OR u.id::text = $1 OR u.mezon_id = $1)
+        AND (a.status = 'submitted' OR a.overall_band IS NOT NULL OR a.score_result IS NOT NULL)
+      ORDER BY COALESCE(a.submitted_at, a.started_at) DESC
+      LIMIT $2;
+    `;
+    const { rows } = await pool.query(query, [userId, limit]);
+    const results: IELTSSpeakingAttempt[] = [];
+    for (const r of rows) {
+      const att = await this.getIELTSAttempt(r.id);
+      if (att) results.push(att);
+    }
+    return results;
+  },
+
+  async getIELTSAttemptByIdAndUser(
+    attemptId: string,
+    userId: string,
+  ): Promise<IELTSSpeakingAttempt | null> {
+    await ensureDbInitialized();
+    const query = `
+      SELECT a.id
+      FROM ielts_speaking_attempts a
+      LEFT JOIN users u ON (u.id::text = a.user_id OR u.mezon_id = a.user_id)
+      WHERE a.id = $1
+        AND (a.user_id = $2 OR u.id::text = $2 OR u.mezon_id = $2);
+    `;
+    const { rows } = await pool.query(query, [attemptId, userId]);
+    if (rows.length === 0) return null;
+    return this.getIELTSAttempt(attemptId);
   },
 };
