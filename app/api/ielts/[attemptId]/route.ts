@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { pgDb } from "@/lib/db/postgres";
 import { createSignedAudioUrl } from "@/lib/supabase/storage";
+import { toTeaserResult } from "@/lib/ielts/result-view";
 
 export async function GET(
   req: NextRequest,
@@ -48,7 +49,16 @@ export async function GET(
       );
     }
 
-    for (const response of Object.values(attempt.responses)) {
+    const isUnlocked =
+      session.user?.clan_member === true || attempt.unlocked === true;
+
+    // Signed audio URLs are part of the paid report; only mint them for an
+    // unlocked report or while the candidate is still taking the test.
+    const maySeeRecordings = isUnlocked || attempt.status !== "submitted";
+
+    for (const response of maySeeRecordings
+      ? Object.values(attempt.responses)
+      : []) {
       if (response.audio_storage_path) {
         try {
           response.audio_url = await createSignedAudioUrl(
@@ -72,24 +82,41 @@ export async function GET(
       );
     }
 
-    const isUnlocked =
-      session.user?.clan_member === true || attempt.unlocked === true;
-
     if (attempt.status === "submitted") {
-      const result = attempt.score_result
-        ? {
-            ...attempt.score_result,
-            responses: attempt.responses,
-            unlocked: isUnlocked,
-          }
-        : null;
+      if (!isUnlocked) {
+        // Locked report: strip the stored breakdown and every recording
+        const { score_result: _hidden, ...rest } = attempt;
+        return NextResponse.json({
+          success: true,
+          attempt: { ...rest, responses: {}, unlocked: false },
+          topic,
+          isUnlocked: false,
+          result: attempt.score_result
+            ? toTeaserResult(attempt.score_result)
+            : null,
+        });
+      }
+
+      if (!attempt.score_result) {
+        return NextResponse.json({
+          success: true,
+          attempt: { ...attempt, unlocked: true },
+          topic,
+          isUnlocked: true,
+          result: null,
+        });
+      }
 
       return NextResponse.json({
         success: true,
-        attempt: { ...attempt, unlocked: isUnlocked },
+        attempt: { ...attempt, unlocked: true },
         topic,
-        isUnlocked,
-        result,
+        isUnlocked: true,
+        result: {
+          ...attempt.score_result,
+          responses: attempt.responses,
+          unlocked: true,
+        },
       });
     }
 

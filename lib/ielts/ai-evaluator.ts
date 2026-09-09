@@ -126,9 +126,13 @@ export async function evaluateIELTSAttemptWithAI(
   );
 
   // Kiểm tra nếu không có transcript nào
+  // Audio is what actually gets graded, so a recording alone is enough to
+  // assess. Browser STT can be empty (Deepgram down, unsupported browser)
+  // while the candidate spoke perfectly well.
   const hasSpokenContent = questionItems.some(
     (item) =>
-      Boolean(item.liveTranscript) && item.liveTranscript.trim().length > 2,
+      Boolean(item.audioBase64) ||
+      (Boolean(item.liveTranscript) && item.liveTranscript.trim().length > 2),
   );
 
   if (!hasSpokenContent) {

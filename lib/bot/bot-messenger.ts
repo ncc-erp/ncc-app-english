@@ -276,29 +276,14 @@ export async function sendChannelMessage(
         );
         return true;
       } catch (ephemeralErr) {
+        // Never fall back to a public channel post here: these messages carry
+        // band scores and single-use launch links. Returning false lets the
+        // caller retry over DM instead.
         console.warn(
-          `[Mezon Bot Messenger] sendEphemeral failed, falling back to regular channel send with mention:`,
+          `[Mezon Bot Messenger] sendEphemeral failed; caller should fall back to DM:`,
           ephemeralErr,
         );
-        // Fallback to sending in channel with mention
-        for (let i = 0; i < chunks.length; i++) {
-          const isLast = i === chunks.length - 1;
-          const content = buildMessageContent(
-            chunks[i],
-            isLast ? options?.components : undefined,
-          );
-          await channel.send(
-            content,
-            mentions.map((m) => ({
-              user_id: m.user_id,
-              username: m.username || "",
-            })),
-          );
-          if (i < chunks.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 300));
-          }
-        }
-        return true;
+        return false;
       }
     }
 
@@ -387,7 +372,10 @@ export async function notifyExamResult(
   }
 
   const attempt = await pgDb.getIELTSAttempt(attemptId);
-  if (!attempt) {
+  if (
+    !attempt ||
+    (attempt.user_id !== user.user_id && attempt.user_id !== user.mezon_id)
+  ) {
     return {
       success: false,
       message: `IELTS Speaking test record ${attemptId} was not found.`,

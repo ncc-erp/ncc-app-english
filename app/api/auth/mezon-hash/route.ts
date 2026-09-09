@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseMezonHashData, validateMezonHash } from '@/lib/mezon/hash-verifier';
 import { getSession } from '@/lib/auth/session';
-import { mockDb } from '@/lib/supabase/mock-db';
+import { pgDb } from '@/lib/db/postgres';
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,12 +23,17 @@ export async function POST(req: NextRequest) {
     }
 
     const appSecret = process.env.MEZON_APP_SECRET || '';
-    // Skip verification check only if no secret is configured (dev mode fallback)
-    if (appSecret && appSecret !== 'your_mezon_app_secret') {
-      const isValid = validateMezonHash(appSecret, rawHashData);
-      if (!isValid) {
-        return NextResponse.json({ success: false, error: 'Invalid hash signature' }, { status: 401 });
-      }
+    // Fail closed: without a secret we cannot tell a real Mezon payload from a forged one
+    if (!appSecret || appSecret === 'your_mezon_app_secret') {
+      console.error('[POST /api/auth/mezon-hash] MEZON_APP_SECRET is not configured; refusing hash auth.');
+      return NextResponse.json(
+        { success: false, error: 'Mezon hash authentication is not configured on this deployment.' },
+        { status: 503 }
+      );
+    }
+
+    if (!validateMezonHash(appSecret, rawHashData)) {
+      return NextResponse.json({ success: false, error: 'Invalid hash signature' }, { status: 401 });
     }
 
     const parsed = parseMezonHashData(rawHashData);
@@ -42,7 +47,7 @@ export async function POST(req: NextRequest) {
     const avatarUrl = parsed.user.avatar || parsed.user.avatar_url;
 
     // Find or create user
-    const userSession = await mockDb.findOrCreateUser({
+    const userSession = await pgDb.findOrCreateUser({
       mezon_id: mezonId,
       username,
       display_name: displayName,

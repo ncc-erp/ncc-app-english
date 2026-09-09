@@ -4,6 +4,7 @@ export interface LaunchTokenPayload {
   attemptId: string;
   userId: string;
   mezonId: string;
+  jti: string; // unique id, burned on first redemption
   exp: number; // timestamp in ms
 }
 
@@ -37,11 +38,12 @@ export function getAppBaseUrl(): string {
  * Creates a cryptographically signed one-time or time-limited launch token.
  */
 export function createLaunchToken(
-  payload: Omit<LaunchTokenPayload, "exp">,
+  payload: Omit<LaunchTokenPayload, "exp" | "jti">,
   expiresInMinutes = 120,
 ): string {
   const fullPayload: LaunchTokenPayload = {
     ...payload,
+    jti: crypto.randomUUID(),
     exp: Date.now() + expiresInMinutes * 60 * 1000,
   };
   const data = Buffer.from(JSON.stringify(fullPayload)).toString("base64url");
@@ -76,6 +78,10 @@ export function verifyLaunchToken(token: string): LaunchTokenPayload | null {
       );
       if (Date.now() > payload.exp) {
         console.warn("[verifyLaunchToken] Launch token has expired");
+        return null;
+      }
+      if (!payload.jti) {
+        console.warn("[verifyLaunchToken] Launch token has no jti; rejecting");
         return null;
       }
       return payload;

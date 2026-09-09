@@ -60,7 +60,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
   };
 
   const activeUser = propUser !== undefined ? propUser : currentUser;
-  const isAdmin = Boolean(activeUser && (activeUser.mezon_username === 'admin' || activeUser.mezon_id === 'admin_sys_001'));
+  const isAdmin = activeUser?.role === 'admin';
 
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">

@@ -37,6 +37,7 @@ export interface UserSession {
   display_name: string;
   avatar_url?: string;
   clan_member: boolean;
+  role: 'user' | 'admin';
   isLoggedIn: boolean;
 }
 

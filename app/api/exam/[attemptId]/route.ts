@@ -30,6 +30,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ atte
       return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });
     }
 
+    if (attempt.user_id !== session.user.user_id && attempt.user_id !== session.user.mezon_id) {
+      return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });
+    }
+
     const questions = await pgDb.getQuestionsByIds(attempt.question_ids);
 
     // If attempt is still in progress, return sanitized questions and attempt state

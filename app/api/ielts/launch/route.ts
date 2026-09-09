@@ -19,6 +19,16 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // 0. Burn the token: a launch link works exactly once, even if it leaks
+    //    into a channel or is forwarded to someone else.
+    const isFirstUse = await pgDb.consumeLaunchToken(payload.jti);
+    if (!isFirstUse) {
+      console.warn(
+        `[GET /api/ielts/launch] Launch token already used (jti: ${payload.jti})`,
+      );
+      return NextResponse.redirect(new URL("/login?error=token_used", baseUrl));
+    }
+
     // 1. Fetch or ensure user exists in PostgreSQL
     let user = await pgDb.getUserByMezonId(payload.mezonId);
     if (!user) {
@@ -28,12 +38,8 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // 2. Refresh clan membership if needed
-    if (!user.clan_member) {
-      user.clan_member = true;
-    }
-
-    // 3. Establish iron-session for browser
+    // 2. Establish iron-session for browser. Clan membership stays whatever the
+    //    DB says: a launch link starts a test, it does not grant clan access.
     const session = await getSession();
     session.user = user;
     await session.save();
@@ -42,14 +48,14 @@ export async function GET(req: NextRequest) {
       `[GET /api/ielts/launch] Seamless auth for user: ${user.display_name || user.mezon_username} (ID: ${user.user_id}) -> launching attempt ${payload.attemptId}`,
     );
 
-    // 4. Redirect directly to the IELTS Speaking test room
+    // 3. Redirect directly to the IELTS Speaking test room
     return NextResponse.redirect(
       new URL(`/ielts-speaking/test/${payload.attemptId}`, baseUrl),
     );
   } catch (error) {
     console.error("[GET /api/ielts/launch] Error launching test:", error);
-    return NextResponse.redirect(
-      new URL(`/ielts-speaking/test/${payload.attemptId}`, baseUrl),
-    );
+    // No session was established, so send the candidate through normal login
+    // rather than to a test room they cannot load.
+    return NextResponse.redirect(new URL("/login?error=auth_failed", baseUrl));
   }
 }

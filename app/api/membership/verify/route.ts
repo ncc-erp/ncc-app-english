@@ -19,6 +19,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing attemptId' }, { status: 400 });
     }
 
+    // Only ever unlock an attempt that belongs to the caller
+    const isIeltsAttempt = attemptId.startsWith('ielts-att-');
+    const ownedAttempt = isIeltsAttempt
+      ? await pgDb.getIELTSAttempt(attemptId)
+      : await pgDb.getAttempt(attemptId);
+
+    if (
+      !ownedAttempt ||
+      (ownedAttempt.user_id !== session.user.user_id && ownedAttempt.user_id !== session.user.mezon_id)
+    ) {
+      return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });
+    }
+
     const isMember = await checkMezonClanMembership(session.user.mezon_id);
 
     if (!isMember) {
@@ -39,7 +52,7 @@ export async function POST(req: NextRequest) {
     await pgDb.updateUserClanMembership(session.user.mezon_id, true);
 
     // Support IELTS Speaking attempts (starting with ielts-att-)
-    if (attemptId.startsWith('ielts-att-')) {
+    if (isIeltsAttempt) {
       await pgDb.updateIELTSAttemptUnlocked(attemptId, true);
       const ieltsAttempt = await pgDb.getIELTSAttempt(attemptId);
       if (!ieltsAttempt) {

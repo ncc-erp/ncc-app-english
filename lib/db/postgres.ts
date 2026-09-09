@@ -247,6 +247,13 @@ export async function ensureDbInitialized() {
         );
 
         ALTER TABLE ielts_speaking_responses ADD COLUMN IF NOT EXISTS audio_storage_path TEXT;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user';
+
+        -- One row per redeemed bot launch token, so a link can only be used once
+        CREATE TABLE IF NOT EXISTS launch_tokens (
+            jti TEXT PRIMARY KEY,
+            used_at TIMESTAMPTZ DEFAULT NOW()
+        );
       `);
 
       // 2. Check if questions table is populated
@@ -346,7 +353,7 @@ export const pgDb = {
         display_name = EXCLUDED.display_name,
         avatar_url = EXCLUDED.avatar_url,
         updated_at = NOW()
-      RETURNING id, mezon_id, mezon_username, display_name, avatar_url, clan_member;
+      RETURNING id, mezon_id, mezon_username, display_name, avatar_url, clan_member, role;
     `;
     const values = [
       mezonData.mezon_id,
@@ -365,6 +372,7 @@ export const pgDb = {
       display_name: u.display_name,
       avatar_url: u.avatar_url,
       clan_member: u.clan_member,
+      role: u.role === 'admin' ? 'admin' : 'user',
       isLoggedIn: true,
     };
   },
@@ -803,11 +811,11 @@ export const pgDb = {
     return this.getIELTSAttempt(attemptId);
   },
 
-  async cancelIELTSAttempt(attemptId: string): Promise<void> {
+  async cancelIELTSAttempt(attemptId: string, userId: string): Promise<void> {
     await ensureDbInitialized();
     await pool.query(
-      `UPDATE ielts_speaking_attempts SET status = 'cancelled' WHERE id = $1 AND status != 'submitted'`,
-      [attemptId],
+      `UPDATE ielts_speaking_attempts SET status = 'cancelled' WHERE id = $1 AND user_id = $2 AND status != 'submitted'`,
+      [attemptId, userId],
     );
   },
 
@@ -934,7 +942,7 @@ export const pgDb = {
 
   async getUserByMezonId(mezonId: string): Promise<UserSession | null> {
     await ensureDbInitialized();
-    const query = `SELECT id, mezon_id, mezon_username, display_name, avatar_url, clan_member FROM users WHERE mezon_id = $1 OR id::text = $1`;
+    const query = `SELECT id, mezon_id, mezon_username, display_name, avatar_url, clan_member, role FROM users WHERE mezon_id = $1 OR id::text = $1`;
     const { rows } = await pool.query(query, [mezonId]);
     if (rows.length === 0) return null;
     const u = rows[0];
@@ -945,8 +953,27 @@ export const pgDb = {
       display_name: u.display_name,
       avatar_url: u.avatar_url,
       clan_member: u.clan_member,
+      role: u.role === 'admin' ? 'admin' : 'user',
       isLoggedIn: true,
     };
+  },
+
+  async setUserRole(mezonId: string, role: 'user' | 'admin'): Promise<void> {
+    await ensureDbInitialized();
+    await pool.query(`UPDATE users SET role = $1, updated_at = NOW() WHERE mezon_id = $2`, [role, mezonId]);
+  },
+
+  /**
+   * Burns a bot launch token. Returns true only the first time a given jti is
+   * presented, so a launch link that leaks into a channel cannot be replayed.
+   */
+  async consumeLaunchToken(jti: string): Promise<boolean> {
+    await ensureDbInitialized();
+    const { rowCount } = await pool.query(
+      `INSERT INTO launch_tokens (jti) VALUES ($1) ON CONFLICT (jti) DO NOTHING`,
+      [jti],
+    );
+    return rowCount === 1;
   },
 
   async getLatestSubmittedIELTSAttempt(

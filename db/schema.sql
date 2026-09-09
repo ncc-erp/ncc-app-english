@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS users (
     avatar_url TEXT,
     clan_member BOOLEAN DEFAULT FALSE,
     clan_joined_at TIMESTAMPTZ,
+    role TEXT NOT NULL DEFAULT 'user',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -85,6 +86,12 @@ CREATE TABLE IF NOT EXISTS answers (
     is_correct BOOLEAN,
     answered_at TIMESTAMPTZ DEFAULT NOW(),
     CONSTRAINT unique_attempt_question UNIQUE(attempt_id, question_id)
+);
+
+-- 4b. Redeemed bot launch tokens (one row per burned token)
+CREATE TABLE IF NOT EXISTS launch_tokens (
+    jti TEXT PRIMARY KEY,
+    used_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 5. Clan Membership Cache
