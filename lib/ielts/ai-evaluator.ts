@@ -283,7 +283,7 @@ export async function evaluateIELTSAttemptWithAI(
   const callAIWithRetry = async () => {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 85000);
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
       try {
         const res = await fetch(endpoint, {
           method: "POST",

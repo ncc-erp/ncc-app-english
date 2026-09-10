@@ -56,7 +56,7 @@ export function formatIELTSResult(
             ]
           : "");
       if (feedback) {
-        msg1 += `  💬 ${truncate(feedback, 200)}\n`;
+        msg1 += `  💬 ${truncate(feedback, 500)}\n`;
       }
       if (crit.key_observations && crit.key_observations.length > 0) {
         for (const obs of crit.key_observations.slice(0, 2)) {
@@ -142,7 +142,8 @@ export function formatIELTSResult(
       id: card.id,
       part: "Part 2",
       title: "Part 2 • Cue Card",
-      questionText: card.cue_card_title || card.topic_title || "Topic Discussion",
+      questionText:
+        card.cue_card_title || card.topic_title || "Topic Discussion",
       transcript:
         analysis?.ai_generated_transcript ||
         analysis?.live_stt_transcript ||
@@ -203,12 +204,12 @@ export function formatIELTSResult(
     questions.forEach((q) => {
       msg2 += `🔹 **${q.title}**`;
       if (q.questionText) {
-        msg2 += `: *"${truncate(q.questionText, 85)}"*`;
+        msg2 += `: *"${truncate(q.questionText, 150)}"*`;
       }
       msg2 += `\n`;
 
       if (q.feedback && q.feedback !== "Evaluated.") {
-        msg2 += `  💡 *Feedback:* ${truncate(q.feedback, 160)}\n`;
+        msg2 += `  💡 *Feedback:* ${truncate(q.feedback, 300)}\n`;
       }
 
       if (q.corrections && q.corrections.length > 0) {
@@ -239,7 +240,8 @@ export function formatIELTSTestHistory(
 
   attempts.forEach((att, index) => {
     const band = att.band_score ?? att.score_result?.overall_band;
-    const bandStr = band !== undefined ? `Band ${band.toFixed(1)}` : "Grading...";
+    const bandStr =
+      band !== undefined ? `Band ${band.toFixed(1)}` : "Grading...";
     const dateStr = att.submitted_at
       ? new Date(att.submitted_at).toLocaleDateString("en-US", {
           month: "short",
