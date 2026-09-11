@@ -63,7 +63,7 @@ export default function AdminTopicsPage() {
         const res = await fetch('/api/auth/me');
         const data = await res.json();
 
-        if (data.isLoggedIn && data.user && (data.user.mezon_username === 'admin' || data.user.mezon_id === 'admin_sys_001')) {
+        if (data.isLoggedIn && data.user && data.user.role === 'admin') {
           setUser(data.user);
           fetchTopics();
         } else {

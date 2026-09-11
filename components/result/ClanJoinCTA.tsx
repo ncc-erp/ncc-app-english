@@ -158,9 +158,13 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({
       )}
 
       {/* Footer hint */}
-      <div className="flex items-center justify-center space-x-2 text-xs text-indigo-200/80 pt-1">
-        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-        <span>Free forever • Instant report unlock</span>
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-xs text-indigo-200/90 pt-1 text-center">
+        <div className="flex items-center space-x-1.5">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Join clan and type <code className="bg-indigo-950/80 px-1.5 py-0.5 rounded text-amber-300 font-mono">*result</code> to view score report</span>
+        </div>
+        <span className="hidden sm:inline">•</span>
+        <span>100% Free Forever</span>
       </div>
     </div>
   );

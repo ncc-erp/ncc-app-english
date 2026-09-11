@@ -5,7 +5,8 @@ import { pgDb } from '@/lib/db/postgres';
 async function isAdmin(): Promise<boolean> {
   const session = await getSession();
   const user = session.user;
-  return Boolean(user?.isLoggedIn && (user?.mezon_username === 'admin' || user?.mezon_id === 'admin_sys_001'));
+  // Role comes from the users table, never from a claimable username
+  return Boolean(user?.isLoggedIn && user?.role === 'admin');
 }
 
 // GET /api/admin/topics - List all topics for admin

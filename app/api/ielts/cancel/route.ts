@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (attemptId) {
-      await pgDb.cancelIELTSAttempt(attemptId);
+      // Scoped to the session user: nobody can cancel someone else's test
+      await pgDb.cancelIELTSAttempt(attemptId, session.user.user_id);
     }
 
     return NextResponse.json({ success: true });

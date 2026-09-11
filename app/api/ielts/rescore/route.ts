@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth/session';
 import { pgDb } from '@/lib/db/postgres';
 import { evaluateIELTSAttemptWithAI } from '@/lib/ielts/ai-evaluator';
 import { IELTSScoreResult } from '@/types/ielts';
+import { toTeaserResult } from '@/lib/ielts/result-view';
 
 export const maxDuration = 300; // Allow up to 2 retries (85s each) + backoff
 
@@ -25,6 +26,10 @@ export async function POST(req: NextRequest) {
 
     const attempt = await pgDb.getIELTSAttempt(attemptId);
     if (!attempt) {
+      return NextResponse.json({ success: false, error: 'IELTS attempt not found' }, { status: 404 });
+    }
+
+    if (attempt.user_id !== session.user.user_id && attempt.user_id !== session.user.mezon_id) {
       return NextResponse.json({ success: false, error: 'IELTS attempt not found' }, { status: 404 });
     }
 
@@ -69,9 +74,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Same gate as GET /api/ielts/[attemptId]: a fresh score does not bypass
+    // clan verification.
+    const isUnlocked =
+      session.user.clan_member === true || attempt.unlocked === true;
+
     return NextResponse.json({
       success: true,
-      result: scoreResult,
+      result: isUnlocked
+        ? { ...scoreResult, unlocked: true }
+        : toTeaserResult(scoreResult),
     });
   } catch (error) {
     console.error('[POST /api/ielts/rescore] Error:', error);

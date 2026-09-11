@@ -16,6 +16,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Missing required parameters' }, { status: 400 });
     }
 
+    const attempt = await pgDb.getAttempt(attemptId);
+    if (
+      !attempt ||
+      (attempt.user_id !== session.user.user_id && attempt.user_id !== session.user.mezon_id)
+    ) {
+      return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });
+    }
+
     const updated = await pgDb.saveAnswer(attemptId, questionId, selectedOptionId);
     if (!updated) {
       return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });

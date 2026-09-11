@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "bot": "npx tsx scripts/bot-server.ts",
+    "bot:jiti": "npx jiti scripts/bot-server.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",

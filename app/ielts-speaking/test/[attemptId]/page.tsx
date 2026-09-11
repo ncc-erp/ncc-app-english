@@ -55,6 +55,10 @@ export default function IELTSSpeakingTestPage({
         const data = await res.json();
 
         if (!res.ok || !data.success) {
+          if (res.status === 401) {
+            router.push(`/login?redirect=/ielts-speaking/test/${attemptId}`);
+            return;
+          }
           throw new Error(data.error || "Failed to load test attempt");
         }
 
