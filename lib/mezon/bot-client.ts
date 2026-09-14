@@ -12,6 +12,23 @@ export async function checkMezonClanMembership(
   mezonUserId: string,
   clanId: string = process.env.MEZON_TARGET_CLAN_ID || "",
 ): Promise<boolean> {
+  // Serverless (Vercel) cannot host MezonClient (websocket + better-sqlite3 SIGABRTs the
+  // process), so delegate to the long-lived bot server when one is configured.
+  const verifyUrl = process.env.MEZON_VERIFY_URL;
+  if (verifyUrl) {
+    try {
+      const res = await fetch(
+        `${verifyUrl.replace(/\/$/, "")}/verify?userId=${encodeURIComponent(mezonUserId)}`,
+        { headers: { "x-bot-secret": process.env.BOT_VERIFY_SECRET || "" } },
+      );
+      const data = await res.json();
+      return res.ok && data.isMember === true;
+    } catch (error) {
+      console.error("[Mezon Bot] Remote verify failed:", error);
+      return false;
+    }
+  }
+
   const botToken = process.env.MEZON_BOT_TOKEN;
   const botId = process.env.MEZON_BOT_ID;
 
@@ -56,34 +73,7 @@ export async function checkMezonClanMembership(
     //   `[Mezon Bot] Accessible clans: ${availableClans.map((clan) => `${clan.name} (${clan.id})`).join(", ") || "none"}.`,
     // );
 
-    const targetClan = client.clans.get(clanId);
-    if (!targetClan) {
-      throw new Error(
-        `Clan ${clanId} is not present in the bot's accessible clan cache.`,
-      );
-    }
-    await targetClan.loadChannels();
-    // console.log(
-    //   `[Mezon Bot] Target clan loaded: ${targetClan.name} (${targetClan.id}), channels: ${targetClan.channels.size}.`,
-    // );
-
-    const internalClient = client as unknown as {
-      apiClient: {
-        invokeMezonApi: (
-          path: string,
-          body: Uint8Array,
-          options: unknown,
-        ) => Promise<ClanUserList>;
-      };
-    };
-    const users = await internalClient.apiClient.invokeMezonApi(
-      "/mezon.api.Mezon/ListClanUsers",
-      ListClanUsersRequest.encode({ clan_id: clanId }).finish(),
-      { decode: (bytes: Uint8Array) => ClanUserList.decode(bytes) },
-    );
-    const isMember = users.clan_users.some(
-      (entry) => entry.user?.id === mezonUserId,
-    );
+    const isMember = await isClanMember(client, mezonUserId, clanId);
 
     // console.log(
     //   `[Mezon Bot] ListClanUsers RPC returned ${users.clan_users.length} users; member: ${isMember}.`,
@@ -117,4 +107,35 @@ export async function checkMezonClanMembership(
   } finally {
     client?.closeSocket();
   }
+}
+
+/** Asks Mezon (via an already logged-in client) whether the user is in the clan. */
+export async function isClanMember(
+  client: MezonClient,
+  mezonUserId: string,
+  clanId: string = process.env.MEZON_TARGET_CLAN_ID || "",
+): Promise<boolean> {
+  const targetClan = client.clans.get(clanId);
+  if (!targetClan) {
+    throw new Error(
+      `Clan ${clanId} is not present in the bot's accessible clan cache.`,
+    );
+  }
+  await targetClan.loadChannels();
+
+  const internalClient = client as unknown as {
+    apiClient: {
+      invokeMezonApi: (
+        path: string,
+        body: Uint8Array,
+        options: unknown,
+      ) => Promise<ClanUserList>;
+    };
+  };
+  const users = await internalClient.apiClient.invokeMezonApi(
+    "/mezon.api.Mezon/ListClanUsers",
+    ListClanUsersRequest.encode({ clan_id: clanId }).finish(),
+    { decode: (bytes: Uint8Array) => ClanUserList.decode(bytes) },
+  );
+  return users.clan_users.some((entry) => entry.user?.id === mezonUserId);
 }
