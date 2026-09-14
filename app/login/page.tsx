@@ -9,6 +9,7 @@ function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const oauthError = searchParams.get('error');
+  const redirectTo = searchParams.get('redirect') || '/';
 
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [username, setUsername] = useState('');
@@ -52,7 +53,7 @@ function LoginContent() {
       }
 
       // Redirect to home page on successful login
-      router.push('/');
+      router.push(redirectTo);
       router.refresh();
     } catch (err) {
       console.error('Password login error:', err);
@@ -97,7 +98,7 @@ function LoginContent() {
           /* Primary Login Selection Mode */
           <div className="space-y-3 pt-2">
             <a
-              href="/api/auth/login"
+              href={`/api/auth/login?redirect=${encodeURIComponent(redirectTo)}`}
               className="w-full py-3.5 px-6 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               <span>Login with Mezon OAuth2</span>

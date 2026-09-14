@@ -38,7 +38,7 @@ export default function ExamIntroPage() {
       });
 
       if (res.status === 401) {
-        router.push('/login');
+        router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
         return;
       }
 
