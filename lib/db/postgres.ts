@@ -141,16 +141,18 @@ export async function ensureDbInitialized() {
             CREATE TYPE result_status_enum AS ENUM ('none', 'partial', 'full');
         EXCEPTION WHEN duplicate_object THEN null; END $$;
 
+        -- Shared with ncc-bot-interview-english (TypeORM owns this shape). Our extra fields
+        -- (display_name, clan_member, clan_joined_at) live in metadata so synchronize can't drop them.
         CREATE TABLE IF NOT EXISTS users (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            mezon_id TEXT UNIQUE NOT NULL,
-            mezon_username TEXT,
-            display_name TEXT,
-            avatar_url TEXT,
-            clan_member BOOLEAN DEFAULT FALSE,
-            clan_joined_at TIMESTAMPTZ,
-            created_at TIMESTAMPTZ DEFAULT NOW(),
-            updated_at TIMESTAMPTZ DEFAULT NOW()
+            id BIGSERIAL PRIMARY KEY,
+            "mezonUserId" VARCHAR UNIQUE NOT NULL,
+            username VARCHAR NOT NULL,
+            email VARCHAR,
+            "avatarUrl" VARCHAR,
+            metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+            "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
+            "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+            "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
         );
 
         CREATE TABLE IF NOT EXISTS questions (
@@ -247,7 +249,6 @@ export async function ensureDbInitialized() {
         );
 
         ALTER TABLE ielts_speaking_responses ADD COLUMN IF NOT EXISTS audio_storage_path TEXT;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user';
 
         -- One row per redeemed bot launch token, so a link can only be used once
         CREATE TABLE IF NOT EXISTS launch_tokens (
@@ -326,6 +327,16 @@ export async function ensureDbInitialized() {
   }
 }
 
+// Projects the shared users table onto the field names the app uses (see DDL note).
+const USER_COLS = `
+  id::text AS id,
+  "mezonUserId" AS mezon_id,
+  username AS mezon_username,
+  COALESCE(metadata->>'display_name', username) AS display_name,
+  "avatarUrl" AS avatar_url,
+  COALESCE((metadata->>'clan_member')::boolean, false) AS clan_member,
+  COALESCE(metadata->>'role', 'user') AS role`;
+
 export const pgDb = {
   async findOrCreateUser(mezonData: {
     mezon_id: string;
@@ -335,13 +346,13 @@ export const pgDb = {
   }): Promise<UserSession> {
     await ensureDbInitialized();
     const query = `
-      INSERT INTO users (mezon_id, mezon_username, display_name, avatar_url)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (mezon_id) DO UPDATE SET
-        display_name = EXCLUDED.display_name,
-        avatar_url = EXCLUDED.avatar_url,
-        updated_at = NOW()
-      RETURNING id, mezon_id, mezon_username, display_name, avatar_url, clan_member, role;
+      INSERT INTO users ("mezonUserId", username, "avatarUrl", metadata)
+      VALUES ($1, $2, $4, jsonb_build_object('display_name', $3::text))
+      ON CONFLICT ("mezonUserId") DO UPDATE SET
+        metadata = users.metadata || jsonb_build_object('display_name', EXCLUDED.metadata->>'display_name'),
+        "avatarUrl" = COALESCE(EXCLUDED."avatarUrl", users."avatarUrl"),
+        "updatedAt" = NOW()
+      RETURNING ${USER_COLS};
     `;
     const values = [
       mezonData.mezon_id,
@@ -543,7 +554,10 @@ export const pgDb = {
   ): Promise<void> {
     await ensureDbInitialized();
     await pool.query(
-      `UPDATE users SET clan_member = $1, clan_joined_at = NOW() WHERE mezon_id = $2`,
+      `UPDATE users
+         SET metadata = metadata || jsonb_build_object('clan_member', $1::boolean, 'clan_joined_at', NOW()),
+             "updatedAt" = NOW()
+       WHERE "mezonUserId" = $2`,
       [isMember, mezonId],
     );
   },
@@ -930,7 +944,7 @@ export const pgDb = {
 
   async getUserByMezonId(mezonId: string): Promise<UserSession | null> {
     await ensureDbInitialized();
-    const query = `SELECT id, mezon_id, mezon_username, display_name, avatar_url, clan_member, role FROM users WHERE mezon_id = $1 OR id::text = $1`;
+    const query = `SELECT ${USER_COLS} FROM users WHERE "mezonUserId" = $1 OR id::text = $1`;
     const { rows } = await pool.query(query, [mezonId]);
     if (rows.length === 0) return null;
     const u = rows[0];
@@ -948,7 +962,10 @@ export const pgDb = {
 
   async setUserRole(mezonId: string, role: 'user' | 'admin'): Promise<void> {
     await ensureDbInitialized();
-    await pool.query(`UPDATE users SET role = $1, updated_at = NOW() WHERE mezon_id = $2`, [role, mezonId]);
+    await pool.query(
+      `UPDATE users SET metadata = metadata || jsonb_build_object('role', $1::text), "updatedAt" = NOW() WHERE "mezonUserId" = $2`,
+      [role, mezonId],
+    );
   },
 
   /**
@@ -971,8 +988,8 @@ export const pgDb = {
     const query = `
       SELECT a.id
       FROM ielts_speaking_attempts a
-      LEFT JOIN users u ON (u.id::text = a.user_id OR u.mezon_id = a.user_id)
-      WHERE (a.user_id = $1 OR u.id::text = $1 OR u.mezon_id = $1)
+      LEFT JOIN users u ON (u.id::text = a.user_id OR u."mezonUserId" = a.user_id)
+      WHERE (a.user_id = $1 OR u.id::text = $1 OR u."mezonUserId" = $1)
         AND (a.status = 'submitted' OR a.overall_band IS NOT NULL OR a.score_result IS NOT NULL)
       ORDER BY COALESCE(a.submitted_at, a.started_at) DESC
       LIMIT 1;
@@ -990,8 +1007,8 @@ export const pgDb = {
     const query = `
       SELECT a.id
       FROM ielts_speaking_attempts a
-      LEFT JOIN users u ON (u.id::text = a.user_id OR u.mezon_id = a.user_id)
-      WHERE (a.user_id = $1 OR u.id::text = $1 OR u.mezon_id = $1)
+      LEFT JOIN users u ON (u.id::text = a.user_id OR u."mezonUserId" = a.user_id)
+      WHERE (a.user_id = $1 OR u.id::text = $1 OR u."mezonUserId" = $1)
         AND (a.status = 'submitted' OR a.overall_band IS NOT NULL OR a.score_result IS NOT NULL)
       ORDER BY COALESCE(a.submitted_at, a.started_at) DESC
       LIMIT $2;
@@ -1013,9 +1030,9 @@ export const pgDb = {
     const query = `
       SELECT a.id
       FROM ielts_speaking_attempts a
-      LEFT JOIN users u ON (u.id::text = a.user_id OR u.mezon_id = a.user_id)
+      LEFT JOIN users u ON (u.id::text = a.user_id OR u."mezonUserId" = a.user_id)
       WHERE a.id = $1
-        AND (a.user_id = $2 OR u.id::text = $2 OR u.mezon_id = $2);
+        AND (a.user_id = $2 OR u.id::text = $2 OR u."mezonUserId" = $2);
     `;
     const { rows } = await pool.query(query, [attemptId, userId]);
     if (rows.length === 0) return null;
