@@ -10,19 +10,32 @@ export async function GET(req: NextRequest) {
   // Fallback to Mock Dev Login if Client ID is placeholder or ?mock=true is requested
   if (isMock || isPlaceholderClient) {
     console.log('[Auth Login] Using Dev Mock Login mode (Client ID is placeholder or mock=true).');
-    return NextResponse.redirect(new URL('/api/auth/callback?code=mock_dev_code', req.url));
+    const mockUrl = new URL('/api/auth/callback?code=mock_dev_code', req.url);
+    const mockRedirect = searchParams.get('redirect') || '';
+    const response = NextResponse.redirect(mockUrl);
+    if (mockRedirect.startsWith('/') && !mockRedirect.startsWith('//')) {
+      response.cookies.set('oauth_redirect', mockRedirect, { httpOnly: true, sameSite: 'lax', maxAge: 600 });
+    }
+    return response;
   }
 
   const state = generateMezonState();
   const authUrl = getMezonOAuthAuthUrl(state);
 
   const response = NextResponse.redirect(authUrl);
-  response.cookies.set('oauth_state', state, {
+  const cookieOpts = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: 'lax' as const,
     maxAge: 600, // 10 minutes
-  });
+  };
+  response.cookies.set('oauth_state', state, cookieOpts);
+
+  // Where to land after login; only same-origin paths to avoid open redirects
+  const redirect = searchParams.get('redirect') || '';
+  if (redirect.startsWith('/') && !redirect.startsWith('//')) {
+    response.cookies.set('oauth_redirect', redirect, cookieOpts);
+  }
 
   return response;
 }

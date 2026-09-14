@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const savedState = req.cookies.get("oauth_state")?.value;
+  const afterLogin = req.cookies.get("oauth_redirect")?.value || "/";
   const baseUrl = getBaseUrl(req.url);
 
   console.log("[OAuth Callback] Received params:", {
@@ -54,7 +55,9 @@ export async function GET(req: NextRequest) {
         "[OAuth Callback] Dev Mock User logged in:",
         userSession.display_name,
       );
-      return NextResponse.redirect(new URL("/", baseUrl));
+      const mockResponse = NextResponse.redirect(new URL(afterLogin, baseUrl));
+      mockResponse.cookies.delete("oauth_redirect");
+      return mockResponse;
     } catch (mockError) {
       console.error("[OAuth Callback] Mock dev login error:", mockError);
       return NextResponse.json(
@@ -115,8 +118,9 @@ export async function GET(req: NextRequest) {
       userSession.display_name,
     );
 
-    const response = NextResponse.redirect(new URL("/", baseUrl));
+    const response = NextResponse.redirect(new URL(afterLogin, baseUrl));
     response.cookies.delete("oauth_state");
+    response.cookies.delete("oauth_redirect");
     return response;
   } catch (error) {
     console.error("[OAuth Callback] Authentication failed:", error);

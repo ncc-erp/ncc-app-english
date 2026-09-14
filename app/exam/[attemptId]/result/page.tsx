@@ -22,7 +22,7 @@ export default function ExamResultPage({ params }: { params: Promise<{ attemptId
     try {
       const res = await fetch(`/api/exam/${attemptId}`);
       if (res.status === 401) {
-        router.push('/login');
+        router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
         return;
       }
 

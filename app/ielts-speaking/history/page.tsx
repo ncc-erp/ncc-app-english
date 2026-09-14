@@ -22,7 +22,7 @@ export default function IELTSSpeakingHistoryPage() {
 
         if (!res.ok || !data.success) {
           if (res.status === 401) {
-            router.push('/login');
+            router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
             return;
           }
           throw new Error(data.error || 'Failed to fetch test history');

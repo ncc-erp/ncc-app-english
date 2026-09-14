@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { UserSession } from '@/types';
 import { Mic, LogOut, User, Sparkles, History, Shield, BookOpen } from 'lucide-react';
 
@@ -13,6 +13,7 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
   const router = useRouter();
+  const pathname = usePathname();
   const [currentUser, setCurrentUser] = useState<UserSession | null | undefined>(propUser);
 
   useEffect(() => {
@@ -144,7 +145,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
           </div>
         ) : (
           <Link
-            href="/login"
+            href={`/login?redirect=${encodeURIComponent(pathname)}`}
             className="inline-flex items-center justify-center px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-xl shadow-sm transition-all"
           >
             Login with Mezon

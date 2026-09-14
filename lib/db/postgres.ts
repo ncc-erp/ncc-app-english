@@ -310,18 +310,6 @@ export async function ensureDbInitialized() {
         `[PostgreSQL] Seeded/Upserted ${SEED_IELTS_TOPICS.length} IELTS Speaking topics into DB.`,
       );
 
-      // 4. Clear legacy multiple-choice exam attempt data safely & clean empty spammed IELTS attempts
-      try {
-        await client.query("DELETE FROM answers; DELETE FROM attempts;");
-        await client.query(`
-          DELETE FROM ielts_speaking_attempts
-          WHERE status = 'in_progress'
-            AND id NOT IN (SELECT DISTINCT attempt_id FROM ielts_speaking_responses WHERE attempt_id IS NOT NULL);
-        `);
-      } catch {
-        // Ignore if tables are empty or do not exist
-      }
-
       globalForPg.dbInitialized = true;
       console.log(
         "[PostgreSQL] Database tables & schema initialized successfully.",
