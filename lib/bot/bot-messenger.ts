@@ -1,3 +1,4 @@
+import "@/lib/mezon/sdk-patch";
 import { MezonClient, ChannelMessageContent, ApiMessageMention } from "mezon-sdk";
 import type { TextChannel } from "mezon-sdk/dist/cjs/mezon-client/structures/TextChannel";
 import { pgDb } from "@/lib/db/postgres";

@@ -1,3 +1,4 @@
+import "@/lib/mezon/sdk-patch";
 import { MezonClient } from "mezon-sdk";
 import { ClanUserList, ListClanUsersRequest } from "mezon-sdk/dist/cjs/api/api";
 
