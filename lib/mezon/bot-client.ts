@@ -118,8 +118,11 @@ export async function isClanMember(
 ): Promise<boolean> {
   const targetClan = client.clans.get(clanId);
   if (!targetClan) {
+    const seen = Array.from(client.clans.values())
+      .map((c) => `${c.name} (${c.id})`)
+      .join(", ");
     throw new Error(
-      `Clan ${clanId} is not present in the bot's accessible clan cache.`,
+      `Clan ${clanId} is not present in the bot's accessible clan cache. Bot sees: ${seen || "none"}.`,
     );
   }
   await targetClan.loadChannels();
