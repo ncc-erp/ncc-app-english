@@ -1,4 +1,5 @@
 import { MezonClient, ChannelMessageContent, ApiMessageMention } from "mezon-sdk";
+import { createMezonClient } from "@/lib/mezon/create-client";
 import type { TextChannel } from "mezon-sdk/dist/cjs/mezon-client/structures/TextChannel";
 import { pgDb } from "@/lib/db/postgres";
 import { formatIELTSResult } from "./bot-formatter";
@@ -42,7 +43,7 @@ export async function getSharedBotClient(): Promise<MezonClient | null> {
         ? process.env.MEZON_USE_SSL !== "false"
         : !configuredHost.startsWith("http://") && port === "443";
 
-      const client = new MezonClient({
+      const client = createMezonClient({
         botId,
         token: botToken,
         host,

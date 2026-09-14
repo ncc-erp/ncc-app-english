@@ -1,4 +1,5 @@
 import { MezonClient } from "mezon-sdk";
+import { createMezonClient } from "@/lib/mezon/create-client";
 import {
   handleResultCommand,
   handleHistoryCommand,
@@ -83,7 +84,7 @@ export async function initBotService(): Promise<MezonClient | null> {
       ? process.env.MEZON_USE_SSL !== "false"
       : !configuredHost.startsWith("http://") && port === "443";
 
-    const client = new MezonClient({
+    const client = createMezonClient({
       botId,
       token: botToken,
       host,

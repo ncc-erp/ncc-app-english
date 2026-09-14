@@ -1,4 +1,5 @@
 import { MezonClient } from "mezon-sdk";
+import { createMezonClient } from "@/lib/mezon/create-client";
 import { ClanUserList, ListClanUsersRequest } from "mezon-sdk/dist/cjs/api/api";
 
 /**
@@ -42,7 +43,7 @@ export async function checkMezonClanMembership(
     const useSSL = process.env.MEZON_USE_SSL
       ? process.env.MEZON_USE_SSL !== "false"
       : !configuredHost.startsWith("http://") && port === "443";
-    client = new MezonClient({
+    client = createMezonClient({
       botId,
       token: botToken,
       host,
