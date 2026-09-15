@@ -13,7 +13,7 @@ const nextConfig = {
     NEXT_PUBLIC_MEZON_CLAN_INVITE_URL:
       process.env.NEXT_PUBLIC_MEZON_CLAN_INVITE_URL ||
       process.env.MEZON_CLAN_INVITE_URL ||
-      'https://mezon.ai/invite/2099324150924447744',
+      'https://mezon.ai/invite/2099684553655324672',
   },
   images: {
     remotePatterns: [

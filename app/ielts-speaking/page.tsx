@@ -85,6 +85,16 @@ export default function IELTSSpeakingPortalPage() {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedTopics = filteredTopics.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
+  // After login we land on /ielts-speaking?start=<topicId>: start that topic immediately
+  useEffect(() => {
+    if (loading) return;
+    const topicId = new URLSearchParams(window.location.search).get('start');
+    if (!topicId) return;
+    window.history.replaceState(null, '', '/ielts-speaking');
+    handleStartTest(topicId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   const handleStartTest = async (topicId: string) => {
     try {
       setStartingTopicId(topicId);
@@ -98,7 +108,8 @@ export default function IELTSSpeakingPortalPage() {
 
       if (!res.ok || !data.success) {
         if (res.status === 401) {
-          router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
+          // Come back here with ?start=<topicId> so the test begins right after login
+          router.push(`/login?redirect=${encodeURIComponent(`/ielts-speaking?start=${topicId}`)}`);
           return;
         }
         throw new Error(data.error || 'Failed to start IELTS test');
