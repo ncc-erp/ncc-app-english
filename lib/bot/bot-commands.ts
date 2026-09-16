@@ -1,11 +1,57 @@
 import { pgDb } from "@/lib/db/postgres";
 import { formatIELTSResult, formatIELTSTestHistory } from "./bot-formatter";
 import { createLaunchToken, getAppBaseUrl } from "@/lib/auth/launch-token";
+import { IELTSSpeakingAttempt } from "@/types/ielts";
 
 export interface CommandResult {
   text: string;
   isSuccess: boolean;
   components?: any[];
+}
+
+function buildResultCommandOutput(
+  attempt: IELTSSpeakingAttempt,
+  user: any,
+  mezonUserId: string,
+): CommandResult {
+  const baseUrl = getAppBaseUrl();
+  const token = createLaunchToken(
+    {
+      attemptId: attempt.id,
+      userId: user.user_id,
+      mezonId: user.mezon_id || mezonUserId,
+    },
+    24 * 60, // Exactly 24 hours
+  );
+
+  const detailsUrl = `${baseUrl}/ielts-speaking/result/${attempt.id}/details?token=${token}`;
+  const formattedText = formatIELTSResult(
+    attempt,
+    user.display_name || user.mezon_username,
+    detailsUrl,
+  );
+
+  const components = [
+    {
+      components: [
+        {
+          id: "btn_view_result_details",
+          type: 1, // BUTTON
+          component: {
+            label: "📊 View Detailed Test Report",
+            style: 5, // LINK
+            url: detailsUrl,
+          },
+        },
+      ],
+    },
+  ];
+
+  return {
+    text: formattedText,
+    isSuccess: true,
+    components,
+  };
 }
 
 /**
@@ -41,13 +87,7 @@ export async function handleResultCommand(
         (directAttempt.user_id === user.user_id ||
           directAttempt.user_id === user.mezon_id)
       ) {
-        return {
-          text: formatIELTSResult(
-            directAttempt,
-            user.display_name || user.mezon_username,
-          ),
-          isSuccess: true,
-        };
+        return buildResultCommandOutput(directAttempt, user, mezonUserId);
       }
 
       return {
@@ -56,13 +96,7 @@ export async function handleResultCommand(
       };
     }
 
-    return {
-      text: formatIELTSResult(
-        attempt,
-        user.display_name || user.mezon_username,
-      ),
-      isSuccess: true,
-    };
+    return buildResultCommandOutput(attempt, user, mezonUserId);
   }
 
   // Get latest submitted attempt (try user.user_id first, fallback to mezon_id)
@@ -81,13 +115,7 @@ export async function handleResultCommand(
     };
   }
 
-  return {
-    text: formatIELTSResult(
-      latestAttempt,
-      user.display_name || user.mezon_username,
-    ),
-    isSuccess: true,
-  };
+  return buildResultCommandOutput(latestAttempt, user, mezonUserId);
 }
 
 /**

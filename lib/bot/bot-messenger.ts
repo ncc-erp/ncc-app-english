@@ -3,6 +3,7 @@ import { MezonClient, ChannelMessageContent, ApiMessageMention } from "mezon-sdk
 import type { TextChannel } from "mezon-sdk/dist/cjs/mezon-client/structures/TextChannel";
 import { pgDb } from "@/lib/db/postgres";
 import { formatIELTSResult } from "./bot-formatter";
+import { createLaunchToken, getAppBaseUrl } from "@/lib/auth/launch-token";
 
 let sharedClient: MezonClient | null = null;
 let connectionPromise: Promise<MezonClient | null> | null = null;
@@ -383,9 +384,21 @@ export async function notifyExamResult(
     };
   }
 
+  const baseUrl = getAppBaseUrl();
+  const token = createLaunchToken(
+    {
+      attemptId: attempt.id,
+      userId: user.user_id,
+      mezonId: user.mezon_id || targetMezonUserId,
+    },
+    24 * 60, // Exactly 24 hours
+  );
+  const detailsUrl = `${baseUrl}/ielts-speaking/result/${attempt.id}/details?token=${token}`;
+
   const formattedResult = formatIELTSResult(
     attempt,
     user.display_name || user.mezon_username,
+    detailsUrl,
   );
 
   const examChannelId =
@@ -395,6 +408,22 @@ export async function notifyExamResult(
     "";
 
   const messageText = `👋 Hello @${user.mezon_username || user.display_name}, your IELTS Speaking test report is ready!\n\n${formattedResult}`;
+
+  const components = [
+    {
+      components: [
+        {
+          id: "btn_view_result_details",
+          type: 1, // BUTTON
+          component: {
+            label: "📊 View Detailed Test Report",
+            style: 5, // LINK
+            url: detailsUrl,
+          },
+        },
+      ],
+    },
+  ];
 
   let sent = false;
 
@@ -407,12 +436,15 @@ export async function notifyExamResult(
           username: user.mezon_username || user.display_name,
         },
       ],
+      components,
     });
   }
 
   // If channel sending was not configured or failed, fallback to DM
   if (!sent) {
-    const dmSent = await sendDirectMessage(targetMezonUserId, messageText);
+    const dmSent = await sendDirectMessage(targetMezonUserId, messageText, {
+      components,
+    });
     if (dmSent) {
       return {
         success: true,

@@ -62,8 +62,6 @@ export async function initBotService(): Promise<MezonClient | null> {
   const botId = process.env.MEZON_BOT_ID;
   const targetClanId = process.env.MEZON_TARGET_CLAN_ID || "";
   const examChannelId = process.env.MEZON_EXAM_CHANNEL_ID || "";
-  const welcomeChannelId =
-    process.env.MEZON_WELCOME_CHANNEL_ID || examChannelId;
 
   if (!botToken || !botId) {
     console.warn(
@@ -106,12 +104,13 @@ export async function initBotService(): Promise<MezonClient | null> {
           `• Type \`*result\` to view your latest IELTS Speaking mock test score report.\n` +
           `• Type \`*help\` to view all available commands.`;
 
-        if (welcomeChannelId) {
-          await sendChannelMessage(welcomeChannelId, welcomeMsg, {
-            isPublic: true,
-            mentions: [{ user_id: userId, username }],
-          });
-        } else if (userId) {
+        // if (welcomeChannelId) {
+        //   await sendChannelMessage(welcomeChannelId, welcomeMsg, {
+        //     isPublic: true,
+        //     mentions: [{ user_id: userId, username }],
+        //   });
+        // } else
+        if (userId) {
           await sendDirectMessage(userId, welcomeMsg);
         }
       } catch (err) {
@@ -152,13 +151,16 @@ export async function initBotService(): Promise<MezonClient | null> {
                 username: message.username || message.display_name,
               },
             ],
+            components: res.components,
           });
 
           if (!sent) {
             console.warn(
               `[Mezon Bot Service] Channel send failed, falling back to DM...`,
             );
-            await sendDirectMessage(message.sender_id, res.text);
+            await sendDirectMessage(message.sender_id, res.text, {
+              components: res.components,
+            });
           }
         } else if (
           commandName === "history" ||
