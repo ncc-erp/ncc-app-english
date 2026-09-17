@@ -70,9 +70,9 @@ export async function createSignedAudioUrl(path: string, expiresIn = 3600) {
     : `${baseUrl}/storage/v1${signedPath}`;
 }
 
-export async function downloadAudioAsBase64(
+export async function downloadAudioBuffer(
   path: string,
-): Promise<{ base64: string; mimeType: string } | null> {
+): Promise<{ buffer: Buffer; contentType: string } | null> {
   try {
     const { baseUrl, serviceRoleKey } = getConfig();
 
@@ -105,10 +105,13 @@ export async function downloadAudioAsBase64(
     // 3. Fallback to fresh signed URL
     if (!response.ok) {
       try {
-        const signedUrl = await createSignedAudioUrl(path, 60);
+        const signedUrl = await createSignedAudioUrl(path, 120);
         response = await fetch(signedUrl);
       } catch (signErr) {
-        console.warn(`[Supabase Storage] Failed to create signed URL fallback for ${path}:`, signErr);
+        console.warn(
+          `[Supabase Storage] Failed to create signed URL fallback for ${path}:`,
+          signErr,
+        );
       }
     }
 
@@ -132,12 +135,23 @@ export async function downloadAudioAsBase64(
     const arrayBuffer = await response.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     return {
-      base64: buffer.toString("base64"),
-      mimeType: contentType.split(";")[0].trim(),
+      buffer,
+      contentType: contentType.split(";")[0].trim(),
     };
   } catch (error) {
     console.error(`[Supabase Storage] Error downloading audio ${path}:`, error);
     return null;
   }
+}
+
+export async function downloadAudioAsBase64(
+  path: string,
+): Promise<{ base64: string; mimeType: string } | null> {
+  const result = await downloadAudioBuffer(path);
+  if (!result) return null;
+  return {
+    base64: result.buffer.toString("base64"),
+    mimeType: result.contentType,
+  };
 }
 

@@ -26,20 +26,11 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. If token is missing, strictly reject and do not make any API calls
-    if (!token) {
-      setError(
-        "A valid access token is required to view this detailed report. Direct URL access without a token is not permitted.",
-      );
-      setLoading(false);
-      return;
-    }
-
     async function fetchResult() {
       try {
         setLoading(true);
-        // Call dedicated details endpoint which validates the token cryptographically
-        const url = `/api/ielts/${attemptId}/details?token=${encodeURIComponent(token!)}`;
+        setError(null);
+        const url = `/api/ielts/${attemptId}/details${token ? `?token=${encodeURIComponent(token)}` : ""}`;
         const res = await fetch(url);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let data: any;
@@ -51,6 +42,13 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
           throw new Error(
             text || `Server returned non-JSON response (${res.status})`,
           );
+        }
+
+        if (res.status === 401 || data.requiresLogin) {
+          router.push(
+            `/login?redirect=${encodeURIComponent(`/ielts-speaking/result/${attemptId}/details`)}`,
+          );
+          return;
         }
 
         if (!res.ok || !data.success) {
@@ -78,7 +76,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
     }
 
     fetchResult();
-  }, [attemptId, token]);
+  }, [attemptId, token, router]);
 
   if (loading) {
     return (
@@ -102,10 +100,10 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
 
           <div className="space-y-3">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-100 text-rose-800 text-xs font-bold rounded-full uppercase tracking-wider">
-              <span>Access Denied</span>
+              <span>Notice</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-              Access Token Required
+              Unable to Load Report
             </h1>
             <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
               {error}
@@ -118,7 +116,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
               <span>How to access this report:</span>
             </div>
             <p className="text-xs text-purple-800 leading-relaxed font-medium">
-              Go to your clan channel on Mezon and type{" "}
+              Make sure you are logged in with the account that took this test. You can also visit your clan channel on Mezon and type{" "}
               <code className="bg-white border border-purple-300 text-purple-900 font-bold px-2 py-0.5 rounded-md">
                 *result
               </code>{" "}
@@ -126,17 +124,29 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
               <code className="bg-white border border-purple-300 text-purple-900 font-bold px-2 py-0.5 rounded-md">
                 *ketqua
               </code>
-              ). The bot will return a secure link containing your 24-hour access token to view the full detailed breakdown.
+              ) to get the direct link to your detailed test report.
             </p>
           </div>
 
-          <button
-            onClick={() => router.push("/")}
-            className="inline-flex items-center gap-2 px-8 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-2xl transition-all shadow-md shadow-purple-200"
-          >
-            <Home className="w-4 h-4" />
-            <span>Return to Home</span>
-          </button>
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              onClick={() =>
+                router.push(
+                  `/login?redirect=${encodeURIComponent(`/ielts-speaking/result/${attemptId}/details`)}`,
+                )
+              }
+              className="inline-flex items-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-2xl transition-all shadow-md shadow-purple-200"
+            >
+              <span>Log In</span>
+            </button>
+            <button
+              onClick={() => router.push("/")}
+              className="inline-flex items-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-2xl border border-slate-200 transition-all"
+            >
+              <Home className="w-4 h-4" />
+              <span>Return to Home</span>
+            </button>
+          </div>
         </main>
       </div>
     );

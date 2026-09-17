@@ -15,22 +15,24 @@ try {
 
 import http from "http";
 import { initBotService } from "../lib/bot/bot-service";
-import { isClanMember } from "../lib/mezon/bot-client";
+import { isClanMember, isClanAdminMember } from "../lib/mezon/bot-client";
 
 // Standalone execution wrapper
 initBotService()
   .then((client) => {
     if (!client) throw new Error("Bot client not initialised");
 
-    // Membership check for the web app (Vercel can't run MezonClient itself).
-    // GET /verify?userId=<mezon_id>  header x-bot-secret: $BOT_VERIFY_SECRET
+    // Membership & Admin check for the web app
+    // GET /verify?userId=<mezon_id>        header x-bot-secret: $BOT_VERIFY_SECRET
+    // GET /verify-admin?userId=<mezon_id>  header x-bot-secret: $BOT_VERIFY_SECRET
     const secret = process.env.BOT_VERIFY_SECRET;
     const port = Number(process.env.BOT_HTTP_PORT || 3100);
     http
       .createServer(async (req, res) => {
         const url = new URL(req.url || "/", "http://localhost");
         res.setHeader("Content-Type", "application/json");
-        if (url.pathname !== "/verify") {
+
+        if (url.pathname !== "/verify" && url.pathname !== "/verify-admin") {
           res.writeHead(404).end(JSON.stringify({ error: "not found" }));
           return;
         }
@@ -39,15 +41,30 @@ initBotService()
           return;
         }
         const userId = url.searchParams.get("userId") || "";
-        try {
-          const isMember = userId ? await isClanMember(client, userId) : false;
-          res.writeHead(200).end(JSON.stringify({ isMember }));
-        } catch (err) {
-          console.error("[Bot Server] /verify error:", err);
-          res.writeHead(500).end(JSON.stringify({ isMember: false }));
+
+        if (url.pathname === "/verify") {
+          try {
+            const isMember = userId ? await isClanMember(client, userId) : false;
+            res.writeHead(200).end(JSON.stringify({ isMember }));
+          } catch (err) {
+            console.error("[Bot Server] /verify error:", err);
+            res.writeHead(500).end(JSON.stringify({ isMember: false }));
+          }
+          return;
+        }
+
+        if (url.pathname === "/verify-admin") {
+          try {
+            const isAdmin = userId ? await isClanAdminMember(client, userId) : false;
+            res.writeHead(200).end(JSON.stringify({ isAdmin }));
+          } catch (err) {
+            console.error("[Bot Server] /verify-admin error:", err);
+            res.writeHead(500).end(JSON.stringify({ isAdmin: false }));
+          }
+          return;
         }
       })
-      .listen(port, () => console.log(`🌐 [Bot Server] /verify listening on :${port}`));
+      .listen(port, () => console.log(`🌐 [Bot Server] /verify & /verify-admin listening on :${port}`));
   })
   .catch((err) => {
     console.error("❌ [Standalone Bot Server] Error:", err);

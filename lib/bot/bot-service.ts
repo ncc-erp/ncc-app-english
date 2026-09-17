@@ -17,6 +17,8 @@ declare global {
   var __mezonBotStarted: boolean | undefined;
   // eslint-disable-next-line no-var
   var __mezonBotClient: MezonClient | undefined;
+  // eslint-disable-next-line no-var
+  var __mezonBotPromise: Promise<MezonClient | null> | undefined;
 }
 
 /**
@@ -53,9 +55,14 @@ function extractMessageText(content: any): string {
  * Uses a global singleton guard to prevent duplicate logins during Next.js HMR.
  */
 export async function initBotService(): Promise<MezonClient | null> {
-  // Prevent duplicate execution during Next.js Hot Module Replacement (HMR) or multi-runtime calls
-  if (globalThis.__mezonBotStarted && globalThis.__mezonBotClient) {
+  // Prevent duplicate execution: return already active client
+  if (globalThis.__mezonBotClient) {
     return globalThis.__mezonBotClient;
+  }
+
+  // Prevent duplicate concurrent connection attempts (race condition guard)
+  if (globalThis.__mezonBotPromise) {
+    return globalThis.__mezonBotPromise;
   }
 
   const botToken = process.env.MEZON_BOT_TOKEN;
@@ -72,7 +79,8 @@ export async function initBotService(): Promise<MezonClient | null> {
 
   globalThis.__mezonBotStarted = true;
 
-  try {
+  globalThis.__mezonBotPromise = (async () => {
+    try {
     const configuredHost = process.env.MEZON_HOST || "gw.mezon.ai";
     const host = configuredHost.replace(/^https?:\/\//, "").replace(/\/$/, "");
     const port =
@@ -313,8 +321,14 @@ export async function initBotService(): Promise<MezonClient | null> {
   } catch (err) {
     console.error("❌ [Mezon Bot Service] Failed to connect to Mezon:", err);
     globalThis.__mezonBotStarted = false;
+    globalThis.__mezonBotClient = undefined;
     return null;
+  } finally {
+    globalThis.__mezonBotPromise = undefined;
   }
+  })();
+
+  return globalThis.__mezonBotPromise;
 }
 
 export const startBot = initBotService;

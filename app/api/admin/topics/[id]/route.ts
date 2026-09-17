@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { pgDb } from '@/lib/db/postgres';
+import { checkIsClanAdmin } from '@/lib/admin/clan-data-service';
 
 async function isAdmin(): Promise<boolean> {
   const session = await getSession();
   const user = session.user;
-  // Role comes from the users table, never from a claimable username
-  return Boolean(user?.isLoggedIn && user?.role === 'admin');
+  if (!user || !user.isLoggedIn) return false;
+  return checkIsClanAdmin(user.mezon_id);
 }
 
 // PUT /api/admin/topics/[id] - Update an existing topic set

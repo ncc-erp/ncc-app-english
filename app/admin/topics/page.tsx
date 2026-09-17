@@ -1,10 +1,11 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Navbar } from '@/components/Navbar';
-import { IELTSSpeakingTopic } from '@/types/ielts';
-import { UserSession } from '@/types';
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Navbar } from "@/components/Navbar";
+import { IELTSSpeakingTopic } from "@/types/ielts";
+import { UserSession } from "@/types";
 import {
   ShieldAlert,
   Plus,
@@ -22,7 +23,8 @@ import {
   AlertCircle,
   ChevronRight,
   Eye,
-} from 'lucide-react';
+  School,
+} from "lucide-react";
 
 export default function AdminTopicsPage() {
   const router = useRouter();
@@ -32,45 +34,56 @@ export default function AdminTopicsPage() {
 
   const [topics, setTopics] = useState<IELTSSpeakingTopic[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
 
   // Modal States
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [editingTopic, setEditingTopic] = useState<IELTSSpeakingTopic | null>(null);
-  const [deletingTopic, setDeletingTopic] = useState<IELTSSpeakingTopic | null>(null);
-  const [previewTopic, setPreviewTopic] = useState<IELTSSpeakingTopic | null>(null);
+  const [editingTopic, setEditingTopic] = useState<IELTSSpeakingTopic | null>(
+    null,
+  );
+  const [deletingTopic, setDeletingTopic] = useState<IELTSSpeakingTopic | null>(
+    null,
+  );
+  const [previewTopic, setPreviewTopic] = useState<IELTSSpeakingTopic | null>(
+    null,
+  );
 
   // Form State
-  const [formTitle, setFormTitle] = useState('');
-  const [formCategory, setFormCategory] = useState('General');
-  const [formDescription, setFormDescription] = useState('');
-  const [formPart1Questions, setFormPart1Questions] = useState<string[]>(['']);
-  const [formPart2Title, setFormPart2Title] = useState('');
-  const [formPart2PromptLead, setFormPart2PromptLead] = useState('You should say:');
-  const [formPart2Bullets, setFormPart2Bullets] = useState<string[]>(['What it is', 'Where it took place', 'Who was involved']);
-  const [formPart2FollowUp, setFormPart2FollowUp] = useState('');
-  const [formPart3Questions, setFormPart3Questions] = useState<string[]>(['']);
+  const [formTitle, setFormTitle] = useState("");
+  const [formCategory, setFormCategory] = useState("General");
+  const [formDescription, setFormDescription] = useState("");
+  const [formPart1Questions, setFormPart1Questions] = useState<string[]>([""]);
+  const [formPart2Title, setFormPart2Title] = useState("");
+  const [formPart2PromptLead, setFormPart2PromptLead] =
+    useState("You should say:");
+  const [formPart2Bullets, setFormPart2Bullets] = useState<string[]>([
+    "What it is",
+    "Where it took place",
+    "Who was involved",
+  ]);
+  const [formPart2FollowUp, setFormPart2FollowUp] = useState("");
+  const [formPart3Questions, setFormPart3Questions] = useState<string[]>([""]);
 
   const [saving, setSaving] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState("");
 
   // 1. Verify Admin Session
   useEffect(() => {
     async function checkAuth() {
       try {
         setAuthLoading(true);
-        const res = await fetch('/api/auth/me');
+        const res = await fetch("/api/auth/me");
         const data = await res.json();
 
-        if (data.isLoggedIn && data.user && data.user.role === 'admin') {
+        if (data.isLoggedIn && data.user && data.user.role === "admin") {
           setUser(data.user);
           fetchTopics();
         } else {
           setUser(null);
         }
       } catch (err) {
-        console.error('Admin auth check error:', err);
+        console.error("Admin auth check error:", err);
         setUser(null);
       } finally {
         setAuthLoading(false);
@@ -83,13 +96,13 @@ export default function AdminTopicsPage() {
   const fetchTopics = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/topics');
+      const res = await fetch("/api/admin/topics");
       const data = await res.json();
       if (data.success && data.topics) {
         setTopics(data.topics);
       }
     } catch (err) {
-      console.error('Fetch admin topics error:', err);
+      console.error("Fetch admin topics error:", err);
     } finally {
       setLoading(false);
     }
@@ -98,16 +111,27 @@ export default function AdminTopicsPage() {
   // Open Create Modal
   const handleOpenCreateModal = () => {
     setEditingTopic(null);
-    setFormTitle('');
-    setFormCategory('General');
-    setFormDescription('');
-    setFormPart1Questions(['Do you work or are you a student?', 'What do you enjoy most about your daily routine?']);
-    setFormPart2Title('Describe a memorable experience');
-    setFormPart2PromptLead('You should say:');
-    setFormPart2Bullets(['What the experience was', 'When and where it happened', 'Who you were with', 'And explain why it was memorable to you']);
-    setFormPart2FollowUp('Do you often think back to this experience?');
-    setFormPart3Questions(['Why do people value new experiences?', 'How do experiences influence personal growth?']);
-    setErrorMsg('');
+    setFormTitle("");
+    setFormCategory("General");
+    setFormDescription("");
+    setFormPart1Questions([
+      "Do you work or are you a student?",
+      "What do you enjoy most about your daily routine?",
+    ]);
+    setFormPart2Title("Describe a memorable experience");
+    setFormPart2PromptLead("You should say:");
+    setFormPart2Bullets([
+      "What the experience was",
+      "When and where it happened",
+      "Who you were with",
+      "And explain why it was memorable to you",
+    ]);
+    setFormPart2FollowUp("Do you often think back to this experience?");
+    setFormPart3Questions([
+      "Why do people value new experiences?",
+      "How do experiences influence personal growth?",
+    ]);
+    setErrorMsg("");
     setIsCreateModalOpen(true);
   };
 
@@ -115,25 +139,29 @@ export default function AdminTopicsPage() {
   const handleOpenEditModal = (t: IELTSSpeakingTopic) => {
     setEditingTopic(t);
     setFormTitle(t.title);
-    setFormCategory(t.category || 'General');
-    setFormDescription(t.description || '');
-    setFormPart1Questions(t.part1_questions?.map((q) => q.question_text) || ['']);
+    setFormCategory(t.category || "General");
+    setFormDescription(t.description || "");
+    setFormPart1Questions(
+      t.part1_questions?.map((q) => q.question_text) || [""],
+    );
     setFormPart2Title(t.part2_cue_card?.cue_card_title || t.title);
-    setFormPart2PromptLead(t.part2_cue_card?.prompt_lead || 'You should say:');
-    setFormPart2Bullets(t.part2_cue_card?.bullet_points || ['']);
-    setFormPart2FollowUp(t.part2_cue_card?.follow_up_question || '');
-    setFormPart3Questions(t.part3_questions?.map((q) => q.question_text) || ['']);
-    setErrorMsg('');
+    setFormPart2PromptLead(t.part2_cue_card?.prompt_lead || "You should say:");
+    setFormPart2Bullets(t.part2_cue_card?.bullet_points || [""]);
+    setFormPart2FollowUp(t.part2_cue_card?.follow_up_question || "");
+    setFormPart3Questions(
+      t.part3_questions?.map((q) => q.question_text) || [""],
+    );
+    setErrorMsg("");
     setIsCreateModalOpen(true);
   };
 
   // Submit Save Form (Create or Update)
   const handleSaveTopic = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg('');
+    setErrorMsg("");
 
     if (!formTitle.trim() || !formCategory.trim()) {
-      setErrorMsg('Topic title and category are required.');
+      setErrorMsg("Topic title and category are required.");
       return;
     }
 
@@ -155,7 +183,7 @@ export default function AdminTopicsPage() {
           id: `cue-${Date.now()}`,
           topic_title: formTitle.trim(),
           cue_card_title: formPart2Title.trim() || formTitle.trim(),
-          prompt_lead: formPart2PromptLead.trim() || 'You should say:',
+          prompt_lead: formPart2PromptLead.trim() || "You should say:",
           bullet_points: formPart2Bullets.filter((b) => b.trim().length > 0),
           follow_up_question: formPart2FollowUp.trim() || undefined,
         },
@@ -168,25 +196,27 @@ export default function AdminTopicsPage() {
           })),
       };
 
-      const url = editingTopic ? `/api/admin/topics/${editingTopic.id}` : '/api/admin/topics';
-      const method = editingTopic ? 'PUT' : 'POST';
+      const url = editingTopic
+        ? `/api/admin/topics/${editingTopic.id}`
+        : "/api/admin/topics";
+      const method = editingTopic ? "PUT" : "POST";
 
       const res = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(topicPayload),
       });
 
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to save topic set.');
+        throw new Error(data.error || "Failed to save topic set.");
       }
 
       setIsCreateModalOpen(false);
       fetchTopics();
     } catch (err) {
-      console.error('Save topic error:', err);
+      console.error("Save topic error:", err);
       setErrorMsg((err as Error).message);
     } finally {
       setSaving(false);
@@ -199,28 +229,31 @@ export default function AdminTopicsPage() {
     try {
       setSaving(true);
       const res = await fetch(`/api/admin/topics/${deletingTopic.id}`, {
-        method: 'DELETE',
+        method: "DELETE",
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to delete topic');
+        throw new Error(data.error || "Failed to delete topic");
       }
       setDeletingTopic(null);
       fetchTopics();
     } catch (err) {
-      console.error('Delete topic error:', err);
+      console.error("Delete topic error:", err);
     } finally {
       setSaving(false);
     }
   };
 
   // Filtered Topics
-  const categories = Array.from(new Set(topics.map((t) => t.category || 'General')));
+  const categories = Array.from(
+    new Set(topics.map((t) => t.category || "General")),
+  );
   const filteredTopics = topics.filter((t) => {
     const matchesSearch =
       t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.category.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCat = selectedCategory === 'all' || t.category === selectedCategory;
+    const matchesCat =
+      selectedCategory === "all" || t.category === selectedCategory;
     return matchesSearch && matchesCat;
   });
 
@@ -229,7 +262,9 @@ export default function AdminTopicsPage() {
       <div className="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center">
         <div className="flex items-center space-x-3">
           <Loader2 className="w-6 h-6 animate-spin text-purple-600" />
-          <span className="text-sm font-medium text-slate-600">Verifying Admin Access...</span>
+          <span className="text-sm font-medium text-slate-600">
+            Verifying Admin Access...
+          </span>
         </div>
       </div>
     );
@@ -246,10 +281,11 @@ export default function AdminTopicsPage() {
             </div>
             <h1 className="text-xl font-bold text-slate-900">Access Denied</h1>
             <p className="text-xs text-slate-600 leading-relaxed">
-              You must be logged in as an Administrator (`admin`) to access the IELTS Topic Management Portal.
+              You must be logged in as an Administrator (`admin`) to access the
+              IELTS Topic Management Portal.
             </p>
             <button
-              onClick={() => router.push('/login')}
+              onClick={() => router.push("/login")}
               className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-purple-200"
             >
               Go to Login Page
@@ -272,19 +308,32 @@ export default function AdminTopicsPage() {
               <Sparkles className="w-3.5 h-3.5 text-purple-600" />
               <span>Admin Portal</span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900">IELTS Test Set Management</h1>
+            <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900">
+              IELTS Test Set Management
+            </h1>
             <p className="text-xs text-slate-600">
-              Create, edit, and update IELTS Speaking test sets (Part 1, Part 2 Cue Cards, and Part 3 Questions).
+              Create, edit, and update IELTS Speaking test sets (Part 1, Part 2
+              Cue Cards, and Part 3 Questions).
             </p>
           </div>
 
-          <button
-            onClick={handleOpenCreateModal}
-            className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-purple-200 transition-all hover:scale-105 shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create New Test Set</span>
-          </button>
+          <div className="flex items-center gap-3 shrink-0 flex-wrap">
+            <Link
+              href="/admin"
+              className="inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all"
+            >
+              <School className="w-4 h-4 text-purple-600" />
+              <span>Classes & Student</span>
+            </Link>
+
+            <button
+              onClick={handleOpenCreateModal}
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-purple-200 transition-all hover:scale-105"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Test Set</span>
+            </button>
+          </div>
         </div>
 
         {/* Stats Row */}
@@ -294,8 +343,12 @@ export default function AdminTopicsPage() {
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs text-slate-500 font-medium">Total Test Sets</div>
-              <div className="text-xl font-extrabold text-slate-900">{topics.length}</div>
+              <div className="text-xs text-slate-500 font-medium">
+                Total Test Sets
+              </div>
+              <div className="text-xl font-extrabold text-slate-900">
+                {topics.length}
+              </div>
             </div>
           </div>
 
@@ -304,9 +357,14 @@ export default function AdminTopicsPage() {
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs text-slate-500 font-medium">Part 1 Questions</div>
+              <div className="text-xs text-slate-500 font-medium">
+                Part 1 Questions
+              </div>
               <div className="text-xl font-extrabold text-slate-900">
-                {topics.reduce((acc, t) => acc + (t.part1_questions?.length || 0), 0)}
+                {topics.reduce(
+                  (acc, t) => acc + (t.part1_questions?.length || 0),
+                  0,
+                )}
               </div>
             </div>
           </div>
@@ -316,8 +374,12 @@ export default function AdminTopicsPage() {
               <FileText className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs text-slate-500 font-medium">Part 2 Cue Cards</div>
-              <div className="text-xl font-extrabold text-slate-900">{topics.length}</div>
+              <div className="text-xs text-slate-500 font-medium">
+                Part 2 Cue Cards
+              </div>
+              <div className="text-xl font-extrabold text-slate-900">
+                {topics.length}
+              </div>
             </div>
           </div>
 
@@ -326,9 +388,14 @@ export default function AdminTopicsPage() {
               <HelpCircle className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs text-slate-500 font-medium">Part 3 Questions</div>
+              <div className="text-xs text-slate-500 font-medium">
+                Part 3 Questions
+              </div>
               <div className="text-xl font-extrabold text-slate-900">
-                {topics.reduce((acc, t) => acc + (t.part3_questions?.length || 0), 0)}
+                {topics.reduce(
+                  (acc, t) => acc + (t.part3_questions?.length || 0),
+                  0,
+                )}
               </div>
             </div>
           </div>
@@ -349,11 +416,11 @@ export default function AdminTopicsPage() {
 
           <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
             <button
-              onClick={() => setSelectedCategory('all')}
+              onClick={() => setSelectedCategory("all")}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                selectedCategory === 'all'
-                  ? 'bg-purple-600 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                selectedCategory === "all"
+                  ? "bg-purple-600 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
               }`}
             >
               All ({topics.length})
@@ -364,8 +431,8 @@ export default function AdminTopicsPage() {
                 onClick={() => setSelectedCategory(cat)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
                   selectedCategory === cat
-                    ? 'bg-purple-600 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                    ? "bg-purple-600 text-white shadow-sm"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
                 }`}
               >
                 {cat}
@@ -383,9 +450,13 @@ export default function AdminTopicsPage() {
         ) : filteredTopics.length === 0 ? (
           <div className="py-16 text-center bg-white border border-slate-200 rounded-3xl p-8 space-y-3 shadow-sm">
             <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
-            <div className="text-slate-800 font-bold text-sm">No Test Sets Found</div>
+            <div className="text-slate-800 font-bold text-sm">
+              No Test Sets Found
+            </div>
             <p className="text-slate-500 text-xs max-w-sm mx-auto">
-              {searchQuery ? 'No topic matching your search criteria.' : 'Click "Create New Test Set" to add your first IELTS Speaking topic.'}
+              {searchQuery
+                ? "No topic matching your search criteria."
+                : 'Click "Create New Test Set" to add your first IELTS Speaking topic.'}
             </p>
           </div>
         ) : (
@@ -398,7 +469,7 @@ export default function AdminTopicsPage() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2">
                     <span className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold uppercase tracking-wider">
-                      {t.category || 'General'}
+                      {t.category || "General"}
                     </span>
                     <div className="flex items-center gap-1">
                       <button
@@ -425,7 +496,9 @@ export default function AdminTopicsPage() {
                     </div>
                   </div>
 
-                  <h3 className="text-lg font-bold text-slate-900">{t.title}</h3>
+                  <h3 className="text-lg font-bold text-slate-900">
+                    {t.title}
+                  </h3>
                   {t.description && (
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 overflow-hidden">
                       <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed overflow-hidden text-ellipsis">
@@ -438,17 +511,24 @@ export default function AdminTopicsPage() {
                 <div className="pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-xs">
                   <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
                     <div className="text-[10px] text-slate-500">Part 1</div>
-                    <div className="font-bold text-purple-700">{t.part1_questions?.length || 0} Questions</div>
+                    <div className="font-bold text-purple-700">
+                      {t.part1_questions?.length || 0} Questions
+                    </div>
                   </div>
                   <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
                     <div className="text-[10px] text-slate-500">Part 2</div>
-                    <div className="font-bold text-pink-700 truncate max-w-full" title={t.part2_cue_card?.cue_card_title}>
+                    <div
+                      className="font-bold text-pink-700 truncate max-w-full"
+                      title={t.part2_cue_card?.cue_card_title}
+                    >
                       1 Cue Card
                     </div>
                   </div>
                   <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
                     <div className="text-[10px] text-slate-500">Part 3</div>
-                    <div className="font-bold text-emerald-700">{t.part3_questions?.length || 0} Questions</div>
+                    <div className="font-bold text-emerald-700">
+                      {t.part3_questions?.length || 0} Questions
+                    </div>
                   </div>
                 </div>
               </div>
@@ -468,9 +548,13 @@ export default function AdminTopicsPage() {
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">
-                    {editingTopic ? 'Edit IELTS Test Set' : 'Create New IELTS Test Set'}
+                    {editingTopic
+                      ? "Edit IELTS Test Set"
+                      : "Create New IELTS Test Set"}
                   </h2>
-                  <p className="text-xs text-slate-500">Specify Title, Category, and Questions for Part 1, 2 & 3.</p>
+                  <p className="text-xs text-slate-500">
+                    Specify Title, Category, and Questions for Part 1, 2 & 3.
+                  </p>
                 </div>
               </div>
 
@@ -489,12 +573,17 @@ export default function AdminTopicsPage() {
               </div>
             )}
 
-            <form onSubmit={handleSaveTopic} className="space-y-6 text-xs text-slate-700">
+            <form
+              onSubmit={handleSaveTopic}
+              className="space-y-6 text-xs text-slate-700"
+            >
               {/* General Metadata */}
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="font-bold text-slate-900 block">Topic Title *</label>
+                    <label className="font-bold text-slate-900 block">
+                      Topic Title *
+                    </label>
                     <input
                       type="text"
                       value={formTitle}
@@ -506,7 +595,9 @@ export default function AdminTopicsPage() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="font-bold text-slate-900 block">Category *</label>
+                    <label className="font-bold text-slate-900 block">
+                      Category *
+                    </label>
                     <input
                       type="text"
                       value={formCategory}
@@ -519,7 +610,9 @@ export default function AdminTopicsPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-bold text-slate-900 block">Description (Optional)</label>
+                  <label className="font-bold text-slate-900 block">
+                    Description (Optional)
+                  </label>
                   <textarea
                     rows={2}
                     value={formDescription}
@@ -533,10 +626,14 @@ export default function AdminTopicsPage() {
               {/* Part 1 Questions */}
               <div className="space-y-3 pt-2 border-t border-slate-100">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-purple-700 text-sm">Part 1 Questions</span>
+                  <span className="font-bold text-purple-700 text-sm">
+                    Part 1 Questions
+                  </span>
                   <button
                     type="button"
-                    onClick={() => setFormPart1Questions([...formPart1Questions, ''])}
+                    onClick={() =>
+                      setFormPart1Questions([...formPart1Questions, ""])
+                    }
                     className="text-xs text-purple-700 hover:text-purple-900 flex items-center gap-1 font-bold"
                   >
                     <Plus className="w-3.5 h-3.5" /> Add Question
@@ -559,7 +656,11 @@ export default function AdminTopicsPage() {
                     {formPart1Questions.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => setFormPart1Questions(formPart1Questions.filter((_, i) => i !== idx))}
+                        onClick={() =>
+                          setFormPart1Questions(
+                            formPart1Questions.filter((_, i) => i !== idx),
+                          )
+                        }
                         className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl"
                       >
                         <X className="w-4 h-4" />
@@ -571,10 +672,14 @@ export default function AdminTopicsPage() {
 
               {/* Part 2 Cue Card Details */}
               <div className="space-y-3 pt-2 border-t border-slate-100">
-                <span className="font-bold text-pink-700 text-sm block">Part 2 Cue Card</span>
+                <span className="font-bold text-pink-700 text-sm block">
+                  Part 2 Cue Card
+                </span>
 
                 <div className="space-y-1.5">
-                  <label className="font-semibold text-slate-800 block">Cue Card Title</label>
+                  <label className="font-semibold text-slate-800 block">
+                    Cue Card Title
+                  </label>
                   <input
                     type="text"
                     value={formPart2Title}
@@ -585,7 +690,9 @@ export default function AdminTopicsPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-semibold text-slate-800 block">Prompt Lead</label>
+                  <label className="font-semibold text-slate-800 block">
+                    Prompt Lead
+                  </label>
                   <input
                     type="text"
                     value={formPart2PromptLead}
@@ -597,10 +704,14 @@ export default function AdminTopicsPage() {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <label className="font-semibold text-slate-800">Bullet Points</label>
+                    <label className="font-semibold text-slate-800">
+                      Bullet Points
+                    </label>
                     <button
                       type="button"
-                      onClick={() => setFormPart2Bullets([...formPart2Bullets, ''])}
+                      onClick={() =>
+                        setFormPart2Bullets([...formPart2Bullets, ""])
+                      }
                       className="text-[11px] text-pink-700 hover:text-pink-900 flex items-center gap-1 font-bold"
                     >
                       <Plus className="w-3 h-3" /> Add Bullet
@@ -623,7 +734,11 @@ export default function AdminTopicsPage() {
                       {formPart2Bullets.length > 1 && (
                         <button
                           type="button"
-                          onClick={() => setFormPart2Bullets(formPart2Bullets.filter((_, i) => i !== idx))}
+                          onClick={() =>
+                            setFormPart2Bullets(
+                              formPart2Bullets.filter((_, i) => i !== idx),
+                            )
+                          }
                           className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -634,7 +749,9 @@ export default function AdminTopicsPage() {
                 </div>
 
                 <div className="space-y-1.5 pt-1">
-                  <label className="font-semibold text-slate-800 block">Follow-up Question (Optional)</label>
+                  <label className="font-semibold text-slate-800 block">
+                    Follow-up Question (Optional)
+                  </label>
                   <input
                     type="text"
                     value={formPart2FollowUp}
@@ -648,10 +765,14 @@ export default function AdminTopicsPage() {
               {/* Part 3 Questions */}
               <div className="space-y-3 pt-2 border-t border-slate-100">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-emerald-700 text-sm">Part 3 Discussion Questions</span>
+                  <span className="font-bold text-emerald-700 text-sm">
+                    Part 3 Discussion Questions
+                  </span>
                   <button
                     type="button"
-                    onClick={() => setFormPart3Questions([...formPart3Questions, ''])}
+                    onClick={() =>
+                      setFormPart3Questions([...formPart3Questions, ""])
+                    }
                     className="text-xs text-emerald-700 hover:text-emerald-900 flex items-center gap-1 font-bold"
                   >
                     <Plus className="w-3.5 h-3.5" /> Add Question
@@ -674,7 +795,11 @@ export default function AdminTopicsPage() {
                     {formPart3Questions.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => setFormPart3Questions(formPart3Questions.filter((_, i) => i !== idx))}
+                        onClick={() =>
+                          setFormPart3Questions(
+                            formPart3Questions.filter((_, i) => i !== idx),
+                          )
+                        }
                         className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl"
                       >
                         <X className="w-4 h-4" />
@@ -707,7 +832,9 @@ export default function AdminTopicsPage() {
                   ) : (
                     <>
                       <Check className="w-4 h-4" />
-                      <span>{editingTopic ? 'Update Test Set' : 'Create Test Set'}</span>
+                      <span>
+                        {editingTopic ? "Update Test Set" : "Create Test Set"}
+                      </span>
                     </>
                   )}
                 </button>
@@ -726,13 +853,21 @@ export default function AdminTopicsPage() {
                 <Trash2 className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Delete Test Set?</h3>
-                <p className="text-xs text-slate-500">This action cannot be undone.</p>
+                <h3 className="text-lg font-bold text-slate-900">
+                  Delete Test Set?
+                </h3>
+                <p className="text-xs text-slate-500">
+                  This action cannot be undone.
+                </p>
               </div>
             </div>
 
             <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
-              Are you sure you want to permanently delete <strong className="text-slate-900">"{deletingTopic.title}"</strong>?
+              Are you sure you want to permanently delete{" "}
+              <strong className="text-slate-900">
+                "{deletingTopic.title}"
+              </strong>
+              ?
             </p>
 
             <div className="flex items-center justify-end gap-3 pt-2">
@@ -747,7 +882,11 @@ export default function AdminTopicsPage() {
                 disabled={saving}
                 className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-rose-200 disabled:opacity-50"
               >
-                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                {saving ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
                 <span>Delete Set</span>
               </button>
             </div>
@@ -761,10 +900,17 @@ export default function AdminTopicsPage() {
           <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-xl w-full max-h-[85vh] overflow-y-auto space-y-5 shadow-2xl text-slate-900">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">{previewTopic.category}</span>
-                <h2 className="text-lg font-bold text-slate-900">{previewTopic.title}</h2>
+                <span className="text-[10px] font-bold text-purple-600 uppercase tracking-wider">
+                  {previewTopic.category}
+                </span>
+                <h2 className="text-lg font-bold text-slate-900">
+                  {previewTopic.title}
+                </h2>
               </div>
-              <button onClick={() => setPreviewTopic(null)} className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg">
+              <button
+                onClick={() => setPreviewTopic(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -772,10 +918,15 @@ export default function AdminTopicsPage() {
             <div className="space-y-4 text-xs">
               {/* Part 1 */}
               <div className="space-y-2">
-                <span className="font-bold text-purple-700 uppercase text-[11px] block">Part 1 Questions ({previewTopic.part1_questions?.length || 0})</span>
+                <span className="font-bold text-purple-700 uppercase text-[11px] block">
+                  Part 1 Questions ({previewTopic.part1_questions?.length || 0})
+                </span>
                 <div className="space-y-1.5">
                   {previewTopic.part1_questions?.map((q, i) => (
-                    <div key={i} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 flex items-start gap-2">
+                    <div
+                      key={i}
+                      className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 flex items-start gap-2"
+                    >
                       <ChevronRight className="w-3.5 h-3.5 text-purple-600 shrink-0 mt-0.5" />
                       <span>{q.question_text}</span>
                     </div>
@@ -785,10 +936,16 @@ export default function AdminTopicsPage() {
 
               {/* Part 2 */}
               <div className="space-y-2 pt-2 border-t border-slate-100">
-                <span className="font-bold text-pink-700 uppercase text-[11px] block">Part 2 Cue Card</span>
+                <span className="font-bold text-pink-700 uppercase text-[11px] block">
+                  Part 2 Cue Card
+                </span>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                  <div className="font-bold text-slate-900 text-sm">{previewTopic.part2_cue_card?.cue_card_title}</div>
-                  <div className="text-slate-600 italic">{previewTopic.part2_cue_card?.prompt_lead}</div>
+                  <div className="font-bold text-slate-900 text-sm">
+                    {previewTopic.part2_cue_card?.cue_card_title}
+                  </div>
+                  <div className="text-slate-600 italic">
+                    {previewTopic.part2_cue_card?.prompt_lead}
+                  </div>
                   <ul className="list-disc pl-5 space-y-1 text-slate-700">
                     {previewTopic.part2_cue_card?.bullet_points.map((b, i) => (
                       <li key={i}>{b}</li>
@@ -799,10 +956,15 @@ export default function AdminTopicsPage() {
 
               {/* Part 3 */}
               <div className="space-y-2 pt-2 border-t border-slate-100">
-                <span className="font-bold text-emerald-700 uppercase text-[11px] block">Part 3 Questions ({previewTopic.part3_questions?.length || 0})</span>
+                <span className="font-bold text-emerald-700 uppercase text-[11px] block">
+                  Part 3 Questions ({previewTopic.part3_questions?.length || 0})
+                </span>
                 <div className="space-y-1.5">
                   {previewTopic.part3_questions?.map((q, i) => (
-                    <div key={i} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 flex items-start gap-2">
+                    <div
+                      key={i}
+                      className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 flex items-start gap-2"
+                    >
                       <ChevronRight className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
                       <span>{q.question_text}</span>
                     </div>

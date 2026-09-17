@@ -5,68 +5,31 @@ import { pgDb } from "@/lib/db/postgres";
 import { formatIELTSResult } from "./bot-formatter";
 import { createLaunchToken, getAppBaseUrl } from "@/lib/auth/launch-token";
 
-let sharedClient: MezonClient | null = null;
-let connectionPromise: Promise<MezonClient | null> | null = null;
+declare global {
+  // eslint-disable-next-line no-var
+  var __mezonBotClient: MezonClient | undefined;
+  // eslint-disable-next-line no-var
+  var __mezonBotPromise: Promise<MezonClient | null> | undefined;
+}
 
 export function setSharedBotClient(client: MezonClient) {
-  sharedClient = client;
+  globalThis.__mezonBotClient = client;
 }
 
 export async function getSharedBotClient(): Promise<MezonClient | null> {
-  const botToken = process.env.MEZON_BOT_TOKEN;
-  const botId = process.env.MEZON_BOT_ID;
-
-  if (!botToken || !botId) {
-    console.error(
-      "[Mezon Bot Messenger] Missing MEZON_BOT_TOKEN or MEZON_BOT_ID in env.",
-    );
-    return null;
+  // 1. Return already active client if available
+  if (globalThis.__mezonBotClient) {
+    return globalThis.__mezonBotClient;
   }
 
-  if (sharedClient) {
-    return sharedClient;
+  // 2. Return in-progress connection promise if another call is currently connecting
+  if (globalThis.__mezonBotPromise) {
+    return globalThis.__mezonBotPromise;
   }
 
-  if (connectionPromise) {
-    return connectionPromise;
-  }
-
-  connectionPromise = (async () => {
-    try {
-      const configuredHost = process.env.MEZON_HOST || "gw.mezon.ai";
-      const host = configuredHost
-        .replace(/^https?:\/\//, "")
-        .replace(/\/$/, "");
-      const port =
-        process.env.MEZON_PORT ||
-        (configuredHost.startsWith("http://") ? "80" : "443");
-      const useSSL = process.env.MEZON_USE_SSL
-        ? process.env.MEZON_USE_SSL !== "false"
-        : !configuredHost.startsWith("http://") && port === "443";
-
-      const client = new MezonClient({
-        botId,
-        token: botToken,
-        host,
-        port,
-        useSSL,
-      });
-
-      await client.login();
-      sharedClient = client;
-      return client;
-    } catch (err) {
-      console.error(
-        "[Mezon Bot Messenger] Failed to authenticate MezonClient:",
-        err,
-      );
-      return null;
-    } finally {
-      connectionPromise = null;
-    }
-  })();
-
-  return connectionPromise;
+  // 3. Delegate to initBotService to establish the single connection
+  const { initBotService } = await import("./bot-service");
+  return initBotService();
 }
 
 /**
@@ -385,15 +348,7 @@ export async function notifyExamResult(
   }
 
   const baseUrl = getAppBaseUrl();
-  const token = createLaunchToken(
-    {
-      attemptId: attempt.id,
-      userId: user.user_id,
-      mezonId: user.mezon_id || targetMezonUserId,
-    },
-    24 * 60, // Exactly 24 hours
-  );
-  const detailsUrl = `${baseUrl}/ielts-speaking/result/${attempt.id}/details?token=${token}`;
+  const detailsUrl = `${baseUrl}/ielts-speaking/result/${attempt.id}/details`;
 
   const formattedResult = formatIELTSResult(
     attempt,

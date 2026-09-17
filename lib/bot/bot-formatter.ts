@@ -49,8 +49,7 @@ export function formatIELTSResult(
   if (detailsUrl) {
     msg1 += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
     msg1 += `🌐 **Interactive Detailed Report & Audio Playback:**\n`;
-    msg1 += `👉 ${detailsUrl}\n\n`;
-    msg1 += `⏳ *Note: This secure link is valid for 24 hours.*\n`;
+    msg1 += `👉 ${detailsUrl}\n`;
     msg1 += `━━━━━━━━━━━━━━━━━━━━━━━━━━`;
   }
 

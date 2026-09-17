@@ -960,6 +960,10 @@ export const pgDb = {
     };
   },
 
+  async getUserById(userId: string): Promise<UserSession | null> {
+    return this.getUserByMezonId(userId);
+  },
+
   async setUserRole(mezonId: string, role: 'user' | 'admin'): Promise<void> {
     await ensureDbInitialized();
     await pool.query(
@@ -1037,5 +1041,117 @@ export const pgDb = {
     const { rows } = await pool.query(query, [attemptId, userId]);
     if (rows.length === 0) return null;
     return this.getIELTSAttempt(attemptId);
+  },
+
+  /**
+   * Batch aggregates Speaking statistics directly from PostgreSQL
+   * for a given list of Mezon User IDs.
+   */
+  async getStudentsSpeakingStatsBatch(
+    mezonUserIds: string[],
+  ): Promise<
+    Record<
+      string,
+      {
+        total_attempts: number;
+        average_band: number | null;
+        highest_band: number | null;
+        latest_attempt_at: string | null;
+      }
+    >
+  > {
+    await ensureDbInitialized();
+    if (!mezonUserIds || mezonUserIds.length === 0) return {};
+
+    const query = `
+      SELECT
+        COALESCE(u."mezonUserId", a.user_id) AS student_id,
+        u."mezonUserId" AS user_mezon_id,
+        a.user_id AS attempt_user_id,
+        COUNT(a.id)::int AS total_attempts,
+        ROUND(AVG(a.overall_band)::numeric, 1)::float AS average_band,
+        MAX(a.overall_band)::float AS highest_band,
+        MAX(COALESCE(a.submitted_at, a.started_at)) AS latest_attempt_at
+      FROM ielts_speaking_attempts a
+      LEFT JOIN users u ON (u.id::text = a.user_id OR u."mezonUserId" = a.user_id)
+      WHERE (a.user_id = ANY($1) OR u."mezonUserId" = ANY($1))
+        AND a.status != 'cancelled'
+      GROUP BY COALESCE(u."mezonUserId", a.user_id), u."mezonUserId", a.user_id;
+    `;
+
+    const { rows } = await pool.query(query, [mezonUserIds]);
+    const result: Record<
+      string,
+      {
+        total_attempts: number;
+        average_band: number | null;
+        highest_band: number | null;
+        latest_attempt_at: string | null;
+      }
+    > = {};
+
+    rows.forEach((r) => {
+      const stat = {
+        total_attempts: r.total_attempts || 0,
+        average_band: r.average_band !== null ? Number(r.average_band) : null,
+        highest_band: r.highest_band !== null ? Number(r.highest_band) : null,
+        latest_attempt_at: r.latest_attempt_at
+          ? new Date(r.latest_attempt_at).toISOString()
+          : null,
+      };
+      if (r.student_id) result[r.student_id] = stat;
+      if (r.user_mezon_id) result[r.user_mezon_id] = stat;
+      if (r.attempt_user_id) result[r.attempt_user_id] = stat;
+    });
+
+    return result;
+  },
+
+  /**
+   * System-wide speaking test metrics
+   */
+  async getOverallSpeakingStats(): Promise<{
+    total_attempts: number;
+    average_band: number | null;
+  }> {
+    await ensureDbInitialized();
+    const query = `
+      SELECT
+        COUNT(id)::int AS total_attempts,
+        ROUND(AVG(overall_band)::numeric, 1)::float AS average_band
+      FROM ielts_speaking_attempts
+      WHERE status != 'cancelled' AND (overall_band IS NOT NULL OR score_result IS NOT NULL);
+    `;
+    const { rows } = await pool.query(query);
+    return {
+      total_attempts: rows[0]?.total_attempts || 0,
+      average_band: rows[0]?.average_band !== null ? Number(rows[0].average_band) : null,
+    };
+  },
+
+  /**
+   * Retrieves all detailed Speaking attempts for a specific student,
+   * including questions, transcripts, audio URLs, and AI evaluations.
+   */
+  async getStudentSpeakingDetailedAttempts(
+    studentId: string,
+  ): Promise<IELTSSpeakingAttempt[]> {
+    await ensureDbInitialized();
+    const query = `
+      SELECT a.id
+      FROM ielts_speaking_attempts a
+      LEFT JOIN users u ON (u.id::text = a.user_id OR u."mezonUserId" = a.user_id)
+      WHERE (a.user_id = $1 OR u.id::text = $1 OR u."mezonUserId" = $1)
+        AND a.status != 'cancelled'
+      ORDER BY COALESCE(a.submitted_at, a.started_at) DESC;
+    `;
+    const { rows } = await pool.query(query, [studentId]);
+    const results: IELTSSpeakingAttempt[] = [];
+
+    for (const r of rows) {
+      const att = await this.getIELTSAttempt(r.id);
+      if (att) results.push(att);
+    }
+    return results;
   },
 };

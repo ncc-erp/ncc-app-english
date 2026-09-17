@@ -1,10 +1,18 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { UserSession } from '@/types';
-import { Mic, LogOut, User, Sparkles, History, Shield, BookOpen } from 'lucide-react';
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { UserSession } from "@/types";
+import {
+  Mic,
+  LogOut,
+  User,
+  Sparkles,
+  History,
+  Shield,
+  BookOpen,
+} from "lucide-react";
 
 interface NavbarProps {
   user?: UserSession | null;
@@ -14,7 +22,9 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const [currentUser, setCurrentUser] = useState<UserSession | null | undefined>(propUser);
+  const [currentUser, setCurrentUser] = useState<
+    UserSession | null | undefined
+  >(propUser);
 
   useEffect(() => {
     if (propUser !== undefined) {
@@ -25,7 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
     let isMounted = true;
     async function fetchMe() {
       try {
-        const res = await fetch('/api/auth/me');
+        const res = await fetch("/api/auth/me");
         const data = await res.json();
         if (isMounted) {
           if (data.isLoggedIn && data.user) {
@@ -51,17 +61,17 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
       return;
     }
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch("/api/auth/logout", { method: "POST" });
       setCurrentUser(null);
-      router.push('/');
+      router.push("/");
       router.refresh();
     } catch (err) {
-      console.error('Logout error:', err);
+      console.error("Logout error:", err);
     }
   };
 
   const activeUser = propUser !== undefined ? propUser : currentUser;
-  const isAdmin = activeUser?.role === 'admin';
+  const isAdmin = activeUser?.role === "admin";
 
   return (
     <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
@@ -90,7 +100,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
           <div className="flex items-center space-x-3">
             {isAdmin && (
               <Link
-                href="/admin/topics"
+                href="/admin"
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl transition-all border border-amber-200"
               >
                 <Shield className="w-3.5 h-3.5 text-amber-600" />
@@ -117,10 +127,18 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
             <div className="flex items-center space-x-2.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 shadow-sm">
               {activeUser.avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={activeUser.avatar_url} alt={activeUser.display_name || activeUser.mezon_username} className="w-7 h-7 rounded-full object-cover" />
+                <img
+                  src={activeUser.avatar_url}
+                  alt={activeUser.display_name || activeUser.mezon_username}
+                  className="w-7 h-7 rounded-full object-cover"
+                />
               ) : (
                 <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs">
-                  {activeUser.mezon_username ? activeUser.mezon_username[0].toUpperCase() : <User className="w-3.5 h-3.5" />}
+                  {activeUser.mezon_username ? (
+                    activeUser.mezon_username[0].toUpperCase()
+                  ) : (
+                    <User className="w-3.5 h-3.5" />
+                  )}
                 </div>
               )}
               <div className="flex flex-col text-left leading-tight">
@@ -129,7 +147,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
                 </span>
                 {activeUser.mezon_username && (
                   <span className="text-[10px] text-purple-600 font-semibold truncate max-w-[140px]">
-                    @{activeUser.mezon_username}
+                    @{activeUser.mezon_username} 
                   </span>
                 )}
               </div>

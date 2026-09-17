@@ -39,4 +39,92 @@ if (process.env.VERCEL) {
   }
 }
 
+// Patch 1: Prevent trimAbridgedPadding from arbitrarily stripping trailing zeroes of valid protobuf payloads.
+// Abridged TCP padding in Mezon protocol is strictly at most 3 zero bytes for 4-byte boundary alignment.
+// Stripping all trailing zeros arbitrarily destroys valid protobuf payloads ending in 0x00,
+// which causes "RangeError: index out of range: N + 1 > N" during protobuf decoding.
+try {
+  const req: NodeJS.Require =
+    typeof __non_webpack_require__ === "function"
+      ? __non_webpack_require__
+      : (eval("require") as NodeJS.Require);
+  const protoDecodeId = req.resolve("mezon-sdk/dist/cjs/transport/protobuf_decode");
+  const protoDecode = req(protoDecodeId);
+  if (protoDecode && typeof protoDecode.trimAbridgedPadding === "function") {
+    protoDecode.trimAbridgedPadding = function (payload: any) {
+      const bytes = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
+      let end = bytes.length;
+      let trimmedCount = 0;
+      while (end > 0 && bytes[end - 1] === 0 && trimmedCount < 3) {
+        end--;
+        trimmedCount++;
+      }
+      return new Uint8Array(bytes.subarray(0, end));
+    };
+  }
+} catch (err) {
+  console.warn("[mezon sdk-patch] could not patch trimAbridgedPadding:", err);
+}
+
+// Patch 2: Lenient RoleListEventResponse decoding to prevent crashes on truncated role frames
+try {
+  const req: NodeJS.Require =
+    typeof __non_webpack_require__ === "function"
+      ? __non_webpack_require__
+      : (eval("require") as NodeJS.Require);
+  const apiProtoId = req.resolve("mezon-sdk/dist/cjs/api/api");
+  const apiProto = req(apiProtoId);
+  if (apiProto && apiProto.RoleListEventResponse) {
+    const origDecode = apiProto.RoleListEventResponse.decode.bind(apiProto.RoleListEventResponse);
+    apiProto.RoleListEventResponse.decode = function (input: any, length?: number) {
+      try {
+        return origDecode(input, length);
+      } catch (err: any) {
+        if (
+          err instanceof RangeError ||
+          err?.name === "RangeError" ||
+          String(err?.message).includes("out of range")
+        ) {
+          console.warn("[mezon sdk-patch] Rescued RangeError during RoleListEventResponse decode:", err.message);
+          return apiProto.RoleListEventResponse.fromPartial({});
+        }
+        throw err;
+      }
+    };
+  }
+} catch (err) {
+  console.warn("[mezon sdk-patch] could not patch RoleListEventResponse.decode:", err);
+}
+
+// Patch 3: Lenient ChannelUserList decoding to prevent RangeError on truncated/padded channel user frames
+try {
+  const req: NodeJS.Require =
+    typeof __non_webpack_require__ === "function"
+      ? __non_webpack_require__
+      : (eval("require") as NodeJS.Require);
+  const apiProtoId = req.resolve("mezon-sdk/dist/cjs/api/api");
+  const apiProto = req(apiProtoId);
+  if (apiProto && apiProto.ChannelUserList) {
+    const origDecode = apiProto.ChannelUserList.decode.bind(apiProto.ChannelUserList);
+    apiProto.ChannelUserList.decode = function (input: any, length?: number) {
+      try {
+        return origDecode(input, length);
+      } catch (err: any) {
+        if (
+          err instanceof RangeError ||
+          err?.name === "RangeError" ||
+          String(err?.message).includes("out of range")
+        ) {
+          console.warn("[mezon sdk-patch] Rescued RangeError during ChannelUserList decode:", err.message);
+          return apiProto.ChannelUserList.fromPartial({});
+        }
+        throw err;
+      }
+    };
+  }
+} catch (err) {
+  console.warn("[mezon sdk-patch] could not patch ChannelUserList.decode:", err);
+}
+
 export {};
+

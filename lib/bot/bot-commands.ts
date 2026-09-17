@@ -15,16 +15,7 @@ function buildResultCommandOutput(
   mezonUserId: string,
 ): CommandResult {
   const baseUrl = getAppBaseUrl();
-  const token = createLaunchToken(
-    {
-      attemptId: attempt.id,
-      userId: user.user_id,
-      mezonId: user.mezon_id || mezonUserId,
-    },
-    24 * 60, // Exactly 24 hours
-  );
-
-  const detailsUrl = `${baseUrl}/ielts-speaking/result/${attempt.id}/details?token=${token}`;
+  const detailsUrl = `${baseUrl}/ielts-speaking/result/${attempt.id}/details`;
   const formattedText = formatIELTSResult(
     attempt,
     user.display_name || user.mezon_username,

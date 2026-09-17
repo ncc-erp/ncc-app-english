@@ -1,6 +1,11 @@
 import "@/lib/mezon/sdk-patch";
 import { MezonClient } from "mezon-sdk";
-import { ClanUserList, ListClanUsersRequest } from "mezon-sdk/dist/cjs/api/api";
+import {
+  ClanUserList,
+  ListClanUsersRequest,
+  RoleListEventRequest,
+  RoleListEventResponse,
+} from "mezon-sdk/dist/cjs/api/api";
 
 /**
  * Verifies if a given user is a member of the target Mezon Clan.
@@ -41,53 +46,24 @@ export async function checkMezonClanMembership(
   }
 
   if (!mezonUserId) {
-    console.warn("[Mezon Bot] Missing mezonUserId for verification.");
     return false;
   }
 
-  // console.log(
-  //   `[Mezon Bot] Verifying real membership for Mezon User ${mezonUserId} in Clan ${clanId}...`,
-  // );
-
-  let client: MezonClient | undefined;
-
   try {
-    const configuredHost = process.env.MEZON_HOST || "gw.mezon.ai";
-    const host = configuredHost.replace(/^https?:\/\//, "").replace(/\/$/, "");
-    const port =
-      process.env.MEZON_PORT ||
-      (configuredHost.startsWith("http://") ? "80" : "443");
-    const useSSL = process.env.MEZON_USE_SSL
-      ? process.env.MEZON_USE_SSL !== "false"
-      : !configuredHost.startsWith("http://") && port === "443";
-    client = new MezonClient({
-      botId,
-      token: botToken,
-      host,
-      port,
-      useSSL,
-    });
-    await client.login();
-
-    const availableClans = Array.from(client.clans.values());
-    // console.log(
-    //   `[Mezon Bot] Accessible clans: ${availableClans.map((clan) => `${clan.name} (${clan.id})`).join(", ") || "none"}.`,
-    // );
+    const { getSharedBotClient } = await import("@/lib/bot/bot-messenger");
+    const client = await getSharedBotClient();
+    if (!client) {
+      const allowFallback = process.env.MEZON_ALLOW_FALLBACK !== "false";
+      return allowFallback && mezonUserId.length > 5;
+    }
 
     const isMember = await isClanMember(client, mezonUserId, clanId);
-
-    // console.log(
-    //   `[Mezon Bot] ListClanUsers RPC returned ${users.clan_users.length} users; member: ${isMember}.`,
-    // );
     if (isMember) {
       return true;
     }
 
     const allowFallback = process.env.MEZON_ALLOW_FALLBACK !== "false";
     if (allowFallback && mezonUserId && mezonUserId.length > 5) {
-      // console.log(
-      //   `[Mezon Bot] Verified user ${mezonUserId} via authenticated Mezon OAuth session fallback.`,
-      // );
       return true;
     }
 
@@ -105,8 +81,6 @@ export async function checkMezonClanMembership(
       return true;
     }
     return false;
-  } finally {
-    client?.closeSocket();
   }
 }
 
@@ -143,3 +117,198 @@ export async function isClanMember(
   );
   return users.clan_users.some((entry) => entry.user?.id === mezonUserId);
 }
+
+const clanRolesCache = new Map<string, { roles: any[]; expiresAt: number }>();
+
+export function clearClanRolesCache(clanId?: string) {
+  if (clanId) {
+    clanRolesCache.delete(clanId);
+  } else {
+    clanRolesCache.clear();
+  }
+}
+
+/**
+ * Safely fetches clan roles with an 8s timeout, handles abridged protobuf padding
+ * issues, and caches roles for 60 seconds (unless forceRefresh is true).
+ */
+export async function getClanRolesSafely(
+  client: MezonClient,
+  clanId: string = process.env.MEZON_TARGET_CLAN_ID || "",
+  forceRefresh: boolean = false,
+): Promise<any[]> {
+  if (!clanId) return [];
+
+  if (forceRefresh) {
+    clanRolesCache.delete(clanId);
+  } else {
+    const cached = clanRolesCache.get(clanId);
+    if (cached && Date.now() < cached.expiresAt) {
+      return cached.roles;
+    }
+  }
+
+  const targetClan = client.clans.get(clanId);
+  if (!targetClan) {
+    return [];
+  }
+
+  const internalClient = client as unknown as {
+    apiClient: {
+      invokeMezonApi: (
+        path: string,
+        body: Uint8Array,
+        options: unknown,
+      ) => Promise<any>;
+    };
+  };
+
+  const fetchPromise = async (): Promise<any[]> => {
+    try {
+      const rolesRes = await targetClan.listRoles();
+      const roles = rolesRes.roles?.roles || [];
+      if (roles.length > 0) return roles;
+    } catch (err: any) {
+      if (err?.name === "RangeError" || err?.message?.includes("index out of range")) {
+        try {
+          const encodedBody = RoleListEventRequest.encode(
+            RoleListEventRequest.fromPartial({ clan_id: clanId }),
+          ).finish();
+          const rolesRes = await internalClient.apiClient.invokeMezonApi(
+            "/mezon.api.Mezon/ListRoles",
+            encodedBody,
+            {
+              emptyAs: {},
+              decode: (bytes: Uint8Array) => {
+                try {
+                  return RoleListEventResponse.decode(bytes);
+                } catch {
+                  const padded = new Uint8Array(bytes.length + 8);
+                  padded.set(bytes);
+                  return RoleListEventResponse.decode(padded);
+                }
+              },
+            },
+          );
+          const roles = rolesRes.roles?.roles || [];
+          if (roles.length > 0) return roles;
+        } catch (retryErr) {
+          console.warn("[Mezon Bot] Fallback role decode error:", retryErr);
+        }
+      } else {
+        console.warn("[Mezon Bot] listRoles error:", err?.message || err);
+      }
+    }
+    return [];
+  };
+
+  let timer: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<any[]>((resolve) => {
+    timer = setTimeout(() => {
+      console.warn(`[Mezon Bot] getClanRolesSafely timed out after 8000ms for clan ${clanId}`);
+      resolve([]);
+    }, 8000);
+  });
+
+  const roles = await Promise.race([
+    fetchPromise().then((res) => {
+      if (timer) clearTimeout(timer);
+      return res;
+    }),
+    timeoutPromise,
+  ]);
+
+  if (roles.length > 0) {
+    clanRolesCache.set(clanId, { roles, expiresAt: Date.now() + 60_000 });
+  }
+
+  return roles;
+}
+
+/** Asks Mezon whether the user has the role "Admin" in the clan. */
+export async function isClanAdminMember(
+  client: MezonClient,
+  mezonUserId: string,
+  clanId: string = process.env.MEZON_TARGET_CLAN_ID || "",
+): Promise<boolean> {
+  if (!mezonUserId || !clanId) {
+    return false;
+  }
+
+  const targetClan = client.clans.get(clanId);
+  if (!targetClan) {
+    return false;
+  }
+
+  // 1. Clan creator / owner is inherently an Admin
+  if ((targetClan as any).creator_id && (targetClan as any).creator_id === mezonUserId) {
+    return true;
+  }
+
+  try {
+    // 2. Get clan roles safely and find role "Admin"
+    const roles = await getClanRolesSafely(client, clanId);
+    const adminRoleIds = roles
+      .filter((r) => {
+        const title = (r.title || "").trim().toLowerCase();
+        return (
+          title === "admin" ||
+          title === "administrator" ||
+          title === "quản trị viên" ||
+          title === "quan tri vien"
+        );
+      })
+      .map((r) => r.id)
+      .filter(Boolean) as string[];
+
+    if (adminRoleIds.length === 0) {
+      return false;
+    }
+
+    // 3. Query clan users with a 4-second timeout to avoid blocking
+    const internalClient = client as unknown as {
+      apiClient: {
+        invokeMezonApi: (
+          path: string,
+          body: Uint8Array,
+          options: unknown,
+        ) => Promise<ClanUserList>;
+      };
+    };
+
+    const usersPromise = internalClient.apiClient.invokeMezonApi(
+      "/mezon.api.Mezon/ListClanUsers",
+      ListClanUsersRequest.encode({ clan_id: clanId }).finish(),
+      { decode: (bytes: Uint8Array) => ClanUserList.decode(bytes) },
+    );
+
+    let usersTimer: NodeJS.Timeout | undefined;
+    const usersTimeout = new Promise<ClanUserList>((resolve) => {
+      usersTimer = setTimeout(() => {
+        console.warn(`[Mezon Bot] ListClanUsers timed out after 4000ms for clan ${clanId}`);
+        resolve({ clan_users: [], cursor: "", clan_id: clanId });
+      }, 4000);
+    });
+
+    const users = await Promise.race([
+      usersPromise.then((res) => {
+        if (usersTimer) clearTimeout(usersTimer);
+        return res;
+      }),
+      usersTimeout,
+    ]);
+
+    const memberEntry = users.clan_users.find(
+      (entry) => entry.user?.id === mezonUserId,
+    );
+    if (!memberEntry || !memberEntry.role_id) {
+      return false;
+    }
+
+    return memberEntry.role_id.some((rid) => adminRoleIds.includes(rid));
+  } catch (err) {
+    console.error("[Mezon Bot] Error checking clan admin role:", err);
+    return false;
+  }
+}
+
