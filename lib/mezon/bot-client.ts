@@ -265,7 +265,7 @@ export async function isClanAdminMember(
       return false;
     }
 
-    // 3. Query clan users with a 4-second timeout to avoid blocking
+    // 3. Query clan users WITH PAGINATION and an 8-second overall timeout
     const internalClient = client as unknown as {
       apiClient: {
         invokeMezonApi: (
@@ -276,36 +276,72 @@ export async function isClanAdminMember(
       };
     };
 
-    const usersPromise = internalClient.apiClient.invokeMezonApi(
-      "/mezon.api.Mezon/ListClanUsers",
-      ListClanUsersRequest.encode({ clan_id: clanId }).finish(),
-      { decode: (bytes: Uint8Array) => ClanUserList.decode(bytes) },
-    );
+    const overallStart = Date.now();
+    const OVERALL_TIMEOUT = 8000; // 8s total for all pages
+    const MAX_PAGES = 10;
+    let cursor = "";
 
-    let usersTimer: NodeJS.Timeout | undefined;
-    const usersTimeout = new Promise<ClanUserList>((resolve) => {
-      usersTimer = setTimeout(() => {
-        console.warn(`[Mezon Bot] ListClanUsers timed out after 4000ms for clan ${clanId}`);
-        resolve({ clan_users: [], cursor: "", clan_id: clanId });
-      }, 4000);
-    });
+    for (let page = 0; page < MAX_PAGES; page++) {
+      // Check overall timeout
+      if (Date.now() - overallStart > OVERALL_TIMEOUT) {
+        console.warn(`[Mezon Bot] isClanAdminMember overall timeout after ${page} pages for clan ${clanId}`);
+        break;
+      }
 
-    const users = await Promise.race([
-      usersPromise.then((res) => {
-        if (usersTimer) clearTimeout(usersTimer);
-        return res;
-      }),
-      usersTimeout,
-    ]);
+      const remainingMs = OVERALL_TIMEOUT - (Date.now() - overallStart);
+      const pageTimeout = Math.min(remainingMs, 4000); // max 4s per page
 
-    const memberEntry = users.clan_users.find(
-      (entry) => entry.user?.id === mezonUserId,
-    );
-    if (!memberEntry || !memberEntry.role_id) {
-      return false;
+      const usersPromise = internalClient.apiClient.invokeMezonApi(
+        "/mezon.api.Mezon/ListClanUsers",
+        ListClanUsersRequest.encode({
+          clan_id: clanId,
+          ...(cursor ? { cursor } : {}),
+        }).finish(),
+        { decode: (bytes: Uint8Array) => ClanUserList.decode(bytes) },
+      );
+
+      let usersTimer: NodeJS.Timeout | undefined;
+      const usersTimeout = new Promise<ClanUserList>((resolve) => {
+        usersTimer = setTimeout(() => {
+          console.warn(`[Mezon Bot] ListClanUsers page ${page + 1} timed out after ${pageTimeout}ms for clan ${clanId}`);
+          resolve({ clan_users: [], cursor: "", clan_id: clanId });
+        }, pageTimeout);
+      });
+
+      const users = await Promise.race([
+        usersPromise.then((res) => {
+          if (usersTimer) clearTimeout(usersTimer);
+          return res;
+        }),
+        usersTimeout,
+      ]);
+
+      if (!users.clan_users || users.clan_users.length === 0) {
+        break;
+      }
+
+      // Search for the user on this page
+      const memberEntry = users.clan_users.find(
+        (entry) => entry.user?.id === mezonUserId,
+      );
+
+      if (memberEntry && memberEntry.role_id) {
+        return memberEntry.role_id.some((rid) => adminRoleIds.includes(rid));
+      }
+
+      // If we found the user but they have no admin roles, return false immediately
+      if (memberEntry) {
+        return false;
+      }
+
+      // Move to next page
+      if (!users.cursor || users.cursor === cursor) {
+        break;
+      }
+      cursor = users.cursor;
     }
 
-    return memberEntry.role_id.some((rid) => adminRoleIds.includes(rid));
+    return false;
   } catch (err) {
     console.error("[Mezon Bot] Error checking clan admin role:", err);
     return false;

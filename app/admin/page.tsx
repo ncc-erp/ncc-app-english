@@ -216,6 +216,48 @@ export default function AdminClassesPage() {
       ? allStudents
       : allStudents.filter((s) => s.class_ids?.includes(selectedClassId));
 
+  // Helper to compute stats (Total tests & Average test score) for a list of students
+  const getClassStats = (studentsList: StudentItem[]) => {
+    const totalStudents = studentsList.length;
+    const totalTests = studentsList.reduce(
+      (acc, s) => acc + (s.total_speaking_attempts || 0),
+      0,
+    );
+
+    const studentsWithBand = studentsList.filter(
+      (s) => s.average_speaking_band !== null && s.average_speaking_band > 0,
+    );
+
+    let totalWeightedScore = 0;
+    let totalWeightedTests = 0;
+
+    studentsWithBand.forEach((s) => {
+      const attempts = s.total_speaking_attempts || 1;
+      totalWeightedScore += s.average_speaking_band! * attempts;
+      totalWeightedTests += attempts;
+    });
+
+    const averageBand =
+      totalWeightedTests > 0
+        ? Math.round((totalWeightedScore / totalWeightedTests) * 10) / 10
+        : null;
+
+    return { totalStudents, totalTests, averageBand };
+  };
+
+  const activeClassStats =
+    selectedClassId === "all"
+      ? {
+          totalStudents: allStudents.length,
+          totalTests:
+            overallStats?.total_attempts ??
+            getClassStats(allStudents).totalTests,
+          averageBand:
+            overallStats?.average_band ??
+            getClassStats(allStudents).averageBand,
+        }
+      : getClassStats(classFilteredStudents);
+
   // 2. Filter by Search Query
   const searchFilteredStudents = classFilteredStudents.filter((s) => {
     const q = searchQuery.toLowerCase().trim();
@@ -411,7 +453,7 @@ export default function AdminClassesPage() {
             </div>
             <div>
               <div className="text-xs text-slate-500 font-medium">
-                Total Speaking Tests
+                Total Speaking Tests(Submitted)
               </div>
               <div className="text-2xl font-extrabold text-slate-900">
                 {overallStats?.total_attempts ?? 0}
@@ -487,9 +529,11 @@ export default function AdminClassesPage() {
                 {/* Individual Classroom Channels */}
                 {classes.map((cls) => {
                   const isSelected = selectedClassId === cls.id;
-                  const count = allStudents.filter((s) =>
+                  const classStudents = allStudents.filter((s) =>
                     s.class_ids?.includes(cls.id),
-                  ).length;
+                  );
+                  const count = classStudents.length;
+                  const clsStats = getClassStats(classStudents);
 
                   return (
                     <button
@@ -513,7 +557,7 @@ export default function AdminClassesPage() {
                           <span className="truncate">{cls.name}</span>
                         </div>
                         <div
-                          className={`text-[10px] font-mono font-normal truncate ${
+                          className={`text-[10px] font-normal truncate ${
                             isSelected ? "text-purple-200" : "text-slate-400"
                           }`}
                         >
@@ -579,33 +623,63 @@ export default function AdminClassesPage() {
               </div>
             </div>
 
-            {/* Active Classroom Filter Banner */}
-            {selectedClassId !== "all" && (
-              <div className="flex items-center gap-2 px-4 py-2.5 bg-purple-50 border border-purple-200 rounded-2xl text-xs text-purple-800 font-bold justify-between animate-in fade-in shadow-sm">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <School className="w-4 h-4 text-purple-600 shrink-0" />
-                  <span>
-                    Filtered by Classroom:{" "}
-                    <span className="underline">
-                      {currentClass?.name || selectedClassId}
+            {/* Statistical information line: Total test, average test score of the class */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3.5 bg-purple-50/80 border border-purple-200 rounded-2xl text-xs shadow-sm animate-in fade-in">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 border border-purple-200">
+                  <School className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-slate-900 text-xs">
+                      {selectedClassId === "all"
+                        ? "All Classrooms "
+                        : currentClass?.name || "Classroom"}
                     </span>
+                    {selectedClassId !== "all" && currentClass?.is_private && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-100 text-amber-800 font-bold flex items-center gap-0.5">
+                        <Lock className="w-2.5 h-2.5" />
+                        Private
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-medium">
+                    Students:{" "}
+                    <strong className="text-slate-800">
+                      {activeClassStats.totalStudents}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 sm:gap-6 flex-wrap sm:flex-nowrap border-t sm:border-t-0 pt-2 sm:pt-0 border-purple-100">
+                <div className="flex items-center gap-1.5">
+                  <Mic className="w-3.5 h-3.5 text-pink-600" />
+                  <span className="text-slate-500 font-medium">
+                    Total test:
                   </span>
-                  <span className="px-2 py-0.5 bg-purple-200 text-purple-800 rounded-full text-[10px] font-extrabold">
-                    {classFilteredStudents.length}{" "}
-                    {classFilteredStudents.length === 1
-                      ? "student"
-                      : "students"}
+                  <span className="font-black text-slate-900 text-xs">
+                    {activeClassStats.totalTests}
                   </span>
                 </div>
-                <button
-                  onClick={() => handleSelectClass("all")}
-                  className="flex items-center gap-1 text-[11px] font-bold text-purple-700 hover:text-purple-900 bg-white border border-purple-200 hover:bg-purple-100 px-2.5 py-1 rounded-xl transition-all shrink-0"
-                >
-                  <X className="w-3 h-3" />
-                  <span>Clear filter</span>
-                </button>
+
+                <div className="h-4 w-[1px] bg-purple-200 hidden sm:block" />
+
+                <div className="flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-slate-500 font-medium">
+                    Average test score:
+                  </span>
+                  <span className="font-black text-emerald-700 text-xs">
+                    {activeClassStats.averageBand !== null
+                      ? `Band ${activeClassStats.averageBand}`
+                      : "N/A"}
+                  </span>
+                </div>
+
+              
               </div>
-            )}
+            </div>
 
             {/* Students Table / List */}
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">

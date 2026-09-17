@@ -371,7 +371,7 @@ export const pgDb = {
       display_name: u.display_name,
       avatar_url: u.avatar_url,
       clan_member: u.clan_member,
-      role: u.role === 'admin' ? 'admin' : 'user',
+      role: u.role === "admin" ? "admin" : "user",
       isLoggedIn: true,
     };
   },
@@ -955,7 +955,7 @@ export const pgDb = {
       display_name: u.display_name,
       avatar_url: u.avatar_url,
       clan_member: u.clan_member,
-      role: u.role === 'admin' ? 'admin' : 'user',
+      role: u.role === "admin" ? "admin" : "user",
       isLoggedIn: true,
     };
   },
@@ -964,7 +964,7 @@ export const pgDb = {
     return this.getUserByMezonId(userId);
   },
 
-  async setUserRole(mezonId: string, role: 'user' | 'admin'): Promise<void> {
+  async setUserRole(mezonId: string, role: "user" | "admin"): Promise<void> {
     await ensureDbInitialized();
     await pool.query(
       `UPDATE users SET metadata = metadata || jsonb_build_object('role', $1::text), "updatedAt" = NOW() WHERE "mezonUserId" = $2`,
@@ -1047,9 +1047,7 @@ export const pgDb = {
    * Batch aggregates Speaking statistics directly from PostgreSQL
    * for a given list of Mezon User IDs.
    */
-  async getStudentsSpeakingStatsBatch(
-    mezonUserIds: string[],
-  ): Promise<
+  async getStudentsSpeakingStatsBatch(mezonUserIds: string[]): Promise<
     Record<
       string,
       {
@@ -1075,7 +1073,7 @@ export const pgDb = {
       FROM ielts_speaking_attempts a
       LEFT JOIN users u ON (u.id::text = a.user_id OR u."mezonUserId" = a.user_id)
       WHERE (a.user_id = ANY($1) OR u."mezonUserId" = ANY($1))
-        AND a.status != 'cancelled'
+        AND a.status = 'submitted'
       GROUP BY COALESCE(u."mezonUserId", a.user_id), u."mezonUserId", a.user_id;
     `;
 
@@ -1120,12 +1118,13 @@ export const pgDb = {
         COUNT(id)::int AS total_attempts,
         ROUND(AVG(overall_band)::numeric, 1)::float AS average_band
       FROM ielts_speaking_attempts
-      WHERE status != 'cancelled' AND (overall_band IS NOT NULL OR score_result IS NOT NULL);
+      WHERE status = 'submitted' AND (overall_band IS NOT NULL OR score_result IS NOT NULL);
     `;
     const { rows } = await pool.query(query);
     return {
       total_attempts: rows[0]?.total_attempts || 0,
-      average_band: rows[0]?.average_band !== null ? Number(rows[0].average_band) : null,
+      average_band:
+        rows[0]?.average_band !== null ? Number(rows[0].average_band) : null,
     };
   },
 
@@ -1142,7 +1141,7 @@ export const pgDb = {
       FROM ielts_speaking_attempts a
       LEFT JOIN users u ON (u.id::text = a.user_id OR u."mezonUserId" = a.user_id)
       WHERE (a.user_id = $1 OR u.id::text = $1 OR u."mezonUserId" = $1)
-        AND a.status != 'cancelled'
+        AND a.status = 'submitted'
       ORDER BY COALESCE(a.submitted_at, a.started_at) DESC;
     `;
     const { rows } = await pool.query(query, [studentId]);

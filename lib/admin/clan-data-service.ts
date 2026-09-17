@@ -120,9 +120,17 @@ function matchChannelAndRole(channelName: string, roleTitle: string): boolean {
 /**
  * Checks if a given Mezon User has the role "Admin" in the Clan.
  * Strictly queries the user's role in the Mezon Clan, NEVER from the database.
+ *
+ * Cache strategy:
+ *  - Positive (isAdmin: true): cached 30s
+ *  - Negative (confirmed not admin): cached 5s
+ *  - Error / timeout: NOT cached (retry immediately on next request)
  */
 export async function checkIsClanAdmin(mezonUserId: string): Promise<boolean> {
   if (!mezonUserId) return false;
+
+  const POSITIVE_TTL = 30_000; // 30s
+  const NEGATIVE_TTL = 5_000;  // 5s
 
   // 1. Check in-memory cache
   const cached = adminCache.get(mezonUserId);
@@ -148,10 +156,12 @@ export async function checkIsClanAdmin(mezonUserId: string): Promise<boolean> {
       );
       const data = await res.json();
       const isAdmin = res.ok && data.isAdmin === true;
-      adminCache.set(mezonUserId, { isAdmin, expiresAt: Date.now() + 30_000 });
+      const ttl = isAdmin ? POSITIVE_TTL : NEGATIVE_TTL;
+      adminCache.set(mezonUserId, { isAdmin, expiresAt: Date.now() + ttl });
       return isAdmin;
     } catch (error) {
       console.error("[Clan Data Service] Remote verify-admin failed:", error);
+      // Network error → do NOT cache, allow immediate retry
     }
   }
 
@@ -162,11 +172,13 @@ export async function checkIsClanAdmin(mezonUserId: string): Promise<boolean> {
 
     if (client && clanId) {
       const isAdmin = await isClanAdminMember(client, mezonUserId, clanId);
-      adminCache.set(mezonUserId, { isAdmin, expiresAt: Date.now() + 30_000 });
+      const ttl = isAdmin ? POSITIVE_TTL : NEGATIVE_TTL;
+      adminCache.set(mezonUserId, { isAdmin, expiresAt: Date.now() + ttl });
       return isAdmin;
     }
   } catch (error) {
     console.error("[Clan Data Service] Error checking clan admin role:", error);
+    // Error → do NOT cache, allow immediate retry
   }
 
   return false;
@@ -524,20 +536,15 @@ export async function getClanStudents(
               : []),
           ].map(String);
 
-          // User is a Student if:
-          // (a) They have a Student role in the clan, OR
-          // (b) Clan has no student roles defined, OR
-          // (c) User was discovered directly in a scanned classroom channel
+          // User is a Student ONLY if they have a Student role in the clan.
+          // Being present in a classroom channel alone is NOT sufficient —
+          // admins/teachers who join private channels should not be listed.
           const hasClanStudentRole =
             studentRoleIds.length > 0
               ? userRoleIds.some((rid) => studentRoleIds.includes(rid))
-              : true;
+              : true; // fallback: if no student roles defined, treat all as students
 
-          const isInAnyClassroomScan = Array.from(
-            channelScansMap.values(),
-          ).some((scan) => scan.memberUserIds.has(user.id));
-
-          const isStudent = hasClanStudentRole || isInAnyClassroomScan;
+          const isStudent = hasClanStudentRole;
 
           if (isStudent) {
             const userRoleTitles = userRoleIds
@@ -617,9 +624,17 @@ export async function getClanStudents(
         }
 
         // Also incorporate any user enrolled in private channels who was not in clanUsersRes
+        // BUT only if they have a Student role — skip admins/teachers/observers
         for (const [chId, scanData] of channelScansMap.entries()) {
           for (const [userId, uInfo] of scanData.users.entries()) {
             if (userId === client.clientId) continue;
+
+            // Only add users who have a student role in their channel scan roles
+            const userScanRoleIds = (uInfo.roleIds || []).map(String);
+            const hasStudentRole = studentRoleIds.length > 0
+              ? userScanRoleIds.some((rid) => studentRoleIds.includes(rid))
+              : false; // If no student roles defined in clan, don't blindly add
+            if (!hasStudentRole) continue;
 
             const existing = studentsMap.get(userId);
             if (existing) {

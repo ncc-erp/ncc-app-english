@@ -10,13 +10,21 @@ export async function GET() {
   }
 
   const isClanAdmin = await checkIsClanAdmin(session.user.mezon_id);
+  // Respect BOTH DB/session role (for password-login admins) AND clan role
+  const resolvedRole = (isClanAdmin || session.user.role === 'admin') ? 'admin' : 'user';
+
+  // Sync cookie session when role changes so other routes
+  // that check session.user.role stay consistent
+  if (session.user.role !== resolvedRole) {
+    session.user.role = resolvedRole;
+    await session.save();
+  }
 
   return NextResponse.json({
     isLoggedIn: true,
     user: {
       ...session.user,
-      role: isClanAdmin ? 'admin' : 'user',
+      role: resolvedRole,
     },
   });
 }
-

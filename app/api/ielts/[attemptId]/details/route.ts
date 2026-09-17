@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { pgDb } from "@/lib/db/postgres";
 import { createSignedAudioUrl } from "@/lib/supabase/storage";
 import { verifyLaunchToken } from "@/lib/auth/launch-token";
+import { checkIsClanAdmin } from "@/lib/admin/clan-data-service";
 
 import { getSession } from "@/lib/auth/session";
 
@@ -31,7 +32,8 @@ export async function GET(
       if (
         attempt.user_id === session.user.user_id ||
         attempt.user_id === session.user.mezon_id ||
-        session.user.role === "admin"
+        session.user.role === "admin" ||
+        await checkIsClanAdmin(session.user.mezon_id)
       ) {
         isAuthorized = true;
       }
