@@ -12,11 +12,14 @@
 		"bot:jiti": "npx jiti scripts/bot-server.ts"
 	},
 	"lint-staged": {
-  "*.{js,jsx,ts,tsx}": [
-    "prettier --write",
-    "eslint --fix"
-  ]
-},
+		"*.{js,jsx,ts,tsx}": [
+			"prettier --write",
+			"eslint --fix"
+		],
+		"*.{json,md,css,scss}": [
+			"prettier --write"
+		]
+	},
 	"dependencies": {
 		"clsx": "^2.1.1",
 		"iron-session": "^8.0.4",
