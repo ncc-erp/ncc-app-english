@@ -3,13 +3,12 @@
 import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
-import { QuestionAudioReviewer } from '@/components/ielts/QuestionAudioReviewer';
 import { ClanJoinCTA } from '@/components/result/ClanJoinCTA';
 import { ViewResultOnClanButton } from '@/components/result/ViewResultOnClanButton';
 import { IELTSScoreResult } from '@/types/ielts';
 import { UserSession } from '@/types';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
-import { Award, Sparkles, AlertCircle, ArrowUpRight, RefreshCw, ChevronRight, Clock, ArrowLeft, History } from 'lucide-react';
+import { Award, Sparkles, RefreshCw, Clock, ArrowLeft, History } from 'lucide-react';
 
 export default function IELTSSpeakingResultPage({ params }: { params: Promise<{ attemptId: string }> }) {
 	const { attemptId } = use(params);

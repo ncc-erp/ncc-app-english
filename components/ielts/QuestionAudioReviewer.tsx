@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { IELTSScoreResult, IELTSPart1Question, IELTSPart2CueCard, IELTSPart3Question, IELTSSpeakingResponse } from '@/types/ielts';
+import { IELTSScoreResult, IELTSSpeakingResponse } from '@/types/ielts';
 import { ChevronLeft, ChevronRight, Mic, Volume2, FileText, CheckCircle2, MessageSquare } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 

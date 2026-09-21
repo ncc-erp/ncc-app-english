@@ -1,9 +1,9 @@
 import '@/lib/mezon/sdk-patch';
-import { MezonClient, ChannelMessageContent, ApiMessageMention } from 'mezon-sdk';
+import { MezonClient, ChannelMessageContent } from 'mezon-sdk';
 import type { TextChannel } from 'mezon-sdk/dist/cjs/mezon-client/structures/TextChannel';
 import { pgDb } from '@/lib/db/postgres';
 import { formatIELTSResult } from './bot-formatter';
-import { createLaunchToken, getAppBaseUrl } from '@/lib/auth/launch-token';
+import { getAppBaseUrl } from '@/lib/auth/launch-token';
 
 declare global {
 	// eslint-disable-next-line no-var

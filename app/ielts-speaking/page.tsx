@@ -3,22 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
-import {
-	Mic,
-	Clock,
-	Sparkles,
-	Award,
-	ArrowRight,
-	Layers,
-	Search,
-	BookOpen,
-	Eye,
-	ChevronLeft,
-	ChevronRight,
-	Play,
-	X,
-	AlertCircle
-} from 'lucide-react';
+import { Sparkles, Layers, Search, BookOpen, Eye, ChevronLeft, ChevronRight, Play, X, AlertCircle } from 'lucide-react';
 import { IELTSSpeakingTopic } from '@/types/ielts';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 

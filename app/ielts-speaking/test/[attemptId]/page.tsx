@@ -7,7 +7,7 @@ import { AudioRecorder } from '@/components/ielts/AudioRecorder';
 import { PrepTimer } from '@/components/ielts/PrepTimer';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 import { IELTSSpeakingAttempt, IELTSSpeakingTopic, IELTSPart, IELTSSpeakingResponse } from '@/types/ielts';
-import { Mic, ArrowRight, CheckCircle2, Send, Sparkles, Clock, BookOpen, Flag } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Send, BookOpen, Flag } from 'lucide-react';
 
 const pendingCancels = new Map<string, NodeJS.Timeout>();
 

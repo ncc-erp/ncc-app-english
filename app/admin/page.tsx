@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
@@ -22,11 +22,8 @@ import {
 	Eye,
 	GraduationCap,
 	School,
-	TrendingUp,
 	CheckCircle2,
 	AlertCircle,
-	Filter,
-	X,
 	Lock
 } from 'lucide-react';
 import { E_SORT_STUDENT_SCORE } from '@/lib/types/type';

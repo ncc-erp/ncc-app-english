@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { IELTSSpeakingAttempt } from '@/types/ielts';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
-import { History, Award, Calendar, Clock, ArrowRight, Mic, Sparkles, CheckCircle2, ChevronRight, BarChart3 } from 'lucide-react';
+import { History, Award, Calendar, ArrowRight, Mic, Sparkles, ChevronRight, BarChart3 } from 'lucide-react';
 
 export default function IELTSSpeakingHistoryPage() {
 	const { t } = useTranslation();
