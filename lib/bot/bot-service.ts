@@ -1,7 +1,7 @@
+// bot-service.ts
 import '@/lib/mezon/sdk-patch';
 import { MezonClient } from 'mezon-sdk';
-import { handleResultCommand, handleHistoryCommand, handleTestingNowCommand, getHelpMessage } from './bot-commands';
-import { setSharedBotClient, sendChannelMessage, sendDirectMessage } from './bot-messenger';
+import { setSharedBotClient } from './bot-messenger';
 
 declare global {
 	// eslint-disable-next-line no-var
@@ -13,34 +13,13 @@ declare global {
 }
 
 /**
- * Safely extracts message text across all formats (string, JSON string, object)
- */
-function extractMessageText(content: any): string {
-	if (!content) return '';
-	if (typeof content === 'string') {
-		const trimmed = content.trim();
-		if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('"') && trimmed.endsWith('"'))) {
-			try {
-				const parsed = JSON.parse(trimmed);
-				if (typeof parsed === 'string') return parsed.trim();
-				if (parsed && typeof parsed === 'object') {
-					return (parsed.t || parsed.text || parsed.content || trimmed).trim();
-				}
-			} catch {
-				return trimmed;
-			}
-		}
-		return trimmed;
-	}
-	if (typeof content === 'object') {
-		return (content.t || content.text || content.content || '').trim();
-	}
-	return String(content).trim();
-}
-
-/**
  * Initializes and starts the Mezon Bot client if not already running.
  * Uses a global singleton guard to prevent duplicate logins during Next.js HMR.
+ *
+ * NOTE: Commands and welcome messages have been moved to the standalone
+ * mezon-english-bot project. This service now only handles:
+ * - Bot login and channel joining (so web app can use bot for membership verification)
+ * - Providing the shared MezonClient for clan-data-service.ts, bot-client.ts, etc.
  */
 export async function initBotService(): Promise<MezonClient | null> {
 	// Prevent duplicate execution: return already active client
@@ -55,8 +34,8 @@ export async function initBotService(): Promise<MezonClient | null> {
 
 	const botToken = process.env.MEZON_BOT_TOKEN;
 	const botId = process.env.MEZON_BOT_ID;
-	const targetClanId = process.env.MEZON_TARGET_CLAN_ID || '';
 	const examChannelId = process.env.MEZON_EXAM_CHANNEL_ID || '';
+	const targetClanId = process.env.MEZON_TARGET_CLAN_ID || '';
 
 	if (!botToken || !botId) {
 		console.warn('⚠️ [Mezon Bot Service] MEZON_BOT_TOKEN or MEZON_BOT_ID is not configured. Bot service skipped.');
@@ -78,134 +57,6 @@ export async function initBotService(): Promise<MezonClient | null> {
 				host,
 				port,
 				useSSL
-			});
-
-			// Event 1: Triggered when a new user joins the clan
-			client.onAddClanUser(async (event: any) => {
-				try {
-					const userId = event?.user?.user_id;
-					const username = event?.user?.display_name || event?.user?.username || 'friend';
-					const clanId = event?.clan_id || targetClanId;
-
-					const welcomeMsg =
-						`🎉 **Chào mừng @${username} đến với Mezon Clan của chúng ta!**\n\n` +
-						`• Gõ \`*testingnow\` (hoặc \`*thi\`) để tạo ngay link phòng thi nói và bắt đầu luyện tập!\n` +
-						`• Gõ \`*result\` để xem báo cáo điểm thi thử IELTS Speaking gần nhất của bạn.\n` +
-						`• Gõ \`*help\` để xem tất cả các lệnh khả dụng.`;
-
-					// if (welcomeChannelId) {
-					//   await sendChannelMessage(welcomeChannelId, welcomeMsg, {
-					//     isPublic: true,
-					//     mentions: [{ user_id: userId, username }],
-					//   });
-					// } else
-					if (userId) {
-						await sendDirectMessage(userId, welcomeMsg);
-					}
-				} catch (err) {
-					console.error('[Mezon Bot Service] Error handling onAddClanUser:', err);
-				}
-			});
-
-			// Event 2: Triggered when a message is sent in any channel
-			client.onChannelMessage(async (message: any) => {
-				try {
-					// Ignore bot's own messages
-					if (message.sender_id === botId || message.sender_id === client.clientId) {
-						return;
-					}
-
-					const contentText = extractMessageText(message.content);
-					if (!contentText.startsWith('*')) return;
-
-					const [cmd, ...args] = contentText.slice(1).trim().split(/\s+/);
-					const commandName = cmd.toLowerCase();
-
-					if (commandName === 'result' || commandName === 'ketqua' || commandName === 'score' || commandName === 'kq') {
-						const res = await handleResultCommand(message.sender_id, args);
-						const sent = await sendChannelMessage(message.channel_id, res.text, {
-							clanId: message.clan_id,
-							isPublic: false,
-							mentions: [
-								{
-									user_id: message.sender_id,
-									username: message.username || message.display_name
-								}
-							],
-							components: res.components
-						});
-
-						if (!sent) {
-							console.warn(`[Mezon Bot Service] Channel send failed, falling back to DM...`);
-							await sendDirectMessage(message.sender_id, res.text, {
-								components: res.components
-							});
-						}
-					} else if (commandName === 'history' || commandName === 'lichsu' || commandName === 'recent') {
-						const res = await handleHistoryCommand(message.sender_id);
-						const sent = await sendChannelMessage(message.channel_id, res.text, {
-							clanId: message.clan_id,
-							isPublic: false,
-							mentions: [
-								{
-									user_id: message.sender_id,
-									username: message.username || message.display_name
-								}
-							]
-						});
-
-						if (!sent) {
-							console.warn(`[Mezon Bot Service] Channel send failed, falling back to DM...`);
-							await sendDirectMessage(message.sender_id, res.text);
-						}
-					} else if (
-						commandName === 'testingnow' ||
-						commandName === 'testnow' ||
-						commandName === 'thi' ||
-						commandName === 'starttest' ||
-						commandName === 'test'
-					) {
-						console.log(`[Mezon Bot Service] Processing *${commandName} for user: ${message.sender_id}...`);
-						const res = await handleTestingNowCommand(
-							message.sender_id,
-							{
-								username: message.username || message.display_name,
-								displayName: message.display_name || message.username,
-								avatarUrl: message.avatar
-							},
-							args
-						);
-
-						const sent = await sendChannelMessage(message.channel_id, res.text, {
-							clanId: message.clan_id,
-							isPublic: false,
-							mentions: [
-								{
-									user_id: message.sender_id,
-									username: message.username || message.display_name
-								}
-							],
-							components: res.components
-						});
-
-						if (!sent) {
-							console.warn(`[Mezon Bot Service] Channel send failed, falling back to DM...`);
-							await sendDirectMessage(message.sender_id, res.text, {
-								components: res.components
-							});
-						}
-						console.log(`[Mezon Bot Service] ✅ Sent *${commandName} link to user ${message.sender_id}`);
-					} else if (commandName === 'help' || commandName === 'trogiup') {
-						const helpMsg = getHelpMessage();
-						await sendChannelMessage(message.channel_id, helpMsg, {
-							clanId: message.clan_id,
-							isPublic: false,
-							mentions: [{ user_id: message.sender_id }]
-						});
-					}
-				} catch (err) {
-					console.error('[Mezon Bot Service] Error handling onChannelMessage:', err);
-				}
 			});
 
 			// Connect & authenticate
@@ -255,7 +106,7 @@ export async function initBotService(): Promise<MezonClient | null> {
 				}
 			}
 
-			console.log('📡 [Mezon Bot Service] Listening for clan events and bot commands (*testingnow, *result, *history, *help)...');
+			console.log('📡 [Mezon Bot Service] Bot connected. Commands & welcome handled by mezon-english-bot.');
 			return client;
 		} catch (err) {
 			console.error('❌ [Mezon Bot Service] Failed to connect to Mezon:', err);

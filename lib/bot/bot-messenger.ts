@@ -1,9 +1,7 @@
+// bot-messenger.ts
 import '@/lib/mezon/sdk-patch';
 import { MezonClient, ChannelMessageContent } from 'mezon-sdk';
 import type { TextChannel } from 'mezon-sdk/dist/cjs/mezon-client/structures/TextChannel';
-import { pgDb } from '@/lib/db/postgres';
-import { formatIELTSResult } from './bot-formatter';
-import { getAppBaseUrl } from '@/lib/auth/launch-token';
 
 declare global {
 	// eslint-disable-next-line no-var
@@ -84,13 +82,10 @@ export async function sendEphemeralMessage(channel: TextChannel, receiverId: str
 
 /**
  * Safely splits a message into chunks under maxChunkLength (default: 3500 chars).
- * Prioritizes splitting on explicit ===SPLIT_MESSAGE=== delimiter, followed by
- * section divider lines or double linebreaks to avoid mid-sentence cuts.
  */
 function splitTextIntoChunks(text: string, maxChunkLength = 3500): string[] {
 	if (!text) return [];
 
-	// 1. If explicit split marker is present, split by it first
 	const explicitParts = text
 		.split(/\n*===SPLIT_MESSAGE===\n*/)
 		.map((p) => p.trim())
@@ -104,7 +99,6 @@ function splitTextIntoChunks(text: string, maxChunkLength = 3500): string[] {
 			continue;
 		}
 
-		// Subdivide if any individual part still exceeds maxChunkLength
 		let remaining = part;
 		while (remaining.length > maxChunkLength) {
 			let splitIdx = remaining.lastIndexOf('\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n', maxChunkLength);
@@ -129,8 +123,7 @@ function splitTextIntoChunks(text: string, maxChunkLength = 3500): string[] {
 }
 
 /**
- * Detects standalone URLs in text and generates Mezon LinkOnMessage { s, e } ranges
- * so that the Mezon client renders them as active clickable links.
+ * Detects standalone URLs in text and generates Mezon LinkOnMessage { s, e } ranges.
  */
 function extractLinksFromText(text: string): Array<{ s: number; e: number }> {
 	const lk: Array<{ s: number; e: number }> = [];
@@ -183,7 +176,7 @@ export async function sendChannelMessage(
 		return false;
 	}
 
-	// Ensure channel.clan is attached so channel.send / channel.sendEphemeral does not fail on this.clan.id
+	// Ensure channel.clan is attached
 	if (!channel.clan) {
 		const clanId = options?.clanId || (channel as any).clan_id || process.env.MEZON_TARGET_CLAN_ID;
 		if (clanId && client.clans.get(clanId)) {
@@ -199,28 +192,16 @@ export async function sendChannelMessage(
 		if (!isPublic && mentions.length > 0) {
 			const receiverId = mentions[0].user_id;
 			try {
-				console.log(
-					`[Mezon Bot Messenger] Delivering ephemeral message (${chunks.length} chunk(s)) to user ${receiverId} in channel ${channelId}...`
-				);
 				for (let i = 0; i < chunks.length; i++) {
 					const isLast = i === chunks.length - 1;
 					const content = buildMessageContent(chunks[i], isLast ? options?.components : undefined);
-					await sendEphemeralMessage(
-						channel,
-						receiverId,
-						content,
-						undefined // Keep undefined to avoid SQLite cache miss errors
-					);
+					await sendEphemeralMessage(channel, receiverId, content, undefined);
 					if (i < chunks.length - 1) {
 						await new Promise((resolve) => setTimeout(resolve, 300));
 					}
 				}
-				console.log(`[Mezon Bot Messenger] ✅ Ephemeral message delivered successfully to ${receiverId}`);
 				return true;
 			} catch (ephemeralErr) {
-				// Never fall back to a public channel post here: these messages carry
-				// band scores and single-use launch links. Returning false lets the
-				// caller retry over DM instead.
 				console.warn(`[Mezon Bot Messenger] sendEphemeral failed; caller should fall back to DM:`, ephemeralErr);
 				return false;
 			}
@@ -278,93 +259,4 @@ export async function sendDirectMessage(
 		console.error(`[Mezon Bot Messenger] Error sending DM to user ${userId}:`, err);
 	}
 	return false;
-}
-
-/**
- * High-level function: Notifies an IELTS Speaking result to the user in the "Thi thử" channel
- * as an ephemeral message tagging the user, with DM fallback.
- */
-export async function notifyExamResult(
-	targetMezonUserId: string,
-	attemptId: string,
-	targetChannelId?: string
-): Promise<{ success: boolean; message: string; channelId?: string }> {
-	const user = await pgDb.getUserByMezonId(targetMezonUserId);
-	if (!user) {
-		return {
-			success: false,
-			message: 'Không tìm thấy tài khoản người dùng trong hệ thống thi.'
-		};
-	}
-
-	const attempt = await pgDb.getIELTSAttempt(attemptId);
-	if (!attempt || (attempt.user_id !== user.user_id && attempt.user_id !== user.mezon_id)) {
-		return {
-			success: false,
-			message: `Không tìm thấy bài thi IELTS Speaking với mã ${attemptId}.`
-		};
-	}
-
-	const baseUrl = getAppBaseUrl();
-	const detailsUrl = `${baseUrl}/ielts-speaking/result/${attempt.id}/details`;
-
-	const formattedResult = formatIELTSResult(attempt, user.display_name || user.mezon_username, detailsUrl);
-
-	const examChannelId = targetChannelId || process.env.MEZON_EXAM_CHANNEL_ID || process.env.MEZON_WELCOME_CHANNEL_ID || '';
-
-	const messageText = `👋 Chào @${user.mezon_username || user.display_name}, báo cáo bài thi IELTS Speaking của bạn đã sẵn sàng!\n\n${formattedResult}`;
-
-	const components = [
-		{
-			components: [
-				{
-					id: 'btn_view_result_details',
-					type: 1, // BUTTON
-					component: {
-						label: '📊 Xem báo cáo chi tiết',
-						style: 5, // LINK
-						url: detailsUrl
-					}
-				}
-			]
-		}
-	];
-
-	let sent = false;
-
-	if (examChannelId) {
-		sent = await sendChannelMessage(examChannelId, messageText, {
-			isPublic: false, // Ephemeral / private to user
-			mentions: [
-				{
-					user_id: targetMezonUserId,
-					username: user.mezon_username || user.display_name
-				}
-			],
-			components
-		});
-	}
-
-	// If channel sending was not configured or failed, fallback to DM
-	if (!sent) {
-		const dmSent = await sendDirectMessage(targetMezonUserId, messageText, {
-			components
-		});
-		if (dmSent) {
-			return {
-				success: true,
-				message: 'Báo cáo bài thi đã được gửi trực tiếp cho bạn qua tin nhắn Mezon!'
-			};
-		}
-		return {
-			success: false,
-			message: 'Không thể gửi tin nhắn qua kênh clan hoặc DM. Vui lòng kiểm tra lại kết nối bot!'
-		};
-	}
-
-	return {
-		success: true,
-		message: 'Báo cáo bài thi đã được gửi cho bạn trong kênh thi trên Mezon Clan!',
-		channelId: examChannelId
-	};
 }

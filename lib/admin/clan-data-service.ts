@@ -1,3 +1,4 @@
+//clan-data-service.ts
 import '@/lib/mezon/sdk-patch';
 import { getSharedBotClient } from '@/lib/bot/bot-messenger';
 import { isClanAdminMember, getClanRolesSafely } from '@/lib/mezon/bot-client';
@@ -126,25 +127,7 @@ export async function checkIsClanAdmin(mezonUserId: string): Promise<boolean> {
 		return true;
 	}
 
-	// 3. Delegate to remote bot server if configured (e.g. Vercel deployment)
-	const verifyUrl = process.env.MEZON_VERIFY_URL;
-	if (verifyUrl) {
-		try {
-			const res = await fetch(`${verifyUrl.replace(/\/$/, '')}/verify-admin?userId=${encodeURIComponent(mezonUserId)}`, {
-				headers: { 'x-bot-secret': process.env.BOT_VERIFY_SECRET || '' }
-			});
-			const data = await res.json();
-			const isAdmin = res.ok && data.isAdmin === true;
-			const ttl = isAdmin ? POSITIVE_TTL : NEGATIVE_TTL;
-			adminCache.set(mezonUserId, { isAdmin, expiresAt: Date.now() + ttl });
-			return isAdmin;
-		} catch (error) {
-			console.error('[Clan Data Service] Remote verify-admin failed:', error);
-			// Network error → do NOT cache, allow immediate retry
-		}
-	}
-
-	// 4. Query live Mezon Clan roles directly via bot client
+	// 3. Query live Mezon Clan roles directly via bot client
 	try {
 		const client = await getSharedBotClient();
 		const clanId = process.env.MEZON_TARGET_CLAN_ID || '';
