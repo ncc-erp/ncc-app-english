@@ -1,4 +1,4 @@
-import { ieltsEvaluationJsonSchema } from "../schemas/evaluation-schema";
+import { ieltsEvaluationJsonSchema } from '../schemas/evaluation-schema';
 
 export const OFFICIAL_IELTS_EXAMINER_PROMPT = `# ROLE
 

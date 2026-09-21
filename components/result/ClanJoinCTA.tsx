@@ -1,169 +1,140 @@
-"use client";
+'use client';
 
-import React, { useState } from "react";
-import {
-  ExternalLink,
-  RefreshCw,
-  Users,
-  CheckCircle2,
-  AlertCircle,
-} from "lucide-react";
-import { useTranslation } from "@/lib/i18n/LanguageContext";
+import React, { useState } from 'react';
+import { ExternalLink, RefreshCw, Users, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 interface ClanJoinCTAProps {
-  attemptId: string;
-  onVerifySuccess: () => void;
+	attemptId: string;
+	onVerifySuccess: () => void;
 }
 
-export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({
-  attemptId,
-  onVerifySuccess,
-}) => {
-  const { t } = useTranslation();
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({ attemptId, onVerifySuccess }) => {
+	const { t } = useTranslation();
+	const [isVerifying, setIsVerifying] = useState(false);
+	const [errorMsg, setErrorMsg] = useState<string | null>(null);
+	const [isSuccess, setIsSuccess] = useState(false);
+	const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const clanInviteUrl =
-    process.env.NEXT_PUBLIC_MEZON_CLAN_INVITE_URL ||
-    process.env.MEZON_CLAN_INVITE_URL ||
-    "https://mezon.ai/invite/demo";
+	const clanInviteUrl = process.env.NEXT_PUBLIC_MEZON_CLAN_INVITE_URL || process.env.MEZON_CLAN_INVITE_URL || 'https://mezon.ai/invite/demo';
 
-  const handleVerify = async (e?: React.MouseEvent) => {
-    if (e) e.preventDefault();
-    setIsVerifying(true);
-    setErrorMsg(null);
-    setIsSuccess(false);
+	const handleVerify = async (e?: React.MouseEvent) => {
+		if (e) e.preventDefault();
+		setIsVerifying(true);
+		setErrorMsg(null);
+		setIsSuccess(false);
 
-    try {
-      const res = await fetch("/api/membership/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attemptId }),
-      });
+		try {
+			const res = await fetch('/api/membership/verify', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ attemptId })
+			});
 
-      const responseText = await res.text();
-      let data: {
-        success?: boolean;
-        isMember?: boolean;
-        message?: string;
-        error?: string;
-      } = {};
+			const responseText = await res.text();
+			let data: {
+				success?: boolean;
+				isMember?: boolean;
+				message?: string;
+				error?: string;
+			} = {};
 
-      if (responseText) {
-        try {
-          data = JSON.parse(responseText);
-        } catch {
-          throw new Error(
-            t('exam.clanJoinCTA.invalidJsonError', { status: res.status }),
-          );
-        }
-      }
+			if (responseText) {
+				try {
+					data = JSON.parse(responseText);
+				} catch {
+					throw new Error(t('exam.clanJoinCTA.invalidJsonError', { status: res.status }));
+				}
+			}
 
-      if (!res.ok) {
-        throw new Error(
-          data.error ||
-            data.message ||
-            t('exam.clanJoinCTA.verifyFailedError', { status: res.status }),
-        );
-      }
+			if (!res.ok) {
+				throw new Error(data.error || data.message || t('exam.clanJoinCTA.verifyFailedError', { status: res.status }));
+			}
 
-      if (data.success && data.isMember) {
-        setIsSuccess(true);
-        setSuccessMsg(t('exam.clanJoinCTA.verifySuccess'));
-        onVerifySuccess();
-      } else {
-        setErrorMsg(
-          data.message || t('exam.clanJoinCTA.notMemberYet'),
-        );
-      }
-    } catch {
-      setErrorMsg(t('exam.clanJoinCTA.networkError'));
-    } finally {
-      setIsVerifying(false);
-    }
-  };
+			if (data.success && data.isMember) {
+				setIsSuccess(true);
+				setSuccessMsg(t('exam.clanJoinCTA.verifySuccess'));
+				onVerifySuccess();
+			} else {
+				setErrorMsg(data.message || t('exam.clanJoinCTA.notMemberYet'));
+			}
+		} catch {
+			setErrorMsg(t('exam.clanJoinCTA.networkError'));
+		} finally {
+			setIsVerifying(false);
+		}
+	};
 
-  return (
-    <div className="bg-gradient-to-br from-indigo-900 via-indigo-800 to-violet-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl space-y-6 relative overflow-hidden">
-      <div className="absolute top-0 right-0 -mt-8 -mr-8 w-48 h-48 bg-violet-500/20 rounded-full blur-3xl" />
+	return (
+		<div className='bg-gradient-to-br from-indigo-900 via-indigo-800 to-violet-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl space-y-6 relative overflow-hidden'>
+			<div className='absolute top-0 right-0 -mt-8 -mr-8 w-48 h-48 bg-violet-500/20 rounded-full blur-3xl' />
 
-      {/* Header */}
-      <div className="flex items-center space-x-3">
-        <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white border border-white/20">
-          <Users className="w-6 h-6" />
-        </div>
-        <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">
-            {t('exam.clanJoinCTA.exclusiveUnlock')}
-          </span>
-          <h2 className="text-xl sm:text-2xl font-extrabold text-white">
-            {t('exam.clanJoinCTA.joinClan')}
-          </h2>
-        </div>
-      </div>
+			{/* Header */}
+			<div className='flex items-center space-x-3'>
+				<div className='w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center text-white border border-white/20'>
+					<Users className='w-6 h-6' />
+				</div>
+				<div>
+					<span className='text-xs font-bold uppercase tracking-wider text-indigo-200'>{t('exam.clanJoinCTA.exclusiveUnlock')}</span>
+					<h2 className='text-xl sm:text-2xl font-extrabold text-white'>{t('exam.clanJoinCTA.joinClan')}</h2>
+				</div>
+			</div>
 
-      <p className="text-indigo-100 text-sm sm:text-base leading-relaxed">
-        {t('exam.clanJoinCTA.description')}
-      </p>
+			<p className='text-indigo-100 text-sm sm:text-base leading-relaxed'>{t('exam.clanJoinCTA.description')}</p>
 
-      {/* CTA Buttons */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-        {/* Button 1: Join Clan */}
-        <a
-          href={clanInviteUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="w-full py-4 px-6 rounded-2xl bg-white text-indigo-900 hover:bg-indigo-50 font-bold text-sm sm:text-base flex items-center justify-center space-x-2 shadow-lg shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
-        >
-          <span>{t('exam.clanJoinCTA.joinClanButton')}</span>
-          <ExternalLink className="w-4 h-4" />
-        </a>
+			{/* CTA Buttons */}
+			<div className='grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2'>
+				{/* Button 1: Join Clan */}
+				<a
+					href={clanInviteUrl}
+					target='_blank'
+					rel='noopener noreferrer'
+					className='w-full py-4 px-6 rounded-2xl bg-white text-indigo-900 hover:bg-indigo-50 font-bold text-sm sm:text-base flex items-center justify-center space-x-2 shadow-lg shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all'
+				>
+					<span>{t('exam.clanJoinCTA.joinClanButton')}</span>
+					<ExternalLink className='w-4 h-4' />
+				</a>
 
-        {/* Button 2: Re-check membership */}
-        <button
-          type="button"
-          onClick={handleVerify}
-          disabled={isVerifying}
-          className="w-full py-4 px-6 rounded-2xl bg-indigo-600/80 hover:bg-indigo-600 text-white border border-indigo-400/30 font-bold text-sm sm:text-base flex items-center justify-center space-x-2 backdrop-blur-md transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-        >
-          <RefreshCw
-            className={`w-4 h-4 ${isVerifying ? "animate-spin" : ""}`}
-          />
-          <span>
-            {isVerifying
-              ? t('exam.clanJoinCTA.checkingMembership')
-              : t('exam.clanJoinCTA.verifyNow')}
-          </span>
-        </button>
-      </div>
+				{/* Button 2: Re-check membership */}
+				<button
+					type='button'
+					onClick={handleVerify}
+					disabled={isVerifying}
+					className='w-full py-4 px-6 rounded-2xl bg-indigo-600/80 hover:bg-indigo-600 text-white border border-indigo-400/30 font-bold text-sm sm:text-base flex items-center justify-center space-x-2 backdrop-blur-md transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50'
+				>
+					<RefreshCw className={`w-4 h-4 ${isVerifying ? 'animate-spin' : ''}`} />
+					<span>{isVerifying ? t('exam.clanJoinCTA.checkingMembership') : t('exam.clanJoinCTA.verifyNow')}</span>
+				</button>
+			</div>
 
-      {/* Success message */}
-      {isSuccess && (
-        <div className="p-4 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 text-xs sm:text-sm flex items-center space-x-2.5 animate-fade-in shadow-lg">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-          <span className="font-bold">{successMsg}</span>
-        </div>
-      )}
+			{/* Success message */}
+			{isSuccess && (
+				<div className='p-4 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-100 text-xs sm:text-sm flex items-center space-x-2.5 animate-fade-in shadow-lg'>
+					<CheckCircle2 className='w-5 h-5 text-emerald-400 shrink-0' />
+					<span className='font-bold'>{successMsg}</span>
+				</div>
+			)}
 
-      {/* Error / Status message */}
-      {errorMsg && (
-        <div className="p-4 rounded-2xl bg-amber-500/25 border border-amber-400/40 text-amber-100 text-xs sm:text-sm flex items-start space-x-3 shadow-lg animate-fade-in">
-          <AlertCircle className="w-5 h-5 text-amber-300 shrink-0 mt-0.5" />
-          <span className="font-medium leading-relaxed">{errorMsg}</span>
-        </div>
-      )}
+			{/* Error / Status message */}
+			{errorMsg && (
+				<div className='p-4 rounded-2xl bg-amber-500/25 border border-amber-400/40 text-amber-100 text-xs sm:text-sm flex items-start space-x-3 shadow-lg animate-fade-in'>
+					<AlertCircle className='w-5 h-5 text-amber-300 shrink-0 mt-0.5' />
+					<span className='font-medium leading-relaxed'>{errorMsg}</span>
+				</div>
+			)}
 
-      {/* Footer hint */}
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-xs text-indigo-200/90 pt-1 text-center">
-        <div className="flex items-center space-x-1.5">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-          <span>{t('exam.clanJoinCTA.footerPrefix')} <code className="bg-indigo-950/80 px-1.5 py-0.5 rounded text-amber-300 font-mono">*result</code> {t('exam.clanJoinCTA.footerSuffix')}</span>
-        </div>
-        <span className="hidden sm:inline">•</span>
-        <span>{t('exam.clanJoinCTA.freeForever')}</span>
-      </div>
-    </div>
-  );
+			{/* Footer hint */}
+			<div className='flex flex-col sm:flex-row items-center justify-center gap-2 text-xs text-indigo-200/90 pt-1 text-center'>
+				<div className='flex items-center space-x-1.5'>
+					<CheckCircle2 className='w-3.5 h-3.5 text-emerald-400' />
+					<span>
+						{t('exam.clanJoinCTA.footerPrefix')} <code className='bg-indigo-950/80 px-1.5 py-0.5 rounded text-amber-300 font-mono'>*result</code>{' '}
+						{t('exam.clanJoinCTA.footerSuffix')}
+					</span>
+				</div>
+				<span className='hidden sm:inline'>•</span>
+				<span>{t('exam.clanJoinCTA.freeForever')}</span>
+			</div>
+		</div>
+	);
 };

@@ -5,12 +5,14 @@
 **Vision**: A lightweight English proficiency assessment tool embedded inside Mezon, designed to evaluate users' English level and drive clan membership growth through a "result-gating" mechanic.
 
 **Growth Loop**:
+
 ```
-User opens Channel App → Takes exam → Sees partial results (teaser) 
+User opens Channel App → Takes exam → Sees partial results (teaser)
     → Joins clan to unlock full results → Stays in clan community
 ```
 
 **Goals**:
+
 - Provide a quick, credible English level assessment (5-10 minutes)
 - Drive organic clan growth via the result-unlock mechanic
 - Collect user English proficiency data for community insights
@@ -20,17 +22,18 @@ User opens Channel App → Takes exam → Sees partial results (teaser)
 
 ## 2. User Personas
 
-| Persona | Description | Motivation |
-|---------|-------------|------------|
-| **Curious Learner** | Mezon user who wants to know their English level | Self-assessment, bragging rights |
-| **Community Member** | Already in some clans, open to joining new ones | Content value, community |
-| **Clan Admin** | Wants to grow their clan membership | Uses the app as a member acquisition tool |
+| Persona              | Description                                      | Motivation                                |
+| -------------------- | ------------------------------------------------ | ----------------------------------------- |
+| **Curious Learner**  | Mezon user who wants to know their English level | Self-assessment, bragging rights          |
+| **Community Member** | Already in some clans, open to joining new ones  | Content value, community                  |
+| **Clan Admin**       | Wants to grow their clan membership              | Uses the app as a member acquisition tool |
 
 ---
 
 ## 3. User Journey
 
 ### Entry Points & Authentication
+
 The app supports **two initial entry flows**, both leading to a Mezon-authenticated session:
 
 - **Entry Point A (Direct Web Access)**:
@@ -47,6 +50,7 @@ The app supports **two initial entry flows**, both leading to a Mezon-authentica
   4. User arrives directly at the welcome screen ready to start.
 
 ### Core Exam & Growth Flow (Post-Login Happy Path)
+
 1. **Welcome Screen**: User sees exam overview (30 questions, ~12 mins, CEFR level assessment).
 2. **Start Exam**: User clicks "Start Exam" → Attempt created in DB → Timer starts.
 3. **Take Exam**: Completes 30 questions across Grammar, Vocabulary, and Reading. Answers are autosaved per question.
@@ -55,7 +59,7 @@ The app supports **two initial entry flows**, both leading to a Mezon-authentica
    - Displays CEFR level badge (e.g. "B1 - Intermediate") and overall score percentage.
    - Displays blurred/locked cards for: Detailed Skill Breakdown, Weakness Analysis, Improvement Tips, and Certificate.
 6. **Clan Join Call-to-Action**:
-   - User sees banner: *"Join [Clan Name] on Mezon to unlock your full detailed report!"*
+   - User sees banner: _"Join [Clan Name] on Mezon to unlock your full detailed report!"_
    - Clicks "Join Clan" → Opens Mezon clan invite deep link / URL.
 7. **Verify & Unlock**:
    - User returns to app and clicks "I've Joined — Unlock Report".
@@ -67,6 +71,7 @@ The app supports **two initial entry flows**, both leading to a Mezon-authentica
 ## 4. Functional Requirements
 
 ### Must Have (MVP)
+
 - [x] Mezon Channel App hash authentication (WebAppData)
 - [x] OAuth2 fallback for standalone web access
 - [x] 30-question English exam (multiple choice)
@@ -79,6 +84,7 @@ The app supports **two initial entry flows**, both leading to a Mezon-authentica
 - [x] Basic anti-cheat (server-side timing, no answers in client)
 
 ### Should Have (v1.1)
+
 - [ ] Listening comprehension questions (audio)
 - [ ] Leaderboard within clan
 - [ ] Share result card to Mezon channel
@@ -86,6 +92,7 @@ The app supports **two initial entry flows**, both leading to a Mezon-authentica
 - [ ] Admin dashboard for question management
 
 ### Could Have (v2)
+
 - [ ] AI-generated personalized study plan
 - [ ] Writing assessment (AI-graded)
 - [ ] Multi-language support for instructions
@@ -96,39 +103,43 @@ The app supports **two initial entry flows**, both leading to a Mezon-authentica
 ## 5. Exam Design (MVP)
 
 ### Structure
-| Section | Questions | Time | Difficulty Mix |
-|---------|-----------|------|----------------|
-| Grammar | 10 | ~3 min | 4 easy, 3 med, 3 hard |
-| Vocabulary | 10 | ~3 min | 4 easy, 3 med, 3 hard |
-| Reading Comprehension | 10 | ~6 min | 3 easy, 4 med, 3 hard |
-| **Total** | **30** | **~12 min** | |
+
+| Section               | Questions | Time        | Difficulty Mix        |
+| --------------------- | --------- | ----------- | --------------------- |
+| Grammar               | 10        | ~3 min      | 4 easy, 3 med, 3 hard |
+| Vocabulary            | 10        | ~3 min      | 4 easy, 3 med, 3 hard |
+| Reading Comprehension | 10        | ~6 min      | 3 easy, 4 med, 3 hard |
+| **Total**             | **30**    | **~12 min** |                       |
 
 ### Question Format
+
 - All multiple choice (4 options, 1 correct)
 - Questions stored in Supabase `questions` table
 - Randomized order within each section
 - Random subset from larger pool (e.g., 30 from 100+)
 
 ### Scoring
+
 - Each correct answer = 1 point (raw score: 0-30)
 - Weighted by difficulty: easy=1pt, medium=2pt, hard=3pt
 - Max weighted score: 4×1 + 3×2 + 3×3 = 19 per section = 57 total
 - Map weighted score to CEFR-aligned levels:
 
-| Weighted Score | Level | Label |
-|---------------|-------|-------|
-| 0-10 | A1 | Beginner |
-| 11-20 | A2 | Elementary |
-| 21-30 | B1 | Intermediate |
-| 31-40 | B2 | Upper Intermediate |
-| 41-50 | C1 | Advanced |
-| 51-57 | C2 | Proficient |
+| Weighted Score | Level | Label              |
+| -------------- | ----- | ------------------ |
+| 0-10           | A1    | Beginner           |
+| 11-20          | A2    | Elementary         |
+| 21-30          | B1    | Intermediate       |
+| 31-40          | B2    | Upper Intermediate |
+| 41-50          | C1    | Advanced           |
+| 51-57          | C2    | Proficient         |
 
 ---
 
 ## 6. Result Display Strategy
 
 ### Shown Immediately (FREE — the "teaser")
+
 - **Level badge** with CEFR label (e.g., "B1 - Intermediate")
 - **Overall score percentage**
 - **Ranking**: "Better than X% of all test takers"
@@ -136,6 +147,7 @@ The app supports **two initial entry flows**, both leading to a Mezon-authentica
 - A motivational message based on level
 
 ### Locked Until Clan Join (the "unlock")
+
 - **Skill breakdown chart** (Grammar: 70%, Vocabulary: 85%, Reading: 60%)
 - **Weakness analysis**: "Your weakest area is Grammar — specifically conditionals and passive voice"
 - **Improvement tips**: 3-5 actionable suggestions per weak area
@@ -150,6 +162,7 @@ The app supports **two initial entry flows**, both leading to a Mezon-authentica
 ## 7. Clan-Join Unlock Flow
 
 ### Architecture
+
 ```
 User clicks "Unlock" → Opens clan invite link in new tab
     → User joins clan in Mezon
@@ -161,17 +174,21 @@ User clicks "Unlock" → Opens clan invite link in new tab
 ```
 
 ### Membership Verification
+
 **Primary method**: Server-side bot using `mezon-sdk`
+
 - Bot is pre-installed in the target clan
-- On verification request: `clan.users.fetch(userId)` 
+- On verification request: `clan.users.fetch(userId)`
 - If found → mark `unlocked_at` in Supabase
 - If not found → return "not yet a member"
 
 **Fallback method**: Listen for `AddClanUser` event via bot WebSocket
+
 - When user joins, bot receives event with `user_id`
 - Bot calls webhook to app server → Auto-unlock if pending
 
 ### Client UX
+
 - "Check membership" button with 5-second cooldown between clicks
 - Auto-poll every 10 seconds for 2 minutes after user clicks unlock
 - Visual state: "Checking..." → "Not found, try again" / "Unlocked!"
@@ -241,6 +258,7 @@ exam_stats (materialized view or computed)
 ## 9. Non-Functional Requirements
 
 ### Security & Anti-Cheat
+
 - Questions and correct answers NEVER sent to client
 - Client only receives: question_text, options (without correct flag)
 - Scoring happens server-side only
@@ -249,18 +267,21 @@ exam_stats (materialized view or computed)
 - Hash validation on every API request (Mezon auth)
 
 ### Performance
+
 - Page load < 2 seconds
 - Question transition < 200ms
 - Result computation < 1 second
 - Support 100 concurrent users (Supabase free tier)
 
 ### Privacy
+
 - No email collection (Mezon profile only)
 - Exam data retained 1 year, then anonymized
 - GDPR: user can request data deletion
 - No third-party analytics in MVP
 
 ### Mobile UX
+
 - Touch-friendly option buttons (min 44px tap target)
 - Horizontal swipe between questions
 - Progress bar always visible
@@ -286,6 +307,7 @@ exam_stats (materialized view or computed)
 ## 11. MVP Scope vs. Later Phases
 
 ### MVP (Week 1-2)
+
 - Channel App auth + OAuth2 fallback
 - 30 MCQ exam (seeded question bank)
 - Score + level calculation
@@ -295,6 +317,7 @@ exam_stats (materialized view or computed)
 - Deploy to Vercel
 
 ### Phase 2 (Week 3-4)
+
 - Auto-detect clan join via bot events
 - Leaderboard
 - Result sharing to Mezon channel
@@ -302,6 +325,7 @@ exam_stats (materialized view or computed)
 - Analytics dashboard
 
 ### Phase 3 (Month 2+)
+
 - Multiple exam types
 - AI-powered study recommendations
 - Audio/listening section
@@ -312,11 +336,11 @@ exam_stats (materialized view or computed)
 
 ## 12. Success Metrics
 
-| Metric | Target (Month 1) |
-|--------|-------------------|
-| Exam completions | 500+ |
-| Completion rate | >70% (started → submitted) |
-| Clan join conversion | >40% of exam completers |
-| Clan retention (30d) | >60% of those who joined |
-| Avg. time to complete | 8-12 minutes |
-| Return rate (retake) | >20% within 30 days |
+| Metric                | Target (Month 1)           |
+| --------------------- | -------------------------- |
+| Exam completions      | 500+                       |
+| Completion rate       | >70% (started → submitted) |
+| Clan join conversion  | >40% of exam completers    |
+| Clan retention (30d)  | >60% of those who joined   |
+| Avg. time to complete | 8-12 minutes               |
+| Return rate (retake)  | >20% within 30 days        |

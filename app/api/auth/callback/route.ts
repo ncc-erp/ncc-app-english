@@ -1,129 +1,108 @@
-import { NextRequest, NextResponse } from "next/server";
-import {
-  exchangeOAuthCodeForToken,
-  fetchMezonUserInfo,
-} from "@/lib/mezon/oauth";
-import { getSession } from "@/lib/auth/session";
-import { pgDb } from "@/lib/db/postgres";
+import { NextRequest, NextResponse } from 'next/server';
+import { exchangeOAuthCodeForToken, fetchMezonUserInfo } from '@/lib/mezon/oauth';
+import { getSession } from '@/lib/auth/session';
+import { pgDb } from '@/lib/db/postgres';
 
 function getBaseUrl(reqUrl: string): string {
-  const redirectUri = process.env.MEZON_REDIRECT_URI;
-  if (redirectUri) {
-    try {
-      const { origin } = new URL(redirectUri);
-      return origin;
-    } catch {}
-  }
-  return new URL(reqUrl).origin;
+	const redirectUri = process.env.MEZON_REDIRECT_URI;
+	if (redirectUri) {
+		try {
+			const { origin } = new URL(redirectUri);
+			return origin;
+		} catch {}
+	}
+	return new URL(reqUrl).origin;
 }
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const code = searchParams.get("code");
-  const state = searchParams.get("state");
-  const savedState = req.cookies.get("oauth_state")?.value;
-  const afterLogin = req.cookies.get("oauth_redirect")?.value || "/";
-  const baseUrl = getBaseUrl(req.url);
+	const { searchParams } = new URL(req.url);
+	const code = searchParams.get('code');
+	const state = searchParams.get('state');
+	const savedState = req.cookies.get('oauth_state')?.value;
+	const afterLogin = req.cookies.get('oauth_redirect')?.value || '/';
+	const baseUrl = getBaseUrl(req.url);
 
-  console.log("[OAuth Callback] Received params:", {
-    hasCode: !!code,
-    state,
-    savedState,
-  });
+	console.log('[OAuth Callback] Received params:', {
+		hasCode: !!code,
+		state,
+		savedState
+	});
 
-  if (!code) {
-    console.error("[OAuth Callback] Missing code parameter");
-    return NextResponse.redirect(new URL("/login?error=no_code", baseUrl));
-  }
+	if (!code) {
+		console.error('[OAuth Callback] Missing code parameter');
+		return NextResponse.redirect(new URL('/login?error=no_code', baseUrl));
+	}
 
-  // Handle Dev Mock Code (when MEZON_CLIENT_ID is not configured yet)
-  if (code === "mock_dev_code") {
-    try {
-      const userSession = await pgDb.findOrCreateUser({
-        mezon_id: "dev_user_1001",
-        username: "dev_candidate",
-        display_name: "Developer Test Candidate",
-        avatar_url:
-          "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
-      });
+	// Handle Dev Mock Code (when MEZON_CLIENT_ID is not configured yet)
+	if (code === 'mock_dev_code') {
+		try {
+			const userSession = await pgDb.findOrCreateUser({
+				mezon_id: 'dev_user_1001',
+				username: 'dev_candidate',
+				display_name: 'Developer Test Candidate',
+				avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'
+			});
 
-      const session = await getSession();
-      session.user = userSession;
-      await session.save();
+			const session = await getSession();
+			session.user = userSession;
+			await session.save();
 
-      console.log(
-        "[OAuth Callback] Dev Mock User logged in:",
-        userSession.display_name,
-      );
-      const mockResponse = NextResponse.redirect(new URL(afterLogin, baseUrl));
-      mockResponse.cookies.delete("oauth_redirect");
-      return mockResponse;
-    } catch (mockError) {
-      console.error("[OAuth Callback] Mock dev login error:", mockError);
-      return NextResponse.json(
-        { success: false, error: (mockError as Error).message },
-        { status: 500 },
-      );
-    }
-  }
+			console.log('[OAuth Callback] Dev Mock User logged in:', userSession.display_name);
+			const mockResponse = NextResponse.redirect(new URL(afterLogin, baseUrl));
+			mockResponse.cookies.delete('oauth_redirect');
+			return mockResponse;
+		} catch (mockError) {
+			console.error('[OAuth Callback] Mock dev login error:', mockError);
+			return NextResponse.json({ success: false, error: (mockError as Error).message }, { status: 500 });
+		}
+	}
 
-  // If savedState exists, verify state match for CSRF protection
-  if (savedState && state && state !== savedState) {
-    console.warn("[OAuth Callback] State mismatch warning:", {
-      state,
-      savedState,
-    });
-    return NextResponse.redirect(
-      new URL("/login?error=state_mismatch", baseUrl),
-    );
-  }
+	// If savedState exists, verify state match for CSRF protection
+	if (savedState && state && state !== savedState) {
+		console.warn('[OAuth Callback] State mismatch warning:', {
+			state,
+			savedState
+		});
+		return NextResponse.redirect(new URL('/login?error=state_mismatch', baseUrl));
+	}
 
-  try {
-    const tokens = await exchangeOAuthCodeForToken(code, state || undefined);
-    console.log("[OAuth Callback] Tokens received:", {
-      hasAccessToken: !!tokens?.access_token,
-    });
+	try {
+		const tokens = await exchangeOAuthCodeForToken(code, state || undefined);
+		console.log('[OAuth Callback] Tokens received:', {
+			hasAccessToken: !!tokens?.access_token
+		});
 
-    if (!tokens.access_token) {
-      return NextResponse.redirect(new URL("/login?error=no_token", baseUrl));
-    }
+		if (!tokens.access_token) {
+			return NextResponse.redirect(new URL('/login?error=no_token', baseUrl));
+		}
 
-    const userInfo = await fetchMezonUserInfo(tokens.access_token);
-    console.log("[OAuth Callback] User info fetched:", userInfo);
+		const userInfo = await fetchMezonUserInfo(tokens.access_token);
+		console.log('[OAuth Callback] User info fetched:', userInfo);
 
-    const mezonId = String(userInfo.user_id || userInfo.id || userInfo.sub);
-    const username =
-      userInfo.username ||
-      userInfo.preferred_username ||
-      userInfo.display_name ||
-      userInfo.name ||
-      `user_${mezonId}`;
-    const displayName = userInfo.display_name || userInfo.name || username;
-    const avatarUrl =
-      userInfo.avatar || userInfo.avatar_url || userInfo.picture;
+		const mezonId = String(userInfo.user_id || userInfo.id || userInfo.sub);
+		const username = userInfo.username || userInfo.preferred_username || userInfo.display_name || userInfo.name || `user_${mezonId}`;
+		const displayName = userInfo.display_name || userInfo.name || username;
+		const avatarUrl = userInfo.avatar || userInfo.avatar_url || userInfo.picture;
 
-    const userSession = await pgDb.findOrCreateUser({
-      mezon_id: mezonId,
-      username,
-      display_name: displayName,
-      avatar_url: avatarUrl,
-    });
+		const userSession = await pgDb.findOrCreateUser({
+			mezon_id: mezonId,
+			username,
+			display_name: displayName,
+			avatar_url: avatarUrl
+		});
 
-    const session = await getSession();
-    session.user = userSession;
-    await session.save();
+		const session = await getSession();
+		session.user = userSession;
+		await session.save();
 
-    console.log(
-      "[OAuth Callback] Logged in successfully:",
-      userSession.display_name,
-    );
+		console.log('[OAuth Callback] Logged in successfully:', userSession.display_name);
 
-    const response = NextResponse.redirect(new URL(afterLogin, baseUrl));
-    response.cookies.delete("oauth_state");
-    response.cookies.delete("oauth_redirect");
-    return response;
-  } catch (error) {
-    console.error("[OAuth Callback] Authentication failed:", error);
-    return NextResponse.redirect(new URL("/login?error=auth_failed", baseUrl));
-  }
+		const response = NextResponse.redirect(new URL(afterLogin, baseUrl));
+		response.cookies.delete('oauth_state');
+		response.cookies.delete('oauth_redirect');
+		return response;
+	} catch (error) {
+		console.error('[OAuth Callback] Authentication failed:', error);
+		return NextResponse.redirect(new URL('/login?error=auth_failed', baseUrl));
+	}
 }

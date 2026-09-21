@@ -6,121 +6,117 @@ import { calculateExamResult, getCEFRDescription } from '@/lib/exam/score-calcul
 import { ExamResultResponse } from '@/types';
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
+	const session = await getSession();
 
-  if (!session.user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
+	if (!session.user) {
+		return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+	}
 
-  try {
-    const { attemptId } = await req.json();
+	try {
+		const { attemptId } = await req.json();
 
-    if (!attemptId) {
-      return NextResponse.json({ success: false, error: 'Missing attemptId' }, { status: 400 });
-    }
+		if (!attemptId) {
+			return NextResponse.json({ success: false, error: 'Missing attemptId' }, { status: 400 });
+		}
 
-    // Only ever unlock an attempt that belongs to the caller
-    const isIeltsAttempt = attemptId.startsWith('ielts-att-');
-    const ownedAttempt = isIeltsAttempt
-      ? await pgDb.getIELTSAttempt(attemptId)
-      : await pgDb.getAttempt(attemptId);
+		// Only ever unlock an attempt that belongs to the caller
+		const isIeltsAttempt = attemptId.startsWith('ielts-att-');
+		const ownedAttempt = isIeltsAttempt ? await pgDb.getIELTSAttempt(attemptId) : await pgDb.getAttempt(attemptId);
 
-    if (
-      !ownedAttempt ||
-      (ownedAttempt.user_id !== session.user.user_id && ownedAttempt.user_id !== session.user.mezon_id)
-    ) {
-      return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });
-    }
+		if (!ownedAttempt || (ownedAttempt.user_id !== session.user.user_id && ownedAttempt.user_id !== session.user.mezon_id)) {
+			return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });
+		}
 
-    const isMember = await checkMezonClanMembership(session.user.mezon_id);
+		const isMember = await checkMezonClanMembership(session.user.mezon_id);
 
-    if (!isMember) {
-      return NextResponse.json(
-        {
-          success: false,
-          isMember: false,
-          message: '⚠️ We could not verify your Mezon Clan membership yet. Please click the "Join Mezon Clan" button above to join the clan, then click "I\'ve Joined — Verify Now" again.',
-        },
-        { status: 200 }
-      );
-    }
+		if (!isMember) {
+			return NextResponse.json(
+				{
+					success: false,
+					isMember: false,
+					message:
+						'⚠️ We could not verify your Mezon Clan membership yet. Please click the "Join Mezon Clan" button above to join the clan, then click "I\'ve Joined — Verify Now" again.'
+				},
+				{ status: 200 }
+			);
+		}
 
-    // Member verified! Update user session & DB membership status
-    session.user.clan_member = true;
-    await session.save();
+		// Member verified! Update user session & DB membership status
+		session.user.clan_member = true;
+		await session.save();
 
-    await pgDb.updateUserClanMembership(session.user.mezon_id, true);
+		await pgDb.updateUserClanMembership(session.user.mezon_id, true);
 
-    // Support IELTS Speaking attempts (starting with ielts-att-)
-    if (isIeltsAttempt) {
-      await pgDb.updateIELTSAttemptUnlocked(attemptId, true);
-      const ieltsAttempt = await pgDb.getIELTSAttempt(attemptId);
-      if (!ieltsAttempt) {
-        return NextResponse.json({ success: false, error: 'IELTS Speaking attempt not found' }, { status: 404 });
-      }
+		// Support IELTS Speaking attempts (starting with ielts-att-)
+		if (isIeltsAttempt) {
+			await pgDb.updateIELTSAttemptUnlocked(attemptId, true);
+			const ieltsAttempt = await pgDb.getIELTSAttempt(attemptId);
+			if (!ieltsAttempt) {
+				return NextResponse.json({ success: false, error: 'IELTS Speaking attempt not found' }, { status: 404 });
+			}
 
-      return NextResponse.json({
-        success: true,
-        isMember: true,
-        result: {
-          attempt_id: attemptId,
-          unlocked: true,
-          result_status: 'full',
-          overall_band: ieltsAttempt.band_score,
-          score_result: ieltsAttempt.score_result,
-        },
-      });
-    }
+			return NextResponse.json({
+				success: true,
+				isMember: true,
+				result: {
+					attempt_id: attemptId,
+					unlocked: true,
+					result_status: 'full',
+					overall_band: ieltsAttempt.band_score,
+					score_result: ieltsAttempt.score_result
+				}
+			});
+		}
 
-    const updatedAttempt = await pgDb.updateAttempt(attemptId, {
-      unlocked: true,
-      unlocked_at: new Date().toISOString(),
-      result_status: 'full',
-    });
+		const updatedAttempt = await pgDb.updateAttempt(attemptId, {
+			unlocked: true,
+			unlocked_at: new Date().toISOString(),
+			result_status: 'full'
+		});
 
-    if (!updatedAttempt) {
-      return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });
-    }
+		if (!updatedAttempt) {
+			return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });
+		}
 
-    const questions = await pgDb.getQuestionsByIds(updatedAttempt.question_ids);
-    const calculated = calculateExamResult(updatedAttempt, questions);
-    const levelInfo = getCEFRDescription(calculated.cefr_level);
+		const questions = await pgDb.getQuestionsByIds(updatedAttempt.question_ids);
+		const calculated = calculateExamResult(updatedAttempt, questions);
+		const levelInfo = getCEFRDescription(calculated.cefr_level);
 
-    const explanations: Record<string, { correct_option_id: string; explanation: string }> = {};
-    questions.forEach((q) => {
-      if (q.correct_option_id) {
-        explanations[q.id] = {
-          correct_option_id: q.correct_option_id,
-          explanation: q.explanation || 'Refer to grammar guidelines.',
-        };
-      }
-    });
+		const explanations: Record<string, { correct_option_id: string; explanation: string }> = {};
+		questions.forEach((q) => {
+			if (q.correct_option_id) {
+				explanations[q.id] = {
+					correct_option_id: q.correct_option_id,
+					explanation: q.explanation || 'Refer to grammar guidelines.'
+				};
+			}
+		});
 
-    const resultResponse: ExamResultResponse = {
-      attempt_id: attemptId,
-      status: updatedAttempt.status,
-      result_status: 'full',
-      unlocked: true,
-      cefr_level: calculated.cefr_level,
-      level_title: levelInfo.title,
-      level_description: levelInfo.description,
-      percentage: calculated.percentage,
-      raw_score: calculated.raw_score,
-      weighted_score: calculated.weighted_score,
-      max_weighted_score: calculated.max_weighted_score,
-      skill_scores: calculated.skill_scores,
-      weaknesses: calculated.weaknesses,
-      recommendations: calculated.recommendations,
-      explanations,
-    };
+		const resultResponse: ExamResultResponse = {
+			attempt_id: attemptId,
+			status: updatedAttempt.status,
+			result_status: 'full',
+			unlocked: true,
+			cefr_level: calculated.cefr_level,
+			level_title: levelInfo.title,
+			level_description: levelInfo.description,
+			percentage: calculated.percentage,
+			raw_score: calculated.raw_score,
+			weighted_score: calculated.weighted_score,
+			max_weighted_score: calculated.max_weighted_score,
+			skill_scores: calculated.skill_scores,
+			weaknesses: calculated.weaknesses,
+			recommendations: calculated.recommendations,
+			explanations
+		};
 
-    return NextResponse.json({
-      success: true,
-      isMember: true,
-      result: resultResponse,
-    });
-  } catch (error) {
-    console.error('[POST /api/membership/verify] Error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to verify clan membership' }, { status: 500 });
-  }
+		return NextResponse.json({
+			success: true,
+			isMember: true,
+			result: resultResponse
+		});
+	} catch (error) {
+		console.error('[POST /api/membership/verify] Error:', error);
+		return NextResponse.json({ success: false, error: 'Failed to verify clan membership' }, { status: 500 });
+	}
 }
