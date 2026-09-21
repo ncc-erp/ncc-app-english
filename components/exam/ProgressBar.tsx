@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 interface ProgressBarProps {
   current: number;
@@ -9,13 +10,14 @@ interface ProgressBarProps {
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({ current, total, section }) => {
+  const { t } = useTranslation();
   const percentage = Math.min(100, Math.max(0, Math.round((current / total) * 100)));
 
   return (
     <div className="w-full space-y-2">
       <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-500">
         <span>
-          Question {current} of {total}
+          {t('exam.progressBar.label', { current, total })}
         </span>
         {section && <span className="text-indigo-600 font-bold">{section}</span>}
       </div>

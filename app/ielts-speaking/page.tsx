@@ -20,10 +20,12 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { IELTSSpeakingTopic } from '@/types/ielts';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 const ITEMS_PER_PAGE = 6;
 
 export default function IELTSSpeakingPortalPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const [topics, setTopics] = useState<IELTSSpeakingTopic[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,7 +55,7 @@ export default function IELTSSpeakingPortalPage() {
         }
       } catch (err) {
         console.error('Failed to load IELTS topics:', err);
-        setError('Failed to load test sets. Please try refreshing.');
+        setError(t('ielts.topics.loadTopicsError'));
       } finally {
         setLoading(false);
       }
@@ -112,7 +114,7 @@ export default function IELTSSpeakingPortalPage() {
           router.push(`/login?redirect=${encodeURIComponent(`/ielts-speaking?start=${topicId}`)}`);
           return;
         }
-        throw new Error(data.error || 'Failed to start IELTS test');
+        throw new Error(data.error || t('ielts.topics.startTestError'));
       }
 
       router.push(`/ielts-speaking/test/${data.attempt.id}`);
@@ -134,15 +136,15 @@ export default function IELTSSpeakingPortalPage() {
           <div className="max-w-2xl space-y-3">
             <div className="inline-flex items-center gap-2 px-3.5 py-1 bg-white/20 border border-white/30 text-white text-xs font-bold rounded-full uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>Full 3-Part Exam Simulator</span>
+              <span>{t('ielts.topics.heroBadge')}</span>
             </div>
 
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight leading-tight">
-              IELTS Speaking <span className="text-amber-300">Test Bank</span>
+              {t('ielts.topics.heroTitlePrefix')} <span className="text-amber-300">{t('ielts.topics.heroTitleHighlight')}</span>
             </h1>
 
             <p className="text-purple-100 text-sm leading-relaxed">
-              Select any test set below to practice with our AI examiner. Each set includes Part 1 interview questions, Part 2 cue card with 60s prep countdown, and Part 3 abstract discussion questions.
+              {t('ielts.topics.heroSubtitle')}
             </p>
           </div>
         </div>
@@ -163,7 +165,7 @@ export default function IELTSSpeakingPortalPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search test sets by title or topic..."
+                placeholder={t('ielts.topics.searchPlaceholder')}
                 className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-purple-500 focus:bg-white"
               />
             </div>
@@ -177,7 +179,7 @@ export default function IELTSSpeakingPortalPage() {
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
                 }`}
               >
-                All Topics ({topics.length})
+                {t('ielts.topics.allTopics', { count: topics.length })}
               </button>
               {categories.map((cat) => (
                 <button
@@ -201,11 +203,11 @@ export default function IELTSSpeakingPortalPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-purple-600" />
-              <span>Available Test Sets ({filteredTopics.length})</span>
+              <span>{t('ielts.topics.availableTestSets', { count: filteredTopics.length })}</span>
             </h2>
             {filteredTopics.length > 0 && (
               <span className="text-xs text-slate-500">
-                Page {currentPage} of {totalPages}
+                {t('ielts.topics.pageOf', { current: currentPage, total: totalPages })}
               </span>
             )}
           </div>
@@ -213,44 +215,44 @@ export default function IELTSSpeakingPortalPage() {
           {loading ? (
             <div className="py-16 text-center text-slate-500 text-xs flex items-center justify-center space-x-2">
               <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-              <span>Loading IELTS test sets...</span>
+              <span>{t('ielts.topics.loading')}</span>
             </div>
           ) : filteredTopics.length === 0 ? (
             <div className="py-16 text-center bg-white border border-slate-200 rounded-3xl p-8 space-y-3 shadow-sm">
               <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
-              <div className="text-slate-800 font-bold text-sm">No Test Sets Match Your Criteria</div>
+              <div className="text-slate-800 font-bold text-sm">{t('ielts.topics.noResultsHeading')}</div>
               <p className="text-slate-500 text-xs max-w-sm mx-auto">
-                Try resetting your search query or selecting a different category filter.
+                {t('ielts.topics.noResultsDescription')}
               </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {paginatedTopics.map((t) => (
+              {paginatedTopics.map((topic) => (
                 <div
-                  key={t.id}
+                  key={topic.id}
                   className="bg-white border border-slate-200 hover:border-purple-300 rounded-3xl p-6 transition-all shadow-sm hover:shadow-md flex flex-col justify-between space-y-5"
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold uppercase tracking-wider">
-                        {t.category || 'General'}
+                        {topic.category || t('ielts.topics.generalCategory')}
                       </span>
                       <button
-                        onClick={() => setPreviewTopic(t)}
+                        onClick={() => setPreviewTopic(topic)}
                         className="p-1.5 text-slate-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold"
-                        title="View Topic Details"
+                        title={t('ielts.topics.viewDetailsTitle')}
                       >
                         <Eye className="w-4 h-4" />
-                        <span>Preview</span>
+                        <span>{t('ielts.topics.previewButton')}</span>
                       </button>
                     </div>
 
-                    <h3 className="text-base font-bold text-slate-900 leading-snug line-clamp-2">{t.title}</h3>
+                    <h3 className="text-base font-bold text-slate-900 leading-snug line-clamp-2">{topic.title}</h3>
 
-                    {t.description && (
+                    {topic.description && (
                       <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 overflow-hidden">
                         <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed overflow-hidden text-ellipsis">
-                          {t.description}
+                          {topic.description}
                         </p>
                       </div>
                     )}
@@ -259,33 +261,33 @@ export default function IELTSSpeakingPortalPage() {
                   <div className="space-y-3 pt-3 border-t border-slate-100">
                     <div className="grid grid-cols-3 gap-1.5 text-center text-[11px]">
                       <div className="bg-purple-50/70 p-2 rounded-xl border border-purple-100">
-                        <div className="text-slate-500 text-[10px]">Part 1</div>
-                        <div className="font-bold text-purple-700">{t.part1_questions?.length || 0} Qs</div>
+                        <div className="text-slate-500 text-[10px]">{t('ielts.topics.part1Short')}</div>
+                        <div className="font-bold text-purple-700">{t('ielts.topics.questionsCount', { count: topic.part1_questions?.length || 0 })}</div>
                       </div>
                       <div className="bg-pink-50/70 p-2 rounded-xl border border-pink-100">
-                        <div className="text-slate-500 text-[10px]">Part 2</div>
-                        <div className="font-bold text-pink-700">1 Card</div>
+                        <div className="text-slate-500 text-[10px]">{t('ielts.topics.part2Short')}</div>
+                        <div className="font-bold text-pink-700">{t('ielts.topics.oneCard')}</div>
                       </div>
                       <div className="bg-emerald-50/70 p-2 rounded-xl border border-emerald-100">
-                        <div className="text-slate-500 text-[10px]">Part 3</div>
-                        <div className="font-bold text-emerald-700">{t.part3_questions?.length || 0} Qs</div>
+                        <div className="text-slate-500 text-[10px]">{t('ielts.topics.part3Short')}</div>
+                        <div className="font-bold text-emerald-700">{t('ielts.topics.questionsCount', { count: topic.part3_questions?.length || 0 })}</div>
                       </div>
                     </div>
 
                     <button
-                      onClick={() => handleStartTest(t.id)}
-                      disabled={startingTopicId === t.id}
+                      onClick={() => handleStartTest(topic.id)}
+                      disabled={startingTopicId === topic.id}
                       className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-2xl flex items-center justify-center gap-2 shadow-md shadow-purple-200 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
                     >
-                      {startingTopicId === t.id ? (
+                      {startingTopicId === topic.id ? (
                         <>
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          <span>Preparing Exam...</span>
+                          <span>{t('common.preparingExam')}</span>
                         </>
                       ) : (
                         <>
                           <Play className="w-4 h-4 fill-white" />
-                          <span>Start Test Set</span>
+                          <span>{t('ielts.topics.startTestSet')}</span>
                         </>
                       )}
                     </button>
@@ -300,11 +302,11 @@ export default function IELTSSpeakingPortalPage() {
         {filteredTopics.length > ITEMS_PER_PAGE && (
           <div className="flex items-center justify-between border-t border-slate-200 pt-6">
             <div className="text-xs text-slate-500 font-medium">
-              Showing <span className="font-bold text-slate-900">{startIndex + 1}</span> to{' '}
+              {t('ielts.topics.showingPrefix')} <span className="font-bold text-slate-900">{startIndex + 1}</span> {t('ielts.topics.showingTo')}{' '}
               <span className="font-bold text-slate-900">
                 {Math.min(startIndex + ITEMS_PER_PAGE, filteredTopics.length)}
               </span>{' '}
-              of <span className="font-bold text-slate-900">{filteredTopics.length}</span> test sets
+              {t('ielts.topics.showingOf')} <span className="font-bold text-slate-900">{filteredTopics.length}</span> {t('ielts.topics.showingSuffix')}
             </div>
 
             <div className="flex items-center gap-2">
@@ -314,7 +316,7 @@ export default function IELTSSpeakingPortalPage() {
                 className="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm disabled:opacity-40 disabled:hover:bg-white"
               >
                 <ChevronLeft className="w-4 h-4" />
-                <span>Previous</span>
+                <span>{t('ielts.topics.previous')}</span>
               </button>
 
               <div className="flex items-center gap-1">
@@ -338,7 +340,7 @@ export default function IELTSSpeakingPortalPage() {
                 disabled={currentPage === totalPages}
                 className="px-3.5 py-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm disabled:opacity-40 disabled:hover:bg-white"
               >
-                <span>Next</span>
+                <span>{t('ielts.topics.next')}</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -349,7 +351,7 @@ export default function IELTSSpeakingPortalPage() {
         <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm space-y-6">
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <Layers className="w-5 h-5 text-purple-600" />
-            <span>IELTS Speaking Exam Overview</span>
+            <span>{t('ielts.topics.overviewHeading')}</span>
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -357,9 +359,9 @@ export default function IELTSSpeakingPortalPage() {
               <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-sm">
                 01
               </div>
-              <h3 className="font-bold text-slate-900 text-sm">Part 1: Introduction & Interview</h3>
+              <h3 className="font-bold text-slate-900 text-sm">{t('ielts.topics.part1Title')}</h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Answer short questions on everyday subjects (work, study, hobbies, technology).
+                {t('ielts.topics.part1Description')}
               </p>
             </div>
 
@@ -367,9 +369,9 @@ export default function IELTSSpeakingPortalPage() {
               <div className="w-9 h-9 rounded-xl bg-pink-100 text-pink-700 font-bold flex items-center justify-center text-sm">
                 02
               </div>
-              <h3 className="font-bold text-slate-900 text-sm">Part 2: Cue Card & Long Turn</h3>
+              <h3 className="font-bold text-slate-900 text-sm">{t('ielts.topics.part2Title')}</h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                1-minute countdown to prepare notes on a cue card, followed by 2 minutes speech recording.
+                {t('ielts.topics.part2Description')}
               </p>
             </div>
 
@@ -377,9 +379,9 @@ export default function IELTSSpeakingPortalPage() {
               <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-sm">
                 03
               </div>
-              <h3 className="font-bold text-slate-900 text-sm">Part 3: Discussion</h3>
+              <h3 className="font-bold text-slate-900 text-sm">{t('ielts.topics.part3Title')}</h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Discuss abstract issues and broader societal questions related to Part 2.
+                {t('ielts.topics.part3Description')}
               </p>
             </div>
           </div>
@@ -403,7 +405,7 @@ export default function IELTSSpeakingPortalPage() {
             <div className="space-y-4 text-xs">
               {/* Part 1 */}
               <div className="space-y-2">
-                <span className="font-bold text-purple-700 uppercase text-[11px] block">Part 1 Questions ({previewTopic.part1_questions?.length || 0})</span>
+                <span className="font-bold text-purple-700 uppercase text-[11px] block">{t('ielts.topics.part1QuestionsCount', { count: previewTopic.part1_questions?.length || 0 })}</span>
                 <div className="space-y-1.5">
                   {previewTopic.part1_questions?.map((q, i) => (
                     <div key={i} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 flex items-start gap-2">
@@ -416,7 +418,7 @@ export default function IELTSSpeakingPortalPage() {
 
               {/* Part 2 */}
               <div className="space-y-2 pt-2 border-t border-slate-100">
-                <span className="font-bold text-pink-700 uppercase text-[11px] block">Part 2 Cue Card</span>
+                <span className="font-bold text-pink-700 uppercase text-[11px] block">{t('ielts.topics.part2CueCardLabel')}</span>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                   <div className="font-bold text-slate-900 text-sm">{previewTopic.part2_cue_card?.cue_card_title}</div>
                   <div className="text-slate-600 italic">{previewTopic.part2_cue_card?.prompt_lead}</div>
@@ -430,7 +432,7 @@ export default function IELTSSpeakingPortalPage() {
 
               {/* Part 3 */}
               <div className="space-y-2 pt-2 border-t border-slate-100">
-                <span className="font-bold text-emerald-700 uppercase text-[11px] block">Part 3 Questions ({previewTopic.part3_questions?.length || 0})</span>
+                <span className="font-bold text-emerald-700 uppercase text-[11px] block">{t('ielts.topics.part3QuestionsCount', { count: previewTopic.part3_questions?.length || 0 })}</span>
                 <div className="space-y-1.5">
                   {previewTopic.part3_questions?.map((q, i) => (
                     <div key={i} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-slate-700 flex items-start gap-2">
@@ -447,7 +449,7 @@ export default function IELTSSpeakingPortalPage() {
                 onClick={() => setPreviewTopic(null)}
                 className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
               >
-                Close
+                {t('ielts.topics.closeButton')}
               </button>
               <button
                 onClick={() => {
@@ -458,7 +460,7 @@ export default function IELTSSpeakingPortalPage() {
                 className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-purple-200"
               >
                 <Play className="w-3.5 h-3.5 fill-white" />
-                <span>Start Exam With This Set</span>
+                <span>{t('ielts.topics.startWithThisSet')}</span>
               </button>
             </div>
           </div>

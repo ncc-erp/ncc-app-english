@@ -3,6 +3,7 @@
 import React from 'react';
 import { Question } from '@/types';
 import { Check } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 interface QuestionCardProps {
   question: Question;
@@ -17,13 +18,14 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({
   onSelectOption,
   questionNumber,
 }) => {
+  const { t } = useTranslation();
   return (
     <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
       {/* Reading Passage if available */}
       {question.reading_passage && (
         <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-sm leading-relaxed space-y-2">
           <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider block">
-            Reading Passage
+            {t('exam.questionCard.readingPassage')}
           </span>
           <p>{question.reading_passage}</p>
         </div>

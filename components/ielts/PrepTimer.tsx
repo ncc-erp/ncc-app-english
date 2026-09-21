@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Timer, ArrowRight } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 interface PrepTimerProps {
   durationSeconds?: number;
@@ -12,6 +13,7 @@ export const PrepTimer: React.FC<PrepTimerProps> = ({
   durationSeconds = 60,
   onTimerComplete,
 }) => {
+  const { t } = useTranslation();
   const [timeLeft, setTimeLeft] = useState(durationSeconds);
   const [isActive, setIsActive] = useState(true);
 
@@ -69,12 +71,12 @@ export const PrepTimer: React.FC<PrepTimerProps> = ({
 
           <div>
             <div className="text-xs uppercase tracking-wider font-bold text-amber-700">
-              Part 2 • Preparation Time (60 Seconds)
+              {t('ielts.prepTimer.label')}
             </div>
             <div className="text-3xl font-mono font-bold text-slate-900 tracking-tight">
               {mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
             </div>
-            <p className="text-xs text-slate-600 mt-0.5">Use 60 seconds to jot down bullet points in your notes below.</p>
+            <p className="text-xs text-slate-600 mt-0.5">{t('ielts.prepTimer.hint')}</p>
           </div>
         </div>
 
@@ -85,7 +87,7 @@ export const PrepTimer: React.FC<PrepTimerProps> = ({
           }}
           className="flex items-center gap-2 px-6 py-3 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-all shadow-md shadow-amber-200"
         >
-          <span>Start Speaking Now</span>
+          <span>{t('ielts.prepTimer.startButton')}</span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>

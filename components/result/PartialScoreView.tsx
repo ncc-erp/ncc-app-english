@@ -3,6 +3,7 @@
 import React from 'react';
 import { CEFRLevel } from '@/types';
 import { Award, Sparkles, TrendingUp } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 interface PartialScoreViewProps {
   cefrLevel: CEFRLevel;
@@ -19,6 +20,7 @@ export const PartialScoreView: React.FC<PartialScoreViewProps> = ({
   percentage,
   percentileTeaser,
 }) => {
+  const { t } = useTranslation();
   const getBadgeColor = (level: CEFRLevel) => {
     switch (level) {
       case 'A1':
@@ -51,14 +53,14 @@ export const PartialScoreView: React.FC<PartialScoreViewProps> = ({
         </div>
         <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-bold uppercase tracking-wider">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>CEFR Assessed</span>
+          <span>{t('exam.partialScore.cefrAssessed')}</span>
         </div>
       </div>
 
       {/* Summary Text */}
       <div className="space-y-2 max-w-md mx-auto">
         <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-          Your Level: <span className="text-indigo-600">{levelTitle}</span>
+          {t('exam.partialScore.yourLevel')} <span className="text-indigo-600">{levelTitle}</span>
         </h1>
         <p className="text-slate-600 text-sm leading-relaxed">{levelDescription}</p>
       </div>
@@ -67,7 +69,7 @@ export const PartialScoreView: React.FC<PartialScoreViewProps> = ({
       <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
         <div className="bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-2xl flex items-center space-x-2">
           <TrendingUp className="w-4 h-4 text-indigo-600" />
-          <span className="text-xs text-slate-600 font-medium">Accuracy Score:</span>
+          <span className="text-xs text-slate-600 font-medium">{t('exam.partialScore.accuracyScore')}</span>
           <span className="text-sm font-bold text-slate-900">{percentage}%</span>
         </div>
         {percentileTeaser && (

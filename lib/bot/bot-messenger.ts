@@ -332,7 +332,7 @@ export async function notifyExamResult(
   if (!user) {
     return {
       success: false,
-      message: "User account was not found in the exam database.",
+      message: "Không tìm thấy tài khoản người dùng trong hệ thống thi.",
     };
   }
 
@@ -343,7 +343,7 @@ export async function notifyExamResult(
   ) {
     return {
       success: false,
-      message: `IELTS Speaking test record ${attemptId} was not found.`,
+      message: `Không tìm thấy bài thi IELTS Speaking với mã ${attemptId}.`,
     };
   }
 
@@ -362,7 +362,7 @@ export async function notifyExamResult(
     process.env.MEZON_WELCOME_CHANNEL_ID ||
     "";
 
-  const messageText = `👋 Hello @${user.mezon_username || user.display_name}, your IELTS Speaking test report is ready!\n\n${formattedResult}`;
+  const messageText = `👋 Chào @${user.mezon_username || user.display_name}, báo cáo bài thi IELTS Speaking của bạn đã sẵn sàng!\n\n${formattedResult}`;
 
   const components = [
     {
@@ -371,7 +371,7 @@ export async function notifyExamResult(
           id: "btn_view_result_details",
           type: 1, // BUTTON
           component: {
-            label: "📊 View Detailed Test Report",
+            label: "📊 Xem báo cáo chi tiết",
             style: 5, // LINK
             url: detailsUrl,
           },
@@ -403,20 +403,20 @@ export async function notifyExamResult(
     if (dmSent) {
       return {
         success: true,
-        message: "Your test report has been sent directly to you via Mezon DM!",
+        message: "Báo cáo bài thi đã được gửi trực tiếp cho bạn qua tin nhắn Mezon!",
       };
     }
     return {
       success: false,
       message:
-        "Failed to send message via clan channel or DM. Please verify the bot connection!",
+        "Không thể gửi tin nhắn qua kênh clan hoặc DM. Vui lòng kiểm tra lại kết nối bot!",
     };
   }
 
   return {
     success: true,
     message:
-      "Your test report has been sent to you in the exam channel on Mezon Clan!",
+      "Báo cáo bài thi đã được gửi cho bạn trong kênh thi trên Mezon Clan!",
     channelId: examChannelId,
   };
 }

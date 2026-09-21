@@ -26,19 +26,19 @@ export function formatIELTSResult(
         minute: "2-digit",
         hour12: true,
       })
-    : "Just now";
+    : "Vừa xong";
 
-  const userGreeting = targetUserName ? ` FOR ${targetUserName}` : "";
+  const userGreeting = targetUserName ? ` CHO ${targetUserName}` : "";
 
   // -------------------------------------------------------------
   // PART 1: Overall Band, Strengths & Link to Detailed Report
   // -------------------------------------------------------------
-  let msg1 = `🎯 **IELTS SPEAKING MOCK TEST REPORT${userGreeting}**\n`;
+  let msg1 = `🎯 **BÁO CÁO KẾT QUẢ THI THỬ IELTS SPEAKING${userGreeting}**\n`;
   msg1 += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-  msg1 += `📋 **Topic:** ${topicTitle}\n`;
-  msg1 += `📅 **Date:** ${dateStr}\n`;
-  msg1 += `🆔 **Attempt ID:** \`${attempt.id}\`\n\n`;
-  msg1 += `🏆 **OVERALL BAND: ${overallBand.toFixed(1)}**`;
+  msg1 += `📋 **Chủ đề:** ${topicTitle}\n`;
+  msg1 += `📅 **Ngày:** ${dateStr}\n`;
+  msg1 += `🆔 **Mã lượt thi:** \`${attempt.id}\`\n\n`;
+  msg1 += `🏆 **ĐIỂM BAND TỔNG: ${overallBand.toFixed(1)}**`;
   if (result?.status_title) {
     msg1 += ` — *${result.status_title}*`;
   }
@@ -48,7 +48,7 @@ export function formatIELTSResult(
 
   if (detailsUrl) {
     msg1 += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    msg1 += `🌐 **Interactive Detailed Report & Audio Playback:**\n`;
+    msg1 += `🌐 **Báo cáo chi tiết & Nghe lại âm thanh:**\n`;
     msg1 += `👉 ${detailsUrl}\n`;
     msg1 += `━━━━━━━━━━━━━━━━━━━━━━━━━━`;
   }
@@ -61,29 +61,29 @@ export function formatIELTSTestHistory(
   userName?: string,
 ): string {
   if (!attempts || attempts.length === 0) {
-    return `ℹ️ You have no recorded IELTS Speaking attempts yet. Visit the web app to take your first test!`;
+    return `ℹ️ Bạn chưa có lượt thi IELTS Speaking nào được ghi nhận. Vào web app để làm bài thi đầu tiên nhé!`;
   }
 
-  let msg = `📋 **IELTS SPEAKING TEST HISTORY${userName ? ` FOR ${userName}` : ""}**\n`;
+  let msg = `📋 **LỊCH SỬ THI IELTS SPEAKING${userName ? ` CỦA ${userName}` : ""}**\n`;
   msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
 
   attempts.forEach((att, index) => {
     const band = att.band_score ?? att.score_result?.overall_band;
     const bandStr =
-      band !== undefined ? `Band ${band.toFixed(1)}` : "Grading...";
+      band !== undefined ? `Band ${band.toFixed(1)}` : "Đang chấm điểm...";
     const dateStr = att.submitted_at
       ? new Date(att.submitted_at).toLocaleDateString("en-US", {
           month: "short",
           day: "2-digit",
           year: "numeric",
         })
-      : "Pending";
+      : "Đang chờ";
 
     msg += `${index + 1}. \`${att.id}\` | **${att.topic_title}** | **${bandStr}** | ${dateStr}\n`;
   });
 
   msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-  msg += `💡 **Tip:** Type \`*result <attempt_id>\` (e.g. \`*result ${attempts[0].id}\`) to view the detailed breakdown of any test!`;
+  msg += `💡 **Mẹo:** Gõ \`*result <attempt_id>\` (vd: \`*result ${attempts[0].id}\`) để xem chi tiết bất kỳ bài thi nào!`;
 
   return msg;
 }

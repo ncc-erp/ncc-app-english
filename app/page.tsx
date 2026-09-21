@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Mic,
@@ -21,63 +21,26 @@ import {
   Star,
   Quote,
 } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
+import { LanguageToggle } from '@/components/LanguageToggle';
 
 const FACEBOOK_URL = process.env.NEXT_PUBLIC_FACEBOOK_URL || '#';
 const CLAN_INVITE_URL = process.env.NEXT_PUBLIC_MEZON_CLAN_INVITE_URL || '#';
 
-const MENU = [
-  { href: '#features', label: 'Tính năng' },
-  { href: '#how', label: 'Cách hoạt động' },
-  { href: '#teacher', label: 'Giảng viên' },
-  { href: '#contact', label: 'Liên hệ' },
-];
-
-const STATS = [
-  { value: '3', label: 'Part như thi thật' },
-  { value: '4', label: 'Tiêu chí chấm điểm' },
-  { value: '1.0 – 9.0', label: 'Thang Band score' },
-  { value: '0đ', label: 'Hoàn toàn miễn phí' },
-];
-
+// Official IELTS criteria names — kept in English in both locales, same as the
+// FC/LR/GRA/PR labels used throughout the IELTS Speaking feature.
 const CRITERIA = ['Fluency & Coherence', 'Lexical Resource', 'Grammatical Range', 'Pronunciation'];
-const PARTS = [
-  { name: 'Part 1', desc: 'Phỏng vấn', time: '4–5 phút' },
-  { name: 'Part 2', desc: 'Cue card', time: '60s + 120s' },
-  { name: 'Part 3', desc: 'Thảo luận', time: '4–5 phút' },
+const PART_NAMES = ['Part 1', 'Part 2', 'Part 3'];
+
+const FEATURE_ICONS = [Award, History, Clock, Headphones];
+const FEATURE_COLORS = [
+  'bg-indigo-100 text-indigo-700',
+  'bg-emerald-100 text-emerald-700',
+  'bg-rose-100 text-rose-700',
+  'bg-sky-100 text-sky-700',
 ];
 
-const FEATURES = [
-  {
-    Icon: Award,
-    title: 'Band score từng tiêu chí',
-    desc: 'Điểm chi tiết kèm nhận xét và gợi ý nâng cấp từ vựng, ngữ pháp lên C1/C2.',
-    color: 'bg-indigo-100 text-indigo-700',
-  },
-  {
-    Icon: History,
-    title: 'Lưu lịch sử & nghe lại',
-    desc: 'Nghe lại audio từng câu và theo dõi tiến bộ theo thời gian.',
-    color: 'bg-emerald-100 text-emerald-700',
-  },
-  {
-    Icon: Clock,
-    title: 'Kết quả trong vài phút',
-    desc: 'Không cần chờ lịch chấm. Nộp bài xong là có Band score ngay.',
-    color: 'bg-rose-100 text-rose-700',
-  },
-  {
-    Icon: Headphones,
-    title: 'Không cần cài đặt',
-    desc: 'Ghi âm trực tiếp trên trình duyệt, dùng được trên máy tính lẫn điện thoại.',
-    color: 'bg-sky-100 text-sky-700',
-  },
-];
-
-const STEPS = [
-  { Icon: ListChecks, title: 'Chọn đề thi', desc: 'Chọn một bộ đề trong ngân hàng đề theo chủ đề bạn muốn luyện.' },
-  { Icon: Mic, title: 'Thi & ghi âm', desc: 'Trả lời trực tiếp bằng micro trên trình duyệt, đúng thời gian như thi thật.' },
-  { Icon: MessageSquareText, title: 'Nhận kết quả', desc: 'AI chấm và trả về Band score cùng nhận xét chi tiết trong vài phút.' },
-];
+const STEP_ICONS = [ListChecks, Mic, MessageSquareText];
 
 // Illustrative sample for the hero mock result card
 const SAMPLE_CRITERIA = [
@@ -87,14 +50,22 @@ const SAMPLE_CRITERIA = [
   { label: 'Pronunciation', band: 7.5 },
 ];
 
-const WHO = [
-  'Sắp thi IELTS và muốn biết band Speaking hiện tại',
-  'Ngại nói, cần môi trường luyện tập không áp lực',
-  'Muốn nhận xét chi tiết thay vì chỉ một con số',
-  'Học viên của thầy Huy muốn luyện thêm ngoài giờ',
-];
+interface TitleDesc {
+  title: string;
+  desc: string;
+}
+interface DescTime {
+  desc: string;
+  time: string;
+}
+interface StatItem {
+  value: string;
+  label: string;
+}
 
 export default function LandingPage() {
+  const { t, tArray, tList, locale, setLocale } = useTranslation();
+
   // Mezon iframe opens the app at /?data=<hash>; verify it here so the session exists before "Thi thử"
   useEffect(() => {
     const hashData = new URLSearchParams(window.location.search).get('data');
@@ -105,6 +76,36 @@ export default function LandingPage() {
       body: JSON.stringify({ hashData }),
     }).catch((err) => console.error('Hash auth error:', err));
   }, []);
+
+  const MENU = useMemo(
+    () => [
+      { href: '#features', label: t('landing.menu.features') },
+      { href: '#how', label: t('landing.menu.how') },
+      { href: '#teacher', label: t('landing.menu.teacher') },
+      { href: '#contact', label: t('landing.menu.contact') },
+    ],
+    [t],
+  );
+
+  const STATS = useMemo(() => tList<StatItem>('landing.stats'), [tList]);
+  const PARTS = useMemo(
+    () => tList<DescTime>('landing.parts').map((p, i) => ({ ...p, name: PART_NAMES[i] })),
+    [tList],
+  );
+  const FEATURES = useMemo(
+    () =>
+      tList<TitleDesc>('landing.features').map((f, i) => ({
+        ...f,
+        Icon: FEATURE_ICONS[i],
+        color: FEATURE_COLORS[i],
+      })),
+    [tList],
+  );
+  const STEPS = useMemo(
+    () => tList<TitleDesc>('landing.steps').map((s, i) => ({ ...s, Icon: STEP_ICONS[i] })),
+    [tList],
+  );
+  const WHO = useMemo(() => tArray('landing.who'), [tArray]);
 
   return (
     <div className="min-h-screen bg-white text-slate-900 flex flex-col font-sans">
@@ -133,13 +134,16 @@ export default function LandingPage() {
             ))}
           </nav>
 
-          <Link
-            href="/ielts-speaking"
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-xl shadow-sm transition-all"
-          >
-            <Mic className="w-4 h-4" />
-            Thi thử
-          </Link>
+          <div className="flex items-center gap-3">
+            <LanguageToggle locale={locale} setLocale={setLocale} />
+            <Link
+              href="/ielts-speaking"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-xl shadow-sm transition-all"
+            >
+              <Mic className="w-4 h-4" />
+              {t('landing.headerCta')}
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -153,15 +157,14 @@ export default function LandingPage() {
             <div className="space-y-6">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/15 border border-white/25 text-xs font-bold rounded-full uppercase tracking-wider">
                 <Sparkles className="w-4 h-4 text-amber-300" />
-                <span>Miễn phí • Không cần cài đặt</span>
+                <span>{t('landing.badge')}</span>
               </div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.1]">
-                Luyện IELTS Speaking <br />
-                <span className="text-amber-300">cùng giám khảo AI</span>
+                {t('landing.heroTitleLine1')} <br />
+                <span className="text-amber-300">{t('landing.heroTitleHighlight')}</span>
               </h1>
               <p className="text-purple-100 text-base sm:text-lg leading-relaxed max-w-xl">
-                Mô phỏng đầy đủ 3 Part của bài thi IELTS Speaking, ghi âm ngay trên trình duyệt và nhận Band score kèm
-                nhận xét chi tiết chỉ sau vài phút.
+                {t('landing.heroSubtitle')}
               </p>
               <div className="pt-2 flex flex-col sm:flex-row items-center gap-4">
                 <Link
@@ -169,7 +172,7 @@ export default function LandingPage() {
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 bg-amber-400 text-slate-900 hover:bg-amber-300 font-extrabold text-lg rounded-2xl transition-all shadow-xl shadow-amber-900/30 hover:scale-[1.02] active:scale-[0.98]"
                 >
                   <Mic className="w-6 h-6" />
-                  <span>Thi thử ngay</span>
+                  <span>{t('landing.ctaTryNow')}</span>
                   <ArrowRight className="w-5 h-5" />
                 </Link>
                 <a
@@ -179,24 +182,26 @@ export default function LandingPage() {
                   className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-4 bg-white/10 hover:bg-white/20 border border-white/30 font-bold rounded-2xl transition-all"
                 >
                   <Users className="w-5 h-5" />
-                  <span>Gia nhập cộng đồng</span>
+                  <span>{t('landing.ctaJoinCommunity')}</span>
                 </a>
               </div>
               <div className="flex items-center gap-2 text-xs font-bold text-purple-100">
                 <ShieldCheck className="w-4 h-4 text-emerald-300" />
-                <span>Chấm bằng AI theo thang điểm IELTS chính thức</span>
+                <span>{t('landing.trustBadge')}</span>
               </div>
             </div>
 
             {/* Mock result card */}
             <div className="relative mx-auto w-full max-w-md">
               <div className="absolute -top-5 -left-5 rotate-[-6deg] px-4 py-2 bg-amber-400 text-slate-900 text-sm font-extrabold rounded-xl shadow-lg">
-                Part 2 · Cue card
+                {t('landing.mockPart2Tag')}
               </div>
               <div className="bg-white text-slate-900 rounded-3xl p-6 md:p-8 shadow-2xl shadow-indigo-950/50 space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">Overall Band</div>
+                    <div className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                      {t('landing.overallBandLabel')}
+                    </div>
                     <div className="text-5xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-purple-700 to-indigo-700">
                       7.0
                     </div>
@@ -223,14 +228,11 @@ export default function LandingPage() {
                 </div>
                 <div className="flex items-start gap-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm text-slate-600 leading-relaxed">
                   <Quote className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
-                  <span>
-                    Câu trả lời mạch lạc, phát âm rõ. Hãy thay <em>&ldquo;very good&rdquo;</em> bằng{' '}
-                    <em>&ldquo;exceptional&rdquo;</em> để nâng Lexical Resource.
-                  </span>
+                  <span>{t('landing.feedbackQuote')}</span>
                 </div>
               </div>
               <div className="absolute -bottom-5 -right-3 px-4 py-2 bg-emerald-400 text-slate-900 text-sm font-extrabold rounded-xl shadow-lg rotate-[4deg]">
-                ✓ Chấm xong sau 2 phút
+                {t('landing.gradedBadge')}
               </div>
             </div>
           </div>
@@ -251,11 +253,11 @@ export default function LandingPage() {
         {/* Features */}
         <section id="features" className="max-w-6xl mx-auto px-4 py-20 space-y-10 scroll-mt-20">
           <div className="text-center space-y-3">
-            <span className="text-xs font-bold text-purple-600 uppercase tracking-widest">Tính năng</span>
-            <h2 className="text-3xl md:text-4xl font-extrabold">Mọi thứ bạn cần để luyện Speaking tại nhà</h2>
-            <p className="text-slate-600 max-w-2xl mx-auto">
-              Thi thật đến đâu, luyện tập đến đó. Không cần giám khảo, không cần hẹn lịch.
-            </p>
+            <span className="text-xs font-bold text-purple-600 uppercase tracking-widest">
+              {t('landing.featuresSection.eyebrow')}
+            </span>
+            <h2 className="text-3xl md:text-4xl font-extrabold">{t('landing.featuresSection.heading')}</h2>
+            <p className="text-slate-600 max-w-2xl mx-auto">{t('landing.featuresSection.subheading')}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -267,8 +269,8 @@ export default function LandingPage() {
                   <Bot className="w-6 h-6 text-amber-300" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-extrabold">AI chấm theo chuẩn IELTS</h3>
-                  <p className="text-sm text-slate-300">Đúng 4 tiêu chí giám khảo thật sử dụng</p>
+                  <h3 className="text-xl font-extrabold">{t('landing.featuresSection.aiGradingTitle')}</h3>
+                  <p className="text-sm text-slate-300">{t('landing.featuresSection.aiGradingDesc')}</p>
                 </div>
               </div>
               <div className="relative grid grid-cols-2 gap-3">
@@ -288,8 +290,8 @@ export default function LandingPage() {
                   <Layers className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-extrabold">Đủ 3 Part như thi thật</h3>
-                  <p className="text-sm text-slate-600">Đúng cấu trúc, đúng thời gian từng phần</p>
+                  <h3 className="text-xl font-extrabold">{t('landing.featuresSection.threePartsTitle')}</h3>
+                  <p className="text-sm text-slate-600">{t('landing.featuresSection.threePartsDesc')}</p>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-3">
@@ -324,10 +326,12 @@ export default function LandingPage() {
           <div className="max-w-6xl mx-auto px-4 py-20 grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
             <div className="space-y-10">
               <div className="space-y-3">
-                <span className="text-xs font-bold text-purple-600 uppercase tracking-widest">Quy trình</span>
+                <span className="text-xs font-bold text-purple-600 uppercase tracking-widest">
+                  {t('landing.howSection.eyebrow')}
+                </span>
                 <h2 className="text-3xl md:text-4xl font-extrabold leading-tight">
-                  Ba bước để có một <br className="hidden sm:block" />
-                  bài thi thử hoàn chỉnh
+                  {t('landing.howSection.headingLine1')} <br className="hidden sm:block" />
+                  {t('landing.howSection.headingLine2')}
                 </h2>
               </div>
               <ol className="relative space-y-8">
@@ -351,7 +355,7 @@ export default function LandingPage() {
                 href="/ielts-speaking"
                 className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-2xl shadow-lg shadow-purple-200 transition-all"
               >
-                Bắt đầu thi thử
+                {t('landing.howSection.ctaStart')}
                 <ArrowRight className="w-5 h-5" />
               </Link>
             </div>
@@ -361,10 +365,12 @@ export default function LandingPage() {
               <div className="absolute inset-0 translate-x-3 translate-y-3 rounded-3xl bg-gradient-to-br from-purple-200 to-indigo-200" />
               <div className="relative bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-xl space-y-6">
                 <div className="flex items-center justify-between text-xs font-bold uppercase tracking-widest">
-                  <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-700">Part 1 · Câu 3/5</span>
+                  <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-700">
+                    {t('landing.mockRecording.partLabel')}
+                  </span>
                   <span className="inline-flex items-center gap-1.5 text-rose-600">
                     <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                    Đang ghi âm
+                    {t('landing.mockRecording.recording')}
                   </span>
                 </div>
                 <p className="text-lg font-semibold text-slate-800 leading-snug">
@@ -401,12 +407,11 @@ export default function LandingPage() {
               className="relative w-40 h-40 rounded-full object-cover shrink-0 shadow-2xl shadow-amber-900/40 ring-4 ring-amber-300"
             />
             <div className="relative space-y-3 text-center sm:text-left">
-              <span className="text-xs font-bold text-amber-300 uppercase tracking-widest">Giảng viên</span>
+              <span className="text-xs font-bold text-amber-300 uppercase tracking-widest">
+                {t('landing.teacherSection.eyebrow')}
+              </span>
               <h2 className="text-3xl md:text-4xl font-extrabold">Thầy Phùng Quang Huy</h2>
-              <p className="text-slate-300 leading-relaxed">
-                Đề thi và tiêu chí chấm trên nền tảng được xây dựng theo định hướng luyện thi của thầy Huy, giúp bạn
-                luyện đúng trọng tâm ngoài giờ học.
-              </p>
+              <p className="text-slate-300 leading-relaxed">{t('landing.teacherSection.bio')}</p>
               <div className="flex flex-wrap justify-center sm:justify-start gap-3 pt-2">
                 <a
                   href={FACEBOOK_URL}
@@ -414,7 +419,7 @@ export default function LandingPage() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl text-sm font-bold transition-all"
                 >
-                  <Facebook className="w-4 h-4" /> Facebook
+                  <Facebook className="w-4 h-4" /> {t('landing.teacherSection.facebook')}
                 </a>
                 <a
                   href={CLAN_INVITE_URL}
@@ -422,7 +427,7 @@ export default function LandingPage() {
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded-xl text-sm font-bold transition-all"
                 >
-                  <Users className="w-4 h-4" /> Cộng đồng Mezon
+                  <Users className="w-4 h-4" /> {t('landing.teacherSection.community')}
                 </a>
               </div>
             </div>
@@ -431,7 +436,7 @@ export default function LandingPage() {
           <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-8 space-y-5">
             <div className="flex items-center gap-2">
               <Star className="w-5 h-5 text-amber-500" />
-              <h3 className="text-xl font-extrabold">Dành cho ai?</h3>
+              <h3 className="text-xl font-extrabold">{t('landing.whoSection.heading')}</h3>
             </div>
             <ul className="space-y-3">
               {WHO.map((item) => (
@@ -449,10 +454,8 @@ export default function LandingPage() {
           <div className="relative overflow-hidden bg-gradient-to-br from-purple-700 via-indigo-700 to-violet-900 text-white rounded-3xl p-8 md:p-14 text-center space-y-6">
             <div className="absolute -top-20 -left-20 w-72 h-72 rounded-full bg-amber-400/20 blur-3xl" />
             <div className="relative space-y-3">
-              <h2 className="text-3xl md:text-4xl font-extrabold">Sẵn sàng biết band Speaking của bạn?</h2>
-              <p className="text-purple-100 max-w-xl mx-auto">
-                Một bài thi thử chỉ mất khoảng 15 phút. Theo dõi thầy hoặc tham gia cộng đồng để cùng luyện tập mỗi ngày.
-              </p>
+              <h2 className="text-3xl md:text-4xl font-extrabold">{t('landing.contactSection.heading')}</h2>
+              <p className="text-purple-100 max-w-xl mx-auto">{t('landing.contactSection.subheading')}</p>
             </div>
             <div className="relative flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
@@ -460,7 +463,7 @@ export default function LandingPage() {
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-3 px-8 py-4 bg-amber-400 text-slate-900 hover:bg-amber-300 font-extrabold text-lg rounded-2xl transition-all shadow-xl shadow-amber-900/30"
               >
                 <Mic className="w-6 h-6" />
-                Thi thử miễn phí
+                {t('landing.contactSection.ctaFree')}
               </Link>
               <a
                 href={FACEBOOK_URL}
@@ -469,7 +472,7 @@ export default function LandingPage() {
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-4 bg-white/10 hover:bg-white/20 border border-white/30 font-bold rounded-2xl transition-all"
               >
                 <Facebook className="w-5 h-5" />
-                Theo dõi Facebook
+                {t('landing.contactSection.ctaFacebook')}
               </a>
               <a
                 href={CLAN_INVITE_URL}
@@ -478,7 +481,7 @@ export default function LandingPage() {
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-4 bg-white/10 hover:bg-white/20 border border-white/30 font-bold rounded-2xl transition-all"
               >
                 <Users className="w-5 h-5" />
-                Gia nhập clan Mezon
+                {t('landing.contactSection.ctaJoinClan')}
               </a>
             </div>
           </div>
@@ -487,7 +490,7 @@ export default function LandingPage() {
 
       <footer className="border-t border-slate-200 bg-white py-6">
         <div className="max-w-6xl mx-auto px-4 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} Mezon IELTS Speaking App. Powered by Mezon.
+          {t('landing.footer', { year: new Date().getFullYear() })}
         </div>
       </footer>
     </div>

@@ -8,10 +8,12 @@ import { Timer } from '@/components/exam/Timer';
 import { QuestionCard } from '@/components/exam/QuestionCard';
 import { ExamAttempt, Question } from '@/types';
 import { ChevronLeft, ChevronRight, Send, AlertTriangle } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 export default function ActiveExamPage({ params }: { params: Promise<{ attemptId: string }> }) {
   const { attemptId } = use(params);
   const router = useRouter();
+  const { t } = useTranslation();
 
   const [attempt, setAttempt] = useState<ExamAttempt | null>(null);
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -42,10 +44,10 @@ export default function ActiveExamPage({ params }: { params: Promise<{ attemptId
           setQuestions(data.questions || []);
           setAnswers(data.attempt.answers || {});
         } else {
-          setErrorMsg(data.error || 'Failed to load attempt.');
+          setErrorMsg(data.error || t('exam.active.loadError'));
         }
       } catch {
-        setErrorMsg('Network error loading exam.');
+        setErrorMsg(t('exam.active.networkError'));
       } finally {
         setIsLoading(false);
       }
@@ -91,11 +93,11 @@ export default function ActiveExamPage({ params }: { params: Promise<{ attemptId
       if (data.success) {
         router.replace(`/exam/${attemptId}/result`);
       } else {
-        setErrorMsg(data.error || 'Failed to submit exam.');
+        setErrorMsg(data.error || t('exam.active.submitError'));
         setIsSubmitting(false);
       }
     } catch {
-      setErrorMsg('Network error while submitting.');
+      setErrorMsg(t('exam.active.submitNetworkError'));
       setIsSubmitting(false);
     }
   };
@@ -105,7 +107,7 @@ export default function ActiveExamPage({ params }: { params: Promise<{ attemptId
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center space-y-3">
           <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-slate-600 text-sm font-medium">Loading Exam...</p>
+          <p className="text-slate-600 text-sm font-medium">{t('exam.active.loading')}</p>
         </div>
       </div>
     );
@@ -116,13 +118,13 @@ export default function ActiveExamPage({ params }: { params: Promise<{ attemptId
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl max-w-md w-full text-center space-y-4">
           <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
-          <h2 className="text-xl font-bold text-slate-900">Exam Loading Error</h2>
-          <p className="text-slate-600 text-sm">{errorMsg || 'No questions found.'}</p>
+          <h2 className="text-xl font-bold text-slate-900">{t('exam.active.loadingErrorTitle')}</h2>
+          <p className="text-slate-600 text-sm">{errorMsg || t('exam.active.noQuestionsFound')}</p>
           <button
             onClick={() => router.push('/exam')}
             className="w-full py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm"
           >
-            Return to Exam Intro
+            {t('exam.active.returnToIntro')}
           </button>
         </div>
       </div>
@@ -162,7 +164,7 @@ export default function ActiveExamPage({ params }: { params: Promise<{ attemptId
             className="px-4 py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-sm flex items-center space-x-1.5 transition-colors disabled:opacity-40 disabled:pointer-events-none"
           >
             <ChevronLeft className="w-4 h-4" />
-            <span>Previous</span>
+            <span>{t('exam.active.previous')}</span>
           </button>
 
           {isLastQuestion ? (
@@ -170,7 +172,7 @@ export default function ActiveExamPage({ params }: { params: Promise<{ attemptId
               onClick={() => setShowSubmitModal(true)}
               className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center space-x-2 shadow-md shadow-emerald-100 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
-              <span>Submit Exam</span>
+              <span>{t('exam.active.submitExam')}</span>
               <Send className="w-4 h-4" />
             </button>
           ) : (
@@ -178,7 +180,7 @@ export default function ActiveExamPage({ params }: { params: Promise<{ attemptId
               onClick={() => setCurrentIndex((prev) => Math.min(questions.length - 1, prev + 1))}
               className="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm flex items-center space-x-1.5 shadow-md shadow-indigo-100 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
-              <span>Next</span>
+              <span>{t('exam.active.next')}</span>
               <ChevronRight className="w-4 h-4" />
             </button>
           )}
@@ -187,8 +189,8 @@ export default function ActiveExamPage({ params }: { params: Promise<{ attemptId
         {/* Question Grid Navigation Pills */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2">
           <div className="flex items-center justify-between text-xs font-bold text-slate-500 uppercase tracking-wider">
-            <span>Answer Progress</span>
-            <span>{answeredCount} / {questions.length} Answered</span>
+            <span>{t('exam.active.answerProgress')}</span>
+            <span>{t('exam.active.answeredCount', { count: answeredCount, total: questions.length })}</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {questions.map((q, idx) => {
@@ -219,14 +221,13 @@ export default function ActiveExamPage({ params }: { params: Promise<{ attemptId
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-6 shadow-2xl animate-scaleIn">
             <div className="space-y-2 text-center">
-              <h3 className="text-xl font-extrabold text-slate-900">Ready to Submit?</h3>
+              <h3 className="text-xl font-extrabold text-slate-900">{t('exam.active.modalTitle')}</h3>
               <p className="text-slate-600 text-sm">
-                You have answered <span className="font-bold text-indigo-600">{answeredCount}</span> out of{' '}
-                <span className="font-bold">{questions.length}</span> questions.
+                {t('exam.active.modalBody', { count: answeredCount, total: questions.length })}
               </p>
               {answeredCount < questions.length && (
                 <div className="p-3 rounded-xl bg-amber-50 text-amber-800 text-xs font-medium border border-amber-200">
-                  ⚠️ Unanswered questions will be scored as incorrect.
+                  {t('exam.active.modalWarning')}
                 </div>
               )}
             </div>
@@ -237,7 +238,7 @@ export default function ActiveExamPage({ params }: { params: Promise<{ attemptId
                 disabled={isSubmitting}
                 className="w-full py-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-sm"
               >
-                Continue Test
+                {t('common.continueTest')}
               </button>
               <button
                 onClick={handleSubmit}
@@ -245,10 +246,10 @@ export default function ActiveExamPage({ params }: { params: Promise<{ attemptId
                 className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-100 flex items-center justify-center space-x-2 disabled:opacity-50"
               >
                 {isSubmitting ? (
-                  <span>Scoring...</span>
+                  <span>{t('common.scoring')}</span>
                 ) : (
                   <>
-                    <span>Confirm & Submit</span>
+                    <span>{t('exam.active.confirmSubmit')}</span>
                   </>
                 )}
               </button>

@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/LanguageContext";
 
 interface ClanJoinCTAProps {
   attemptId: string;
@@ -18,6 +19,7 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({
   attemptId,
   onVerifySuccess,
 }) => {
+  const { t } = useTranslation();
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -54,7 +56,7 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({
           data = JSON.parse(responseText);
         } catch {
           throw new Error(
-            `Membership verification returned invalid JSON (${res.status})`,
+            t('exam.clanJoinCTA.invalidJsonError', { status: res.status }),
           );
         }
       }
@@ -63,24 +65,21 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({
         throw new Error(
           data.error ||
             data.message ||
-            `Membership verification failed (${res.status})`,
+            t('exam.clanJoinCTA.verifyFailedError', { status: res.status }),
         );
       }
 
       if (data.success && data.isMember) {
         setIsSuccess(true);
-        setSuccessMsg(
-          "🎉 Mezon Clan membership verified successfully! Full report unlocked.",
-        );
+        setSuccessMsg(t('exam.clanJoinCTA.verifySuccess'));
         onVerifySuccess();
       } else {
         setErrorMsg(
-          data.message ||
-            "We could not confirm your clan membership yet. Please join the clan and try again.",
+          data.message || t('exam.clanJoinCTA.notMemberYet'),
         );
       }
     } catch {
-      setErrorMsg("Network error. Please try verifying again.");
+      setErrorMsg(t('exam.clanJoinCTA.networkError'));
     } finally {
       setIsVerifying(false);
     }
@@ -97,17 +96,16 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({
         </div>
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-indigo-200">
-            Exclusive Unlock
+            {t('exam.clanJoinCTA.exclusiveUnlock')}
           </span>
           <h2 className="text-xl sm:text-2xl font-extrabold text-white">
-            Join Mezon English Clan
+            {t('exam.clanJoinCTA.joinClan')}
           </h2>
         </div>
       </div>
 
       <p className="text-indigo-100 text-sm sm:text-base leading-relaxed">
-        Connect with 5,000+ English learners, access weekly quizzes, practice
-        speaking in channels, and immediately unlock your full exam breakdown!
+        {t('exam.clanJoinCTA.description')}
       </p>
 
       {/* CTA Buttons */}
@@ -119,7 +117,7 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({
           rel="noopener noreferrer"
           className="w-full py-4 px-6 rounded-2xl bg-white text-indigo-900 hover:bg-indigo-50 font-bold text-sm sm:text-base flex items-center justify-center space-x-2 shadow-lg shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
         >
-          <span>Join Clan on Mezon</span>
+          <span>{t('exam.clanJoinCTA.joinClanButton')}</span>
           <ExternalLink className="w-4 h-4" />
         </a>
 
@@ -135,8 +133,8 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({
           />
           <span>
             {isVerifying
-              ? "Checking Membership..."
-              : "I've Joined — Verify Now"}
+              ? t('exam.clanJoinCTA.checkingMembership')
+              : t('exam.clanJoinCTA.verifyNow')}
           </span>
         </button>
       </div>
@@ -161,10 +159,10 @@ export const ClanJoinCTA: React.FC<ClanJoinCTAProps> = ({
       <div className="flex flex-col sm:flex-row items-center justify-center gap-2 text-xs text-indigo-200/90 pt-1 text-center">
         <div className="flex items-center space-x-1.5">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Join clan and type <code className="bg-indigo-950/80 px-1.5 py-0.5 rounded text-amber-300 font-mono">*result</code> to view score report</span>
+          <span>{t('exam.clanJoinCTA.footerPrefix')} <code className="bg-indigo-950/80 px-1.5 py-0.5 rounded text-amber-300 font-mono">*result</code> {t('exam.clanJoinCTA.footerSuffix')}</span>
         </div>
         <span className="hidden sm:inline">•</span>
-        <span>100% Free Forever</span>
+        <span>{t('exam.clanJoinCTA.freeForever')}</span>
       </div>
     </div>
   );

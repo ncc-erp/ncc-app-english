@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { Send, CheckCircle2, AlertCircle, Bot } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/LanguageContext";
 
 interface ViewResultOnClanButtonProps {
   attemptId: string;
@@ -10,6 +11,7 @@ interface ViewResultOnClanButtonProps {
 export const ViewResultOnClanButton: React.FC<ViewResultOnClanButtonProps> = ({
   attemptId,
 }) => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -30,13 +32,13 @@ export const ViewResultOnClanButton: React.FC<ViewResultOnClanButtonProps> = ({
 
       if (!res.ok || !data.success) {
         throw new Error(
-          data.error || "Could not send report to Clan. Please try again.",
+          data.error || t("ielts.viewOnClan.errorDefault"),
         );
       }
 
       setSuccessMsg(
         data.message ||
-          "🎉 The bot has sent your detailed test report directly to you on Mezon Clan!",
+          t("ielts.viewOnClan.successDefault"),
       );
     } catch (err) {
       setErrorMsg((err as Error).message);
@@ -56,16 +58,16 @@ export const ViewResultOnClanButton: React.FC<ViewResultOnClanButtonProps> = ({
         </div>
         <div>
           <span className="text-xs font-bold uppercase tracking-wider text-purple-300">
-            Exclusive for Clan Members
+            {t("ielts.viewOnClan.badge")}
           </span>
           <h3 className="text-xl sm:text-2xl font-extrabold text-white">
-            Receive Detailed Report on Mezon
+            {t("ielts.viewOnClan.heading")}
           </h3>
         </div>
       </div>
 
       <p className="text-purple-100 text-sm sm:text-base leading-relaxed">
-        You are a verified Mezon Clan member! Click below to have the bot deliver your 4-criteria IELTS Speaking score breakdown and transcript analysis directly to you in the exam channel (private message).
+        {t("ielts.viewOnClan.description")}
       </p>
 
       {/* Action Button */}
@@ -77,11 +79,11 @@ export const ViewResultOnClanButton: React.FC<ViewResultOnClanButtonProps> = ({
           className="w-full sm:w-auto px-6 py-3.5 bg-gradient-to-r from-amber-500 to-purple-600 hover:from-amber-600 hover:to-purple-700 text-white font-extrabold rounded-2xl shadow-lg shadow-purple-500/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
         >
           <Send className={`w-4 h-4 ${loading ? "animate-pulse" : ""}`} />
-          <span>{loading ? "Sending via Bot..." : "📩 View Report on Clan"}</span>
+          <span>{loading ? t("ielts.viewOnClan.sendingButton") : t("ielts.viewOnClan.viewReportButton")}</span>
         </button>
 
         <span className="text-xs text-purple-200/70">
-          Or type <code className="bg-purple-950/70 px-2 py-1 rounded text-amber-300 font-mono">*result</code> in the clan channel
+          {t("ielts.viewOnClan.orTypePrefix")} <code className="bg-purple-950/70 px-2 py-1 rounded text-amber-300 font-mono">*result</code> {t("ielts.viewOnClan.orTypeSuffix")}
         </span>
       </div>
 

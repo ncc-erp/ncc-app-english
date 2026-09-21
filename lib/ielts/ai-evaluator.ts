@@ -141,10 +141,10 @@ export async function evaluateIELTSAttemptWithAI(
     questionItems.forEach((qItem) => {
       zeroPerQuestionRecord[qItem.id] = {
         question_id: qItem.id,
-        live_stt_transcript: "No transcript recorded",
-        ai_generated_transcript: "No spoken response recorded in audio",
+        live_stt_transcript: "Không có bản ghi giọng nói",
+        ai_generated_transcript: "Không phát hiện câu trả lời bằng giọng nói trong file âm thanh",
         match_percentage: 100,
-        feedback: "No audio or spoken response was recorded for this question.",
+        feedback: "Không có âm thanh hoặc câu trả lời nào được ghi lại cho câu hỏi này.",
       };
     });
 
@@ -159,49 +159,49 @@ export async function evaluateIELTSAttemptWithAI(
       overall_band: 0.0,
       status_title: getIELTSStatusTitle(0.0),
       summary_feedback:
-        "No spoken response detected. Please check microphone settings.",
+        "Không phát hiện câu trả lời bằng giọng nói. Vui lòng kiểm tra cài đặt microphone.",
       criteria_scores: [
         {
           code: "FC",
           name: "Fluency & Coherence",
           score: 0.0,
-          summary: "No speech produced.",
+          summary: "Không có phần nói nào được thực hiện.",
           key_observations: [],
         },
         {
           code: "LR",
           name: "Lexical Resource",
           score: 0.0,
-          summary: "No vocabulary produced.",
+          summary: "Không có từ vựng nào được sử dụng.",
           key_observations: [],
         },
         {
           code: "GRA",
           name: "Grammatical Range & Accuracy",
           score: 0.0,
-          summary: "No grammar produced.",
+          summary: "Không có ngữ pháp nào được sử dụng.",
           key_observations: [],
         },
         {
           code: "PR",
           name: "Pronunciation",
           score: 0.0,
-          summary: "No audio available.",
+          summary: "Không có âm thanh nào được ghi nhận.",
           key_observations: [],
         },
       ],
       filler_words: [],
       vocab_upgrades: [],
       strengths: [],
-      areas_for_improvement: ["Provide spoken answers to each prompt."],
+      areas_for_improvement: ["Hãy trả lời bằng giọng nói cho từng câu hỏi."],
       criterion_feedback: {
-        fluency: "No speech detected.",
-        vocabulary: "No speech detected.",
-        grammar: "No speech detected.",
-        pronunciation: "No speech detected.",
+        fluency: "Không phát hiện phần nói.",
+        vocabulary: "Không phát hiện phần nói.",
+        grammar: "Không phát hiện phần nói.",
+        pronunciation: "Không phát hiện phần nói.",
       },
       estimated_band_reason:
-        "Band 0 is awarded when no assessable language is produced.",
+        "Band 0 được chấm khi không có ngôn ngữ nào để đánh giá.",
       per_question_analysis: zeroPerQuestionRecord,
     };
   }
@@ -394,7 +394,7 @@ export async function evaluateIELTSAttemptWithAI(
         match_percentage:
           matched?.match_percentage ??
           (liveStt ? computeWordSimilarity(liveStt, aiTranscript) : 100),
-        feedback: matched?.feedback || "Evaluated.",
+        feedback: matched?.feedback || "Đã đánh giá.",
         improved_version: matched?.improved_version,
         grammar_corrections: matched?.grammar_corrections,
       };
@@ -410,7 +410,7 @@ export async function evaluateIELTSAttemptWithAI(
       part2_notes: attempt.part2_notes,
       overall_band: overallBand,
       status_title: getIELTSStatusTitle(overallBand),
-      summary_feedback: parsed.overall_feedback || "AI evaluation complete.",
+      summary_feedback: parsed.overall_feedback || "Đã hoàn tất đánh giá bằng AI.",
       criteria_scores: [
         {
           code: "FC",
