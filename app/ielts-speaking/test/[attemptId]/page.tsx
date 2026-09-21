@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { AudioRecorder } from "@/components/ielts/AudioRecorder";
 import { PrepTimer } from "@/components/ielts/PrepTimer";
+import { useTranslation } from "@/lib/i18n/LanguageContext";
 import {
   IELTSSpeakingAttempt,
   IELTSSpeakingTopic,
@@ -31,6 +32,7 @@ export default function IELTSSpeakingTestPage({
 }) {
   const { attemptId } = use(params);
   const router = useRouter();
+  const { t } = useTranslation();
 
   const isSubmittedRef = useRef(false);
   const [part1Index, setPart1Index] = useState(0);
@@ -59,13 +61,11 @@ export default function IELTSSpeakingTestPage({
             router.push(`/login?redirect=/ielts-speaking/test/${attemptId}`);
             return;
           }
-          throw new Error(data.error || "Failed to load test attempt");
+          throw new Error(data.error || t("ielts.test.loadError"));
         }
 
         if (data.attempt.status === "cancelled") {
-          setError(
-            "This test attempt was cancelled because it was interrupted before completion.",
-          );
+          setError(t("ielts.common.cancelledError"));
           return;
         }
 
@@ -179,12 +179,12 @@ export default function IELTSSpeakingTestPage({
       } else {
         const text = await res.text();
         throw new Error(
-          text || `Server returned non-JSON response (${res.status})`,
+          text || t("ielts.common.nonJsonResponse", { status: res.status }),
         );
       }
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to submit exam");
+        throw new Error(data.error || t("ielts.test.submitError"));
       }
 
       router.replace(`/ielts-speaking/result/${attemptId}`);
@@ -200,7 +200,7 @@ export default function IELTSSpeakingTestPage({
       <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-center items-center">
         <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4" />
         <p className="text-slate-600 font-medium">
-          Preparing your IELTS Speaking environment...
+          {t("ielts.test.preparingEnvironment")}
         </p>
       </div>
     );
@@ -212,13 +212,13 @@ export default function IELTSSpeakingTestPage({
         <Navbar />
         <main className="flex-1 max-w-xl mx-auto px-4 py-16 text-center space-y-6">
           <div className="p-6 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl text-sm font-medium">
-            {error || "Unable to load IELTS topic or test session."}
+            {error || t("ielts.test.loadErrorFallback")}
           </div>
           <button
             onClick={() => router.push("/ielts-speaking")}
             className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-md shadow-purple-200"
           >
-            Return to IELTS Speaking Portal
+            {t("ielts.test.returnToPortal")}
           </button>
         </main>
       </div>
@@ -242,7 +242,7 @@ export default function IELTSSpeakingTestPage({
         <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm">
           <div>
             <div className="text-xs uppercase tracking-wider font-bold text-purple-600">
-              IELTS Speaking Mock Test
+              {t("ielts.test.badge")}
             </div>
             <h1 className="text-xl font-extrabold text-slate-900">
               {topic.title}
@@ -259,7 +259,7 @@ export default function IELTSSpeakingTestPage({
                     : "text-slate-400 bg-slate-200/60"
                 }`}
               >
-                Part 1
+                {t("ielts.test.stepPart1")}
               </div>
               <div
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-default select-none ${
@@ -268,7 +268,7 @@ export default function IELTSSpeakingTestPage({
                     : "text-slate-400 bg-slate-200/60"
                 }`}
               >
-                Part 2
+                {t("ielts.test.stepPart2")}
               </div>
               <div
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-default select-none ${
@@ -277,7 +277,7 @@ export default function IELTSSpeakingTestPage({
                     : "text-slate-400 bg-slate-200/60"
                 }`}
               >
-                Part 3
+                {t("ielts.test.stepPart3")}
               </div>
             </div>
 
@@ -286,10 +286,10 @@ export default function IELTSSpeakingTestPage({
               onClick={handleFinishExam}
               disabled={submitting}
               className="flex items-center gap-2 px-4 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl transition-all shadow-sm hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
-              title="Finish test immediately and calculate band score"
+              title={t("ielts.test.endTestTitle")}
             >
               <Flag className="w-4 h-4 text-rose-600" />
-              <span>{submitting ? "Scoring..." : "End Test & Score Now"}</span>
+              <span>{submitting ? t("common.scoring") : t("ielts.test.endTestButton")}</span>
             </button>
           </div>
         </div>
@@ -306,19 +306,18 @@ export default function IELTSSpeakingTestPage({
             <div className="bg-purple-50/80 border border-purple-200 rounded-2xl p-6 flex items-center justify-between">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-700 text-xs font-bold rounded-full uppercase tracking-wider mb-2">
-                  Part 1 • Introduction & Interview
+                  {t("ielts.test.part1Badge")}
                 </div>
                 <h2 className="text-xl font-bold text-slate-900">
-                  General Questions
+                  {t("ielts.test.part1Heading")}
                 </h2>
                 <p className="text-sm text-slate-600 mt-1">
-                  Answer each question concisely in 2–3 sentences. Press the
-                  microphone button to record.
+                  {t("ielts.test.part1Instructions")}
                 </p>
               </div>
 
               <div className="px-4 py-2 bg-purple-600 text-white font-mono font-bold text-sm rounded-xl shrink-0 shadow-sm">
-                Question {part1Index + 1} of {topic.part1_questions.length}
+                {t("ielts.test.questionCounterBadge", { current: part1Index + 1, total: topic.part1_questions.length })}
               </div>
             </div>
 
@@ -327,7 +326,7 @@ export default function IELTSSpeakingTestPage({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <span className="text-xs font-bold text-purple-600 uppercase tracking-wider">
-                    Question {part1Index + 1} / {topic.part1_questions.length}
+                    {t("ielts.test.questionCounterLabel", { current: part1Index + 1, total: topic.part1_questions.length })}
                   </span>
                   <h3 className="text-xl font-extrabold text-slate-900 mt-1">
                     {currentP1Question.question_text}
@@ -336,7 +335,7 @@ export default function IELTSSpeakingTestPage({
                 {p1Recorded?.audio_url && (
                   <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 font-bold shrink-0">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Recorded</span>
+                    <span>{t("ielts.test.recordedBadge")}</span>
                   </div>
                 )}
               </div>
@@ -366,7 +365,7 @@ export default function IELTSSpeakingTestPage({
                   onClick={() => setPart1Index((prev) => prev + 1)}
                   className="flex items-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-md shadow-purple-200"
                 >
-                  <span>Next Question</span>
+                  <span>{t("ielts.test.nextQuestion")}</span>
                   <ArrowRight className="w-5 h-5" />
                 </button>
               ) : (
@@ -374,7 +373,7 @@ export default function IELTSSpeakingTestPage({
                   onClick={() => setCurrentPart("part2")}
                   className="flex items-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-all shadow-md shadow-emerald-200"
                 >
-                  <span>Proceed to Part 2 (Cue Card)</span>
+                  <span>{t("ielts.test.proceedPart2")}</span>
                   <ArrowRight className="w-5 h-5" />
                 </button>
               )}
@@ -387,7 +386,7 @@ export default function IELTSSpeakingTestPage({
           <div className="space-y-6">
             <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-6">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full uppercase tracking-wider mb-2">
-                Part 2 • Individual Long Turn (Cue Card)
+                {t("ielts.test.part2Badge")}
               </div>
               <h2 className="text-xl font-bold text-slate-900">
                 {topic.part2_cue_card.cue_card_title}
@@ -397,7 +396,7 @@ export default function IELTSSpeakingTestPage({
             {/* Cue Card Card */}
             <div className="bg-white border border-amber-200 rounded-2xl p-6 md:p-8 shadow-sm">
               <h3 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3">
-                Topic Cue Card
+                {t("ielts.test.cueCardHeading")}
               </h3>
               <p className="text-slate-900 font-bold text-base mb-4">
                 {topic.part2_cue_card.prompt_lead}
@@ -426,13 +425,13 @@ export default function IELTSSpeakingTestPage({
 
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                   <label className="block text-sm font-bold text-slate-800 mb-2">
-                    Scratchpad Preparation Notes:
+                    {t("ielts.test.notesLabel")}
                   </label>
                   <textarea
                     value={part2Notes}
                     onChange={(e) => setPart2Notes(e.target.value)}
                     rows={4}
-                    placeholder="Type key bullet points for your talk here (e.g., introduction, key features, reasons why useful)..."
+                    placeholder={t("ielts.test.notesPlaceholder")}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-all resize-none font-medium"
                   />
                 </div>
@@ -447,7 +446,7 @@ export default function IELTSSpeakingTestPage({
                   <div className="flex items-center gap-2 text-xs font-bold text-amber-800 uppercase tracking-wider mb-2">
                     <BookOpen className="w-4 h-4 text-amber-700" />
                     <span>
-                      Your Preparation Notes (Reference while speaking)
+                      {t("ielts.test.notesReferenceLabel")}
                     </span>
                   </div>
                   <div className="bg-white border border-amber-200/80 rounded-xl p-4 text-slate-800 text-sm font-medium whitespace-pre-wrap min-h-[80px]">
@@ -455,7 +454,7 @@ export default function IELTSSpeakingTestPage({
                       part2Notes
                     ) : (
                       <span className="text-slate-400 italic">
-                        No notes written during preparation.
+                        {t("ielts.test.noNotesPlaceholder")}
                       </span>
                     )}
                   </div>
@@ -463,7 +462,7 @@ export default function IELTSSpeakingTestPage({
 
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-sm">
                   <h3 className="text-lg font-bold text-slate-900">
-                    Record Speech (Up to 2 Minutes)
+                    {t("ielts.test.recordSpeechHeading")}
                   </h3>
                   <AudioRecorder
                     attemptId={attemptId}
@@ -487,7 +486,7 @@ export default function IELTSSpeakingTestPage({
                     onClick={() => setCurrentPart("part3")}
                     className="flex items-center gap-2 px-6 py-3.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl transition-all shadow-md shadow-amber-200"
                   >
-                    <span>Proceed to Part 3 (Discussion)</span>
+                    <span>{t("ielts.test.proceedPart3")}</span>
                     <ArrowRight className="w-5 h-5" />
                   </button>
                 </div>
@@ -502,19 +501,18 @@ export default function IELTSSpeakingTestPage({
             <div className="bg-indigo-50/80 border border-indigo-200 rounded-2xl p-6 flex items-center justify-between">
               <div>
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full uppercase tracking-wider mb-2">
-                  Part 3 • Two-Way Discussion
+                  {t("ielts.test.part3Badge")}
                 </div>
                 <h2 className="text-xl font-bold text-slate-900">
-                  Abstract & Social Discussion
+                  {t("ielts.test.part3Heading")}
                 </h2>
                 <p className="text-sm text-slate-600 mt-1">
-                  Elaborate on your personal viewpoint with supporting reasons
-                  and examples.
+                  {t("ielts.test.part3Instructions")}
                 </p>
               </div>
 
               <div className="px-4 py-2 bg-indigo-600 text-white font-mono font-bold text-sm rounded-xl shrink-0 shadow-sm">
-                Topic {part3Index + 1} of {topic.part3_questions.length}
+                {t("ielts.test.topicBadge", { current: part3Index + 1, total: topic.part3_questions.length })}
               </div>
             </div>
 
@@ -523,7 +521,7 @@ export default function IELTSSpeakingTestPage({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">
-                    Topic {part3Index + 1}: {currentP3Question.topic_title}
+                    {t("ielts.test.topicLabel", { current: part3Index + 1, title: currentP3Question.topic_title })}
                   </span>
                   <h3 className="text-xl font-extrabold text-slate-900 mt-1">
                     {currentP3Question.question_text}
@@ -532,7 +530,7 @@ export default function IELTSSpeakingTestPage({
                 {p3Recorded?.audio_url && (
                   <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 font-bold shrink-0">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>Recorded</span>
+                    <span>{t("ielts.test.recordedBadge")}</span>
                   </div>
                 )}
               </div>
@@ -562,7 +560,7 @@ export default function IELTSSpeakingTestPage({
                   onClick={() => setPart3Index((prev) => prev + 1)}
                   className="flex items-center gap-2 px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-200"
                 >
-                  <span>Next Question</span>
+                  <span>{t("ielts.test.nextQuestion")}</span>
                   <ArrowRight className="w-5 h-5" />
                 </button>
               ) : (
@@ -574,8 +572,8 @@ export default function IELTSSpeakingTestPage({
                   <Send className="w-5 h-5" />
                   <span>
                     {submitting
-                      ? "Evaluating Test..."
-                      : "Complete & Submit IELTS Speaking Test"}
+                      ? t("ielts.test.evaluatingButton")
+                      : t("ielts.test.submitButton")}
                   </span>
                 </button>
               )}

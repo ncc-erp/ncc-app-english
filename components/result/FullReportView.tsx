@@ -3,6 +3,7 @@
 import React from 'react';
 import { SkillScore } from '@/types';
 import { CheckCircle, AlertTriangle, Lightbulb, Download, Award, Star } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 interface FullReportViewProps {
   rawScore?: number;
@@ -21,14 +22,15 @@ export const FullReportView: React.FC<FullReportViewProps> = ({
   weaknesses = [],
   recommendations = [],
 }) => {
+  const { t } = useTranslation();
   return (
     <div className="space-y-8 animate-fadeIn">
       {/* Banner */}
       <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-center space-x-3 shadow-sm">
         <Award className="w-6 h-6 text-emerald-600 shrink-0" />
         <div>
-          <span className="font-bold text-sm">Full Report Unlocked!</span>
-          <p className="text-xs text-emerald-700">Thank you for joining the Mezon English Clan community.</p>
+          <span className="font-bold text-sm">{t('exam.fullReport.unlockedBanner')}</span>
+          <p className="text-xs text-emerald-700">{t('exam.fullReport.unlockedThanks')}</p>
         </div>
       </div>
 
@@ -36,29 +38,29 @@ export const FullReportView: React.FC<FullReportViewProps> = ({
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
         <h3 className="text-lg font-bold text-slate-900 flex items-center space-x-2">
           <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
-          <span>Score Breakdown</span>
+          <span>{t('exam.fullReport.scoreBreakdown')}</span>
         </h3>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">Raw Score</span>
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block">{t('exam.fullReport.rawScore')}</span>
             <span className="text-2xl font-extrabold text-slate-900">{rawScore ?? '--'} / 30</span>
           </div>
           <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-100 text-center">
-            <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider block">Weighted Score</span>
+            <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wider block">{t('exam.fullReport.weightedScore')}</span>
             <span className="text-2xl font-extrabold text-indigo-700">
               {weightedScore ?? '--'} / {maxWeightedScore}
             </span>
           </div>
           <div className="p-4 rounded-2xl bg-violet-50 border border-violet-100 text-center col-span-2 sm:col-span-1">
-            <span className="text-xs font-semibold text-violet-600 uppercase tracking-wider block">Proficiency Rank</span>
-            <span className="text-2xl font-extrabold text-violet-700">Top 15%</span>
+            <span className="text-xs font-semibold text-violet-600 uppercase tracking-wider block">{t('exam.fullReport.proficiencyRank')}</span>
+            <span className="text-2xl font-extrabold text-violet-700">{t('exam.fullReport.proficiencyRankValue')}</span>
           </div>
         </div>
 
         {/* Skill Progress Bars */}
         <div className="space-y-4 pt-2">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Section Mastery</h4>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('exam.fullReport.sectionMastery')}</h4>
           <div className="space-y-3">
             {skillScores.map((skill) => (
               <div key={skill.section} className="space-y-1.5">
@@ -84,7 +86,7 @@ export const FullReportView: React.FC<FullReportViewProps> = ({
         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center space-x-2 text-amber-700">
             <AlertTriangle className="w-5 h-5 shrink-0" />
-            <h3 className="font-bold text-base text-slate-900">Key Focus Areas</h3>
+            <h3 className="font-bold text-base text-slate-900">{t('exam.fullReport.keyFocusAreas')}</h3>
           </div>
           {weaknesses.length > 0 ? (
             <ul className="space-y-2.5 text-xs sm:text-sm text-slate-600">
@@ -96,7 +98,7 @@ export const FullReportView: React.FC<FullReportViewProps> = ({
               ))}
             </ul>
           ) : (
-            <p className="text-xs text-slate-500">No major weaknesses identified! Excellent overall mastery.</p>
+            <p className="text-xs text-slate-500">{t('exam.fullReport.noWeaknesses')}</p>
           )}
         </div>
 
@@ -104,7 +106,7 @@ export const FullReportView: React.FC<FullReportViewProps> = ({
         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center space-x-2 text-indigo-700">
             <Lightbulb className="w-5 h-5 shrink-0" />
-            <h3 className="font-bold text-base text-slate-900">7-Day Action Plan</h3>
+            <h3 className="font-bold text-base text-slate-900">{t('exam.fullReport.actionPlan')}</h3>
           </div>
           <ul className="space-y-2.5 text-xs sm:text-sm text-slate-600">
             {recommendations.map((r, idx) => (
@@ -120,15 +122,15 @@ export const FullReportView: React.FC<FullReportViewProps> = ({
       {/* Download Certificate Mock Button */}
       <div className="p-6 rounded-3xl bg-slate-900 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="space-y-1 text-center sm:text-left">
-          <h4 className="font-bold text-base">Verified CEFR Level Certificate</h4>
-          <p className="text-xs text-slate-400">Download your official PDF completion badge to share or print.</p>
+          <h4 className="font-bold text-base">{t('exam.fullReport.certificateTitle')}</h4>
+          <p className="text-xs text-slate-400">{t('exam.fullReport.certificateSubtitle')}</p>
         </div>
         <button
-          onClick={() => alert('Certificate download feature generated for your level!')}
+          onClick={() => alert(t('exam.fullReport.certificateAlert'))}
           className="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm flex items-center space-x-2 transition-colors shrink-0"
         >
           <Download className="w-4 h-4" />
-          <span>Download Certificate</span>
+          <span>{t('exam.fullReport.downloadCertificate')}</span>
         </button>
       </div>
     </div>

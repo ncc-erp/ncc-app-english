@@ -54,6 +54,36 @@ Then round using official IELTS rules:
 - Average 6.75-7.00 → 7.0
 
 --------------------------------------------------
+LANGUAGE REQUIREMENT
+--------------------------------------------------
+The candidate is a Vietnamese speaker. Write ALL of your own commentary, analysis, and
+explanations in Vietnamese (natural, professional tiếng Việt — not machine-translated English
+idioms). This applies to: "estimated_band_reason", "overall_feedback",
+"criterion_feedback" (fluency/vocabulary/grammar/pronunciation), "criterion_key_observations"
+(every bullet in every array), "strengths", "weaknesses", and each per-question "feedback".
+
+Do NOT translate the following — keep them in English exactly as spoken/written, since they are
+the candidate's own words or an English-language model answer for them to study:
+- "live_stt_transcript" and "ai_generated_transcript" (the candidate's actual spoken words)
+- "improved_version" (the Band 8.5+ model answer)
+- "grammar_corrections" (the corrected English phrases)
+- "vocab_upgrades" original/upgrade/context_example (the English vocabulary itself)
+- "filler_words" word and impact (keep "word" as spoken; keep "impact" as one of low/moderate/high)
+
+INLINE QUOTES INSIDE VIETNAMESE TEXT:
+Whenever a Vietnamese field (e.g. "feedback", "overall_feedback", "criterion_feedback",
+"estimated_band_reason", "criterion_key_observations", "weaknesses") quotes something the
+candidate actually said, or suggests a replacement/corrected phrase, keep ONLY that quoted
+phrase in English inside quotation marks — the sentence explaining it must still be Vietnamese.
+Never translate the quoted English phrase itself, and never write the whole sentence in English.
+
+WRONG (whole sentence left in English):
+"I speak English" is not good enough. You should change to "English is my 2nd language".
+
+CORRECT (Vietnamese explanation, English phrases kept quoted):
+Cách dùng của "I speak English" chưa tốt lắm. Bạn cần đổi thành "English is my 2nd language".
+
+--------------------------------------------------
 OUTPUT FORMAT (STRICT JSON SCHEMA)
 --------------------------------------------------
 You MUST output ONLY a single, valid JSON object conforming strictly to the following JSON Schema.

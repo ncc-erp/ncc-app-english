@@ -8,6 +8,7 @@ import { ClanJoinCTA } from "@/components/result/ClanJoinCTA";
 import { ViewResultOnClanButton } from "@/components/result/ViewResultOnClanButton";
 import { IELTSScoreResult } from "@/types/ielts";
 import { UserSession } from "@/types";
+import { useTranslation } from "@/lib/i18n/LanguageContext";
 import {
   Award,
   Sparkles,
@@ -27,6 +28,7 @@ export default function IELTSSpeakingResultPage({
 }) {
   const { attemptId } = use(params);
   const router = useRouter();
+  const { t } = useTranslation();
 
   const [result, setResult] = useState<IELTSScoreResult | null>(null);
   const [user, setUser] = useState<UserSession | null>(null);
@@ -46,18 +48,16 @@ export default function IELTSSpeakingResultPage({
       } else {
         const text = await res.text();
         throw new Error(
-          text || `Server returned non-JSON response (${res.status})`,
+          text || t("ielts.common.nonJsonResponse", { status: res.status }),
         );
       }
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to load result report");
+        throw new Error(data.error || t("ielts.result.loadError"));
       }
 
       if (data.attempt?.status === "cancelled") {
-        setError(
-          "This test attempt was cancelled because it was interrupted before completion.",
-        );
+        setError(t("ielts.common.cancelledError"));
         return;
       }
 
@@ -131,7 +131,7 @@ export default function IELTSSpeakingResultPage({
       }
 
       if (!res.ok || !data.success || !data.result) {
-        throw new Error(data.error || "Failed to re-score attempt with AI");
+        throw new Error(data.error || t("ielts.result.rescoreError"));
       }
 
       setResult(data.result);
@@ -150,7 +150,7 @@ export default function IELTSSpeakingResultPage({
       <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-center items-center">
         <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4" />
         <p className="text-slate-600 font-medium">
-          Loading IELTS test attempt details...
+          {t("ielts.result.loadingAttempt")}
         </p>
       </div>
     );
@@ -169,15 +169,13 @@ export default function IELTSSpeakingResultPage({
               </div>
               <div className="space-y-2">
                 <div className="inline-block px-3 py-1 bg-purple-100 text-purple-800 text-xs font-bold rounded-full uppercase tracking-wider animate-pulse">
-                  🤖 AI Examiner Evaluating Speech...
+                  {t("ielts.result.aiEvaluatingBadge")}
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-                  Evaluating Band Score
+                  {t("ielts.result.evaluatingHeading")}
                 </h1>
                 <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-                  The AI system is analyzing your speaking response across 4
-                  IELTS criteria (FC, LR, GRA, PR). This usually takes 15–30
-                  seconds...
+                  {t("ielts.result.evaluatingDescription")}
                 </p>
               </div>
             </>
@@ -188,14 +186,13 @@ export default function IELTSSpeakingResultPage({
               </div>
               <div className="space-y-2">
                 <div className="inline-block px-3 py-1 bg-amber-100 text-amber-800 text-xs font-bold rounded-full uppercase tracking-wider">
-                  Status: Evaluation Pending
+                  {t("ielts.result.pendingBadge")}
                 </div>
                 <h1 className="text-3xl font-extrabold text-slate-900">
-                  AI Scoring Pending
+                  {t("ielts.result.pendingHeading")}
                 </h1>
                 <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-                  Your Speaking test response has been safely recorded. Click
-                  the button below to start or retry the AI evaluation.
+                  {t("ielts.result.pendingDescription")}
                 </p>
               </div>
             </>
@@ -218,8 +215,8 @@ export default function IELTSSpeakingResultPage({
               />
               <span>
                 {rescoring
-                  ? "Analyzing speaking response..."
-                  : "🤖 Re-score with AI"}
+                  ? t("ielts.result.rescoreAnalyzingLabel")
+                  : t("ielts.result.rescoreButtonLabel")}
               </span>
             </button>
 
@@ -234,7 +231,7 @@ export default function IELTSSpeakingResultPage({
               className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-2xl border border-slate-200 transition-all"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Back</span>
+              <span>{t("common.back")}</span>
             </button>
           </div>
         </main>
@@ -260,7 +257,7 @@ export default function IELTSSpeakingResultPage({
             className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all shadow-sm group"
           >
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Back</span>
+            <span>{t("common.back")}</span>
           </button>
 
           <button
@@ -268,7 +265,7 @@ export default function IELTSSpeakingResultPage({
             className="inline-flex items-center gap-2 px-4 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-bold rounded-xl border border-purple-200 transition-all shadow-sm"
           >
             <History className="w-4 h-4" />
-            <span>Test History</span>
+            <span>{t("ielts.result.testHistoryButton")}</span>
           </button>
         </div>
 
@@ -279,22 +276,22 @@ export default function IELTSSpeakingResultPage({
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
                 <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/20 border border-white/30 text-white text-xs font-bold rounded-full uppercase tracking-wider">
                   <Award className="w-4 h-4" />
-                  <span>IELTS Speaking Evaluation Report</span>
+                  <span>{t("ielts.result.heroBadge")}</span>
                 </div>
 
                 <button
                   onClick={() => setShowConfirmModal(true)}
                   disabled={rescoring}
                   className="inline-flex items-center gap-2 px-4 py-1.5 bg-white hover:bg-amber-50 text-purple-900 text-xs font-extrabold rounded-full transition-all shadow-md active:scale-95 disabled:opacity-50"
-                  title="Re-evaluate speaking attempt using AI Examiner"
+                  title={t("ielts.result.rescoreTitle")}
                 >
                   <RefreshCw
                     className={`w-3.5 h-3.5 ${rescoring ? "animate-spin" : ""}`}
                   />
                   <span>
                     {rescoring
-                      ? "Re-scoring with AI..."
-                      : "🤖 Re-score with AI"}
+                      ? t("ielts.result.rescoreHeroAnalyzingLabel")
+                      : t("ielts.result.rescoreButtonLabel")}
                   </span>
                 </button>
               </div>
@@ -308,7 +305,7 @@ export default function IELTSSpeakingResultPage({
 
               {rescoreSuccess && (
                 <div className="inline-block px-3 py-1 bg-emerald-500/90 text-white text-xs font-bold rounded-lg animate-fade-in">
-                  ✓ Successfully updated with latest AI evaluation results!
+                  {t("ielts.result.rescoreSuccessMessage")}
                 </div>
               )}
             </div>
@@ -316,7 +313,7 @@ export default function IELTSSpeakingResultPage({
             {/* Band Score Badge */}
             <div className="flex flex-col items-center justify-center p-6 bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl min-w-[200px] shadow-2xl shrink-0">
               <div className="text-xs uppercase tracking-widest font-bold text-amber-200">
-                Overall Band
+                {t("ielts.result.overallBandLabel")}
               </div>
               <div className="text-6xl font-extrabold text-white font-mono my-2">
                 {result.overall_band.toFixed(1)}
@@ -333,7 +330,7 @@ export default function IELTSSpeakingResultPage({
           <div className="bg-purple-50/80 border border-purple-200 rounded-3xl p-6 shadow-sm space-y-2">
             <div className="flex items-center gap-2 text-xs font-bold text-purple-900 uppercase tracking-wider">
               <Sparkles className="w-4 h-4 text-purple-600" />
-              <span>Official IELTS Examiner Band Rationale</span>
+              <span>{t("ielts.result.bandRationaleLabel")}</span>
             </div>
             <p className="text-sm text-purple-900 font-medium leading-relaxed">
               {result.estimated_band_reason}
@@ -371,7 +368,7 @@ export default function IELTSSpeakingResultPage({
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-2xl border border-slate-200 transition-all shadow-sm"
             >
               <RefreshCw className="w-4 h-4" />
-              <span>Practice Another Topic</span>
+              <span>{t("ielts.result.practiceAnother")}</span>
             </button>
 
             {/* <button
@@ -387,7 +384,7 @@ export default function IELTSSpeakingResultPage({
             onClick={() => router.push("/")}
             className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-2xl transition-all shadow-md shadow-purple-200"
           >
-            <span>Return to Home</span>
+            <span>{t("ielts.result.returnHome")}</span>
           </button>
         </div>
 
@@ -401,18 +398,16 @@ export default function IELTSSpeakingResultPage({
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">
-                    Re-evaluate with AI?
+                    {t("ielts.result.modalHeading")}
                   </h3>
                   <p className="text-xs text-slate-500 font-medium">
-                    IELTS Examiner AI Scoring
+                    {t("ielts.result.modalSubtitle")}
                   </p>
                 </div>
               </div>
 
               <p className="text-sm text-slate-600 leading-relaxed font-medium">
-                Are you sure you want to re-score this attempt using the AI
-                Examiner? This will re-evaluate your recorded responses and
-                update your Band Score report.
+                {t("ielts.result.modalBody")}
               </p>
 
               <div className="flex items-center justify-end gap-3 pt-2">
@@ -420,13 +415,13 @@ export default function IELTSSpeakingResultPage({
                   onClick={() => setShowConfirmModal(false)}
                   className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold rounded-xl transition-all"
                 >
-                  Cancel
+                  {t("ielts.result.modalCancel")}
                 </button>
                 <button
                   onClick={handleRescoreWithAI}
                   className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-purple-200"
                 >
-                  Confirm & Re-score
+                  {t("ielts.result.modalConfirm")}
                 </button>
               </div>
             </div>

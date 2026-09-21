@@ -11,7 +11,7 @@ export const ieltsEvaluationJsonSchema = {
     estimated_band_reason: {
       type: "string",
       description:
-        "Detailed rationale explaining why this overall band score was awarded based on official IELTS criteria and audio observations.",
+        "Detailed rationale explaining why this overall band score was awarded based on official IELTS criteria and audio observations. Write in Vietnamese.",
     },
     fluency_coherence: {
       type: "number",
@@ -35,32 +35,32 @@ export const ieltsEvaluationJsonSchema = {
     overall_feedback: {
       type: "string",
       description:
-        "Summary assessment of candidate's overall speaking performance across all parts.",
+        "Summary assessment of candidate's overall speaking performance across all parts. Write in Vietnamese.",
     },
     criterion_feedback: {
       type: "object",
       description:
-        "Detailed qualitative assessment for each of the four IELTS criteria.",
+        "Detailed qualitative assessment for each of the four IELTS criteria. Write all values in Vietnamese.",
       properties: {
         fluency: {
           type: "string",
           description:
-            "Detailed fluency feedback based on speaking rhythm, pauses, and speech flow.",
+            "Detailed fluency feedback based on speaking rhythm, pauses, and speech flow. Write in Vietnamese.",
         },
         vocabulary: {
           type: "string",
           description:
-            "Detailed vocabulary feedback on precision, collocations, and idiomatic use.",
+            "Detailed vocabulary feedback on precision, collocations, and idiomatic use. Write in Vietnamese.",
         },
         grammar: {
           type: "string",
           description:
-            "Detailed grammar feedback on sentence structure variety, tense consistency, and error density.",
+            "Detailed grammar feedback on sentence structure variety, tense consistency, and error density. Write in Vietnamese.",
         },
         pronunciation: {
           type: "string",
           description:
-            "Detailed pronunciation feedback based on acoustic clarity, stress, and intonation.",
+            "Detailed pronunciation feedback based on acoustic clarity, stress, and intonation. Write in Vietnamese.",
         },
       },
       required: ["fluency", "vocabulary", "grammar", "pronunciation"],
@@ -68,28 +68,28 @@ export const ieltsEvaluationJsonSchema = {
     criterion_key_observations: {
       type: "object",
       description:
-        "Bullet-point key observations for each IELTS assessment criterion.",
+        "Bullet-point key observations for each IELTS assessment criterion. Write all bullets in Vietnamese.",
       properties: {
         fluency: {
           type: "array",
           items: { type: "string" },
-          description: "Key observations on fluency and speech flow.",
+          description: "Key observations on fluency and speech flow. Write in Vietnamese.",
         },
         vocabulary: {
           type: "array",
           items: { type: "string" },
-          description: "Key observations on lexical resource.",
+          description: "Key observations on lexical resource. Write in Vietnamese.",
         },
         grammar: {
           type: "array",
           items: { type: "string" },
-          description: "Key observations on grammatical range and accuracy.",
+          description: "Key observations on grammatical range and accuracy. Write in Vietnamese.",
         },
         pronunciation: {
           type: "array",
           items: { type: "string" },
           description:
-            "Key observations on acoustic clarity, stress, and phonology.",
+            "Key observations on acoustic clarity, stress, and phonology. Write in Vietnamese.",
         },
       },
       required: ["fluency", "vocabulary", "grammar", "pronunciation"],
@@ -122,22 +122,22 @@ export const ieltsEvaluationJsonSchema = {
     vocab_upgrades: {
       type: "array",
       description:
-        "Suggestions to upgrade basic vocabulary used by the candidate to Band 7.5+ collocations/idioms.",
+        "Suggestions to upgrade basic vocabulary used by the candidate to Band 7.5+ collocations/idioms. Keep original/upgrade/context_example in English (they are English vocabulary to learn).",
       items: {
         type: "object",
         properties: {
           original: {
             type: "string",
-            description: "Original word or phrase used by the candidate.",
+            description: "Original word or phrase used by the candidate. Keep in English.",
           },
           upgrade: {
             type: "string",
-            description: "Higher-band alternative or idiomatic collocation.",
+            description: "Higher-band alternative or idiomatic collocation. Keep in English.",
           },
           context_example: {
             type: "string",
             description:
-              "Example sentence showing how to use the upgraded vocabulary in context.",
+              "Example sentence showing how to use the upgraded vocabulary in context. Keep in English.",
           },
         },
         required: ["original", "upgrade", "context_example"],
@@ -146,12 +146,12 @@ export const ieltsEvaluationJsonSchema = {
     strengths: {
       type: "array",
       items: { type: "string" },
-      description: "Key candidate strengths observed during the test.",
+      description: "Key candidate strengths observed during the test. Write in Vietnamese.",
     },
     weaknesses: {
       type: "array",
       items: { type: "string" },
-      description: "Specific areas where the candidate needs improvement.",
+      description: "Specific areas where the candidate needs improvement. Write in Vietnamese.",
     },
     per_question_items: {
       type: "array",
@@ -171,7 +171,7 @@ export const ieltsEvaluationJsonSchema = {
           ai_generated_transcript: {
             type: "string",
             description:
-              "100% faithful transcript of what the candidate actually uttered in audio.",
+              "100% faithful transcript of what the candidate actually uttered in audio. Keep in English exactly as spoken — do not translate.",
           },
           match_percentage: {
             type: "number",
@@ -181,17 +181,17 @@ export const ieltsEvaluationJsonSchema = {
           feedback: {
             type: "string",
             description:
-              "Concise 1-2 sentence examiner assessment of pronunciation, fluency, vocabulary, and grammar for this answer.",
+              "Concise 1-2 sentence examiner assessment of pronunciation, fluency, vocabulary, and grammar for this answer. Write in Vietnamese; if you quote the candidate's words or a suggested phrase, keep only that quoted phrase in English (e.g. Cách dùng của \"I speak English\" chưa tốt lắm. Bạn cần đổi thành \"English is my 2nd language\").",
           },
           grammar_corrections: {
             type: "array",
             items: { type: "string" },
-            description: "Specific grammar or word choice corrections.",
+            description: "Specific grammar or word choice corrections. Keep the corrected English phrases in English.",
           },
           improved_version: {
             type: "string",
             description:
-              "Concise Band 8.5+ model answer (2-3 sentences max for Part 1/3, 4-5 sentences max for Part 2).",
+              "Concise Band 8.5+ model answer (2-3 sentences max for Part 1/3, 4-5 sentences max for Part 2). Keep in English.",
           },
         },
         required: [

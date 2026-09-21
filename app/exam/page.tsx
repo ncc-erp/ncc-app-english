@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { UserSession } from '@/types';
 import { BookOpen, CheckCircle, Clock, Play, ShieldAlert, Sparkles } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 export default function ExamIntroPage() {
   const router = useRouter();
+  const { t, tArray } = useTranslation();
   const [user, setUser] = useState<UserSession | null>(null);
   const [isStarting, setIsStarting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -47,10 +49,10 @@ export default function ExamIntroPage() {
       if (data.success && data.attempt) {
         router.push(`/exam/${data.attempt.id}`);
       } else {
-        setErrorMsg(data.error || 'Failed to start exam. Please try again.');
+        setErrorMsg(data.error || t('exam.intro.startError'));
       }
     } catch {
-      setErrorMsg('Network error while starting exam.');
+      setErrorMsg(t('exam.intro.networkError'));
     } finally {
       setIsStarting(false);
     }
@@ -67,19 +69,19 @@ export default function ExamIntroPage() {
             {user ? (
               <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-bold uppercase tracking-wider">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Candidate: @{user.mezon_username || user.display_name}</span>
+                <span>{t('exam.intro.candidateBadge', { username: user.mezon_username || user.display_name })}</span>
               </div>
             ) : (
               <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-bold uppercase tracking-wider">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Assessment Overview</span>
+                <span>{t('exam.intro.assessmentBadge')}</span>
               </div>
             )}
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-              English Placement Test
+              {t('exam.intro.title')}
             </h1>
             <p className="text-slate-600 text-sm max-w-md mx-auto">
-              Answer 2 multiple-choice questions to evaluate your English grammar, vocabulary, and reading skills.
+              {t('exam.intro.subtitle')}
             </p>
           </div>
 
@@ -87,20 +89,20 @@ export default function ExamIntroPage() {
           <div className="grid grid-cols-3 gap-4">
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center">
               <BookOpen className="w-5 h-5 text-indigo-600 mx-auto mb-1" />
-              <span className="text-xs font-semibold text-slate-500 block">Questions</span>
-              <span className="text-lg font-extrabold text-slate-900">2 MCQ</span>
+              <span className="text-xs font-semibold text-slate-500 block">{t('exam.intro.specQuestions')}</span>
+              <span className="text-lg font-extrabold text-slate-900">{t('exam.intro.specQuestionsValue')}</span>
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center">
               <Clock className="w-5 h-5 text-violet-600 mx-auto mb-1" />
-              <span className="text-xs font-semibold text-slate-500 block">Duration</span>
-              <span className="text-lg font-extrabold text-slate-900">15 Mins</span>
+              <span className="text-xs font-semibold text-slate-500 block">{t('exam.intro.specDuration')}</span>
+              <span className="text-lg font-extrabold text-slate-900">{t('exam.intro.specDurationValue')}</span>
             </div>
 
             <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center">
               <Sparkles className="w-5 h-5 text-emerald-600 mx-auto mb-1" />
-              <span className="text-xs font-semibold text-slate-500 block">Scoring</span>
-              <span className="text-lg font-extrabold text-slate-900">CEFR A1–C2</span>
+              <span className="text-xs font-semibold text-slate-500 block">{t('exam.intro.specScoring')}</span>
+              <span className="text-lg font-extrabold text-slate-900">{t('exam.intro.specScoringValue')}</span>
             </div>
           </div>
 
@@ -108,13 +110,12 @@ export default function ExamIntroPage() {
           <div className="p-5 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-3">
             <h3 className="font-bold text-sm text-indigo-950 flex items-center space-x-2">
               <CheckCircle className="w-4 h-4 text-indigo-600" />
-              <span>Guidelines & Anti-Cheat</span>
+              <span>{t('exam.intro.rulesTitle')}</span>
             </h3>
             <ul className="text-xs sm:text-sm text-slate-600 space-y-2 pl-6 list-disc">
-              <li>Each question has 4 options with exactly 1 correct answer.</li>
-              <li>You can navigate back and forth between questions before submitting.</li>
-              <li>Your progress is saved automatically. If you refresh, you can resume.</li>
-              <li>Calculators or dictionary tools are prohibited.</li>
+              {tArray('exam.intro.rules').map((rule, idx) => (
+                <li key={idx}>{rule}</li>
+              ))}
             </ul>
           </div>
 
@@ -132,11 +133,11 @@ export default function ExamIntroPage() {
             className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-base flex items-center justify-center space-x-2 shadow-lg shadow-indigo-200 transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
           >
             {isStarting ? (
-              <span>Preparing Exam...</span>
+              <span>{t('common.preparingExam')}</span>
             ) : (
               <>
                 <Play className="w-5 h-5 fill-current" />
-                <span>Begin Placement Test</span>
+                <span>{t('exam.intro.begin')}</span>
               </>
             )}
           </button>

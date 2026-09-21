@@ -107,10 +107,10 @@ export async function initBotService(): Promise<MezonClient | null> {
         const clanId = event?.clan_id || targetClanId;
 
         const welcomeMsg =
-          `🎉 **Welcome @${username} to our Mezon Clan!**\n\n` +
-          `• Type \`*testingnow\` (or \`*thi\`) to immediately generate your speaking test room link and start practicing!\n` +
-          `• Type \`*result\` to view your latest IELTS Speaking mock test score report.\n` +
-          `• Type \`*help\` to view all available commands.`;
+          `🎉 **Chào mừng @${username} đến với Mezon Clan của chúng ta!**\n\n` +
+          `• Gõ \`*testingnow\` (hoặc \`*thi\`) để tạo ngay link phòng thi nói và bắt đầu luyện tập!\n` +
+          `• Gõ \`*result\` để xem báo cáo điểm thi thử IELTS Speaking gần nhất của bạn.\n` +
+          `• Gõ \`*help\` để xem tất cả các lệnh khả dụng.`;
 
         // if (welcomeChannelId) {
         //   await sendChannelMessage(welcomeChannelId, welcomeMsg, {

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Volume2, AlertCircle } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 interface SpeakingTimerProps {
   maxSeconds?: number;
@@ -12,6 +13,7 @@ export const SpeakingTimer: React.FC<SpeakingTimerProps> = ({
   maxSeconds = 120,
   onTimeUp,
 }) => {
+  const { t } = useTranslation();
   const [timeLeft, setTimeLeft] = useState(maxSeconds);
 
   useEffect(() => {
@@ -46,7 +48,7 @@ export const SpeakingTimer: React.FC<SpeakingTimerProps> = ({
           {isWarning ? <AlertCircle className="w-5 h-5 text-rose-600" /> : <Volume2 className="w-5 h-5 text-indigo-600" />}
           <div>
             <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Remaining Speaking Time (Target: 1–2 minutes)
+              {t('ielts.speakingTimer.label')}
             </div>
             <div className="text-xl font-mono font-bold text-slate-900">
               {mins.toString().padStart(2, '0')}:{secs.toString().padStart(2, '0')}
@@ -54,7 +56,7 @@ export const SpeakingTimer: React.FC<SpeakingTimerProps> = ({
           </div>
         </div>
 
-        {isWarning && <div className="text-xs font-bold text-rose-700 px-3 py-1 bg-rose-100 rounded-lg border border-rose-200">Time running out! Prepare to wrap up</div>}
+        {isWarning && <div className="text-xs font-bold text-rose-700 px-3 py-1 bg-rose-100 rounded-lg border border-rose-200">{t('ielts.speakingTimer.warning')}</div>}
       </div>
     </div>
   );

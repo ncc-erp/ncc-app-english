@@ -29,7 +29,7 @@ function buildResultCommandOutput(
           id: "btn_view_result_details",
           type: 1, // BUTTON
           component: {
-            label: "📊 View Detailed Test Report",
+            label: "📊 Xem báo cáo chi tiết",
             style: 5, // LINK
             url: detailsUrl,
           },
@@ -57,7 +57,7 @@ export async function handleResultCommand(
   const user = await pgDb.getUserByMezonId(mezonUserId);
   if (!user) {
     return {
-      text: `⚠️ Your Mezon account was not found in the exam system. Please log in to the web app first!`,
+      text: `⚠️ Không tìm thấy tài khoản Mezon của bạn trong hệ thống thi. Vui lòng đăng nhập web app trước!`,
       isSuccess: false,
     };
   }
@@ -82,7 +82,7 @@ export async function handleResultCommand(
       }
 
       return {
-        text: `⚠️ Could not find IELTS Speaking test with ID \`${specificAttemptId}\` or this test does not belong to your account.`,
+        text: `⚠️ Không tìm thấy bài thi IELTS Speaking với mã \`${specificAttemptId}\` hoặc bài thi này không thuộc tài khoản của bạn.`,
         isSuccess: false,
       };
     }
@@ -101,7 +101,7 @@ export async function handleResultCommand(
 
   if (!latestAttempt) {
     return {
-      text: `ℹ️ You have not completed any IELTS Speaking tests yet. Head over to the web app to start your first test!`,
+      text: `ℹ️ Bạn chưa hoàn thành bài thi IELTS Speaking nào. Vào web app để bắt đầu bài thi đầu tiên nhé!`,
       isSuccess: false,
     };
   }
@@ -118,7 +118,7 @@ export async function handleHistoryCommand(
   const user = await pgDb.getUserByMezonId(mezonUserId);
   if (!user) {
     return {
-      text: `⚠️ Your Mezon account was not found in the system. Please log in to the web app first!`,
+      text: `⚠️ Không tìm thấy tài khoản Mezon của bạn trong hệ thống. Vui lòng đăng nhập web app trước!`,
       isSuccess: false,
     };
   }
@@ -164,7 +164,7 @@ export async function handleTestingNowCommand(
   const topics = await pgDb.getIELTSTopics();
   if (!topics || topics.length === 0) {
     return {
-      text: `⚠️ No active IELTS Speaking test sets are currently available in the database. Please try again later!`,
+      text: `⚠️ Hiện chưa có bộ đề thi IELTS Speaking nào khả dụng trong hệ thống. Vui lòng thử lại sau!`,
       isSuccess: false,
     };
   }
@@ -204,22 +204,22 @@ export async function handleTestingNowCommand(
   const launchUrl = `${baseUrl}/api/ielts/launch?token=${token}`;
   const candidateName = user.display_name || user.mezon_username || "Candidate";
 
-  let msg = `🎙️ **IELTS SPEAKING MOCK TEST GENERATED!**\n`;
+  let msg = `🎙️ **ĐÃ TẠO BÀI THI THỬ IELTS SPEAKING!**\n`;
   msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-  msg += `👋 Hello **${candidateName}**, your test room is ready!\n\n`;
-  msg += `📋 **Topic:** ${selectedTopic.title}\n`;
+  msg += `👋 Chào **${candidateName}**, phòng thi của bạn đã sẵn sàng!\n\n`;
+  msg += `📋 **Chủ đề:** ${selectedTopic.title}\n`;
   if (selectedTopic.category) {
-    msg += `🗂️ **Category:** ${selectedTopic.category}\n`;
+    msg += `🗂️ **Danh mục:** ${selectedTopic.category}\n`;
   }
-  msg += `⏱️ **Format:** Full 3-Part Assessment (Interview • Cue Card • Discussion)\n`;
-  msg += `🆔 **Attempt ID:** \`${attempt.id}\`\n`;
+  msg += `⏱️ **Hình thức:** Đủ 3 Phần (Phỏng vấn • Cue Card • Thảo luận)\n`;
+  msg += `🆔 **Mã lượt thi:** \`${attempt.id}\`\n`;
   msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-  msg += `🚀 **Click the link below to enter your speaking room:**\n`;
+  msg += `🚀 **Bấm vào link bên dưới để vào phòng thi nói:**\n`;
   msg += `${launchUrl}\n\n`;
-  msg += `💡 **Quick Tips before you begin:**\n`;
-  msg += `• Make sure your microphone is connected and working.\n`;
-  msg += `• Speak clearly and maintain natural pacing.\n`;
-  msg += `• Once submitted, return here and type \`*result\` to view your in-depth AI score report!\n`;
+  msg += `💡 **Mẹo nhanh trước khi bắt đầu:**\n`;
+  msg += `• Đảm bảo microphone đã kết nối và hoạt động tốt.\n`;
+  msg += `• Nói rõ ràng và giữ tốc độ tự nhiên.\n`;
+  msg += `• Sau khi nộp bài, quay lại đây và gõ \`*result\` để xem báo cáo điểm chi tiết từ AI!\n`;
   msg += `━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
   const components = [
@@ -229,7 +229,7 @@ export async function handleTestingNowCommand(
           id: "btn_start_speaking_test",
           type: 1, // BUTTON
           component: {
-            label: "🚀 Start IELTS Speaking Test",
+            label: "🚀 Bắt đầu thi IELTS Speaking",
             style: 5, // LINK
             url: launchUrl,
           },
@@ -250,14 +250,14 @@ export async function handleTestingNowCommand(
  */
 export function getHelpMessage(): string {
   return (
-    `🤖 **IELTS SPEAKING BOT COMMANDS**\n` +
+    `🤖 **CÁC LỆNH CỦA BOT IELTS SPEAKING**\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-    `Available Commands:\n` +
-    `• \`*testingnow\` (or \`*testnow\`, \`*thi\`): Start a new IELTS Speaking test and receive your test room link\n` +
-    `• \`*result\` (or \`*ketqua\`): View your latest IELTS Speaking mock test report\n` +
-    `• \`*result <attempt_id>\`: View the report for a specific test attempt\n` +
-    `• \`*history\` (or \`*lichsu\`): View your recent 10 IELTS Speaking attempts\n` +
-    `• \`*help\`: Display this help guide\n` +
+    `Danh sách lệnh:\n` +
+    `• \`*testingnow\` (hoặc \`*testnow\`, \`*thi\`): Bắt đầu bài thi IELTS Speaking mới và nhận link phòng thi\n` +
+    `• \`*result\` (hoặc \`*ketqua\`): Xem báo cáo kết quả thi thử IELTS Speaking gần nhất\n` +
+    `• \`*result <attempt_id>\`: Xem báo cáo của một lượt thi cụ thể\n` +
+    `• \`*history\` (hoặc \`*lichsu\`): Xem 10 lượt thi IELTS Speaking gần nhất của bạn\n` +
+    `• \`*help\`: Hiển thị hướng dẫn này\n` +
     `━━━━━━━━━━━━━━━━━━━━━━━━━━`
   );
 }

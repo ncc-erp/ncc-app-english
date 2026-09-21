@@ -4,6 +4,8 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { UserSession } from "@/types";
+import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import {
   Mic,
   LogOut,
@@ -22,6 +24,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
   const router = useRouter();
   const pathname = usePathname();
+  const { t, locale, setLocale } = useTranslation();
   const [currentUser, setCurrentUser] = useState<
     UserSession | null | undefined
   >(propUser);
@@ -85,7 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
               Mezon IELTS
             </span>
             <span className="block text-[10px] font-bold text-purple-600 uppercase tracking-widest">
-              Speaking Platform
+              {t('navbar.tagline')}
             </span>
           </div>
         </Link>
@@ -93,35 +96,37 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
         {/* Center Badge */}
         <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 bg-purple-50 border border-purple-200 rounded-full text-purple-700 text-xs font-semibold">
           <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-          <span>Full 3-Part Exam Simulator</span>
+          <span>{t('navbar.badge')}</span>
         </div>
 
         {activeUser ? (
           <div className="flex items-center space-x-3">
+            <LanguageToggle locale={locale} setLocale={setLocale} />
+
             {isAdmin && (
               <Link
                 href="/admin"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl transition-all border border-amber-200"
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-xl transition-all border border-amber-200 sm:min-w-[136px]"
               >
-                <Shield className="w-3.5 h-3.5 text-amber-600" />
-                <span className="hidden sm:inline">Admin Portal</span>
+                <Shield className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="hidden sm:inline">{t('navbar.adminPortal')}</span>
               </Link>
             )}
 
             <Link
               href="/ielts-speaking"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-purple-50 hover:text-purple-700 rounded-xl transition-all border border-slate-200"
+              className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-purple-50 hover:text-purple-700 rounded-xl transition-all border border-slate-200 sm:min-w-[118px]"
             >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Test Topics</span>
+              <BookOpen className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">{t('navbar.testTopics')}</span>
             </Link>
 
             <Link
               href="/ielts-speaking/history"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-purple-50 hover:text-purple-700 rounded-xl transition-all border border-slate-200"
+              className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-purple-50 hover:text-purple-700 rounded-xl transition-all border border-slate-200 sm:min-w-[142px]"
             >
-              <History className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">My History</span>
+              <History className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">{t('navbar.myHistory')}</span>
             </Link>
 
             <div className="flex items-center space-x-2.5 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 shadow-sm">
@@ -156,18 +161,21 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
             <button
               onClick={handleLogout}
               className="p-2 text-slate-400 hover:text-red-600 rounded-xl hover:bg-slate-100 transition-colors"
-              title="Logout"
+              title={t('navbar.logout')}
             >
               <LogOut className="w-4 h-4" />
             </button>
           </div>
         ) : (
-          <Link
-            href={`/login?redirect=${encodeURIComponent(pathname)}`}
-            className="inline-flex items-center justify-center px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-xl shadow-sm transition-all"
-          >
-            Login with Mezon
-          </Link>
+          <div className="flex items-center space-x-3">
+            <LanguageToggle locale={locale} setLocale={setLocale} />
+            <Link
+              href={`/login?redirect=${encodeURIComponent(pathname)}`}
+              className="inline-flex items-center justify-center px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 rounded-xl shadow-sm transition-all"
+            >
+              {t('navbar.loginWithMezon')}
+            </Link>
+          </div>
         )}
       </div>
     </header>

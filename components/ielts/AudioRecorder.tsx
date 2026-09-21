@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Sparkles,
 } from "lucide-react";
+import { useTranslation } from "@/lib/i18n/LanguageContext";
 
 interface AudioRecorderProps {
   attemptId: string;
@@ -33,6 +34,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
   autoStart = false,
   maxDurationSeconds = 120,
 }) => {
+  const { t } = useTranslation();
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -369,7 +371,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
       socket.onerror = (event) => {
         console.error("[Deepgram STT] WebSocket ERROR:", event);
 
-        setPermissionError("Deepgram WebSocket connection failed.");
+        setPermissionError(t("ielts.audioRecorder.deepgramWsError"));
 
         if (settled) {
           return;
@@ -401,7 +403,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
         if (isRecordingRef.current && sttSocketRef.current === socket) {
           setPermissionError(
-            `Live transcription connection was interrupted (${event.code}).`,
+            t("ielts.audioRecorder.connectionInterrupted", { code: event.code }),
           );
         }
       };
@@ -678,7 +680,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
           } catch (error) {
             console.error("[Recorder] Audio upload failed:", error);
             setPermissionError(
-              "Recording finished, but saving the audio failed. Please try again.",
+              t("ielts.audioRecorder.uploadFailedError"),
             );
             onAudioRecorded(objectUrl, transcript, recordingTimeRef.current);
           }
@@ -730,7 +732,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
       setPermissionError(
         error instanceof Error
           ? error.message
-          : "Microphone permission denied. Please allow microphone access in your browser.",
+          : t("ielts.audioRecorder.micPermissionError"),
       );
     }
   };
@@ -841,10 +843,10 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
           <div>
             <div className="text-xs uppercase tracking-wider font-bold text-slate-500">
               {isRecording
-                ? "Recording Speech..."
+                ? t("ielts.audioRecorder.statusRecording")
                 : audioUrl
-                  ? "Audio Saved"
-                  : "Live Microphone"}
+                  ? t("ielts.audioRecorder.statusSaved")
+                  : t("ielts.audioRecorder.statusIdle")}
             </div>
 
             <div className="text-2xl font-mono font-bold text-slate-900 tracking-tight">
@@ -881,7 +883,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
               className="flex items-center gap-2.5 px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-md shadow-purple-200 hover:scale-[1.02]"
             >
               <Mic className="w-5 h-5" />
-              <span>Start Recording</span>
+              <span>{t("ielts.audioRecorder.startButton")}</span>
             </button>
           )}
 
@@ -891,7 +893,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
               className="flex items-center gap-2.5 px-6 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl transition-all shadow-md shadow-rose-200 animate-pulse"
             >
               <Square className="w-5 h-5 fill-current" />
-              <span>Stop & Save</span>
+              <span>{t("ielts.audioRecorder.stopButton")}</span>
             </button>
           )}
 
@@ -907,18 +909,18 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
                   <Play className="w-4 h-4 fill-current" />
                 )}
 
-                <span>{isPlaying ? "Pause" : "Play Response"}</span>
+                <span>{isPlaying ? t("ielts.audioRecorder.pauseButton") : t("ielts.audioRecorder.playButton")}</span>
               </button>
 
               <button
                 onClick={() => void startRecording()}
                 disabled={isFinalizing}
-                title="Re-record response"
+                title={t("ielts.audioRecorder.rerecordTitle")}
                 className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all border border-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <RefreshCw className="w-4 h-4" />
 
-                <span>Re-record</span>
+                <span>{t("ielts.audioRecorder.rerecordLabel")}</span>
               </button>
 
               <audio
@@ -938,7 +940,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
             <div className="flex items-center gap-2 text-xs font-bold text-purple-700 uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5 text-purple-600 animate-pulse" />
 
-              <span>Live Speech-to-Text Transcript</span>
+              <span>{t("ielts.audioRecorder.liveTranscriptLabel")}</span>
             </div>
 
             {/* {sttSource && (
@@ -952,7 +954,7 @@ export const AudioRecorder: React.FC<AudioRecorderProps> = ({
 
           <p className="text-sm text-slate-800 font-medium leading-relaxed italic">
             {liveTranscript ||
-              "Listening... Start speaking into your microphone."}
+              t("ielts.audioRecorder.listeningPlaceholder")}
           </p>
         </div>
       )}

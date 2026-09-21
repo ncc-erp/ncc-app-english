@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { QuestionAudioReviewer } from "@/components/ielts/QuestionAudioReviewer";
 import { IELTSScoreResult } from "@/types/ielts";
+import { useTranslation } from "@/lib/i18n/LanguageContext";
 import {
   Award,
   Sparkles,
@@ -20,6 +21,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
+  const { t } = useTranslation();
 
   const [result, setResult] = useState<IELTSScoreResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,7 +42,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
         } else {
           const text = await res.text();
           throw new Error(
-            text || `Server returned non-JSON response (${res.status})`,
+            text || t("ielts.common.nonJsonResponse", { status: res.status }),
           );
         }
 
@@ -52,20 +54,18 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
         }
 
         if (!res.ok || !data.success) {
-          throw new Error(data.error || "Failed to load result report");
+          throw new Error(data.error || t("ielts.details.loadError"));
         }
 
         if (data.attempt?.status === "cancelled") {
-          setError(
-            "This test attempt was cancelled because it was interrupted before completion.",
-          );
+          setError(t("ielts.common.cancelledError"));
           return;
         }
 
         if (data.result) {
           setResult(data.result);
         } else {
-          setError("Detailed AI evaluation is not yet available for this test attempt.");
+          setError(t("ielts.details.notAvailable"));
         }
       } catch (err) {
         console.error("Fetch result details error:", err);
@@ -83,7 +83,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
       <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-center items-center">
         <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4" />
         <p className="text-slate-600 font-medium">
-          Loading detailed IELTS test result...
+          {t("ielts.details.loading")}
         </p>
       </div>
     );
@@ -100,10 +100,10 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
 
           <div className="space-y-3">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-100 text-rose-800 text-xs font-bold rounded-full uppercase tracking-wider">
-              <span>Notice</span>
+              <span>{t("ielts.details.noticeBadge")}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">
-              Unable to Load Report
+              {t("ielts.details.unableHeading")}
             </h1>
             <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
               {error}
@@ -113,18 +113,18 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
           <div className="w-full bg-purple-50/70 border border-purple-200 rounded-2xl p-5 text-left space-y-2">
             <div className="flex items-center gap-2 text-xs font-bold text-purple-900 uppercase tracking-wider">
               <Bot className="w-4 h-4 text-purple-600" />
-              <span>How to access this report:</span>
+              <span>{t("ielts.details.accessHeading")}</span>
             </div>
             <p className="text-xs text-purple-800 leading-relaxed font-medium">
-              Make sure you are logged in with the account that took this test. You can also visit your clan channel on Mezon and type{" "}
+              {t("ielts.details.accessPrefix")}{" "}
               <code className="bg-white border border-purple-300 text-purple-900 font-bold px-2 py-0.5 rounded-md">
                 *result
               </code>{" "}
-              (or{" "}
+              ({t("ielts.details.accessOr")}{" "}
               <code className="bg-white border border-purple-300 text-purple-900 font-bold px-2 py-0.5 rounded-md">
                 *ketqua
               </code>
-              ) to get the direct link to your detailed test report.
+              ) {t("ielts.details.accessSuffix")}
             </p>
           </div>
 
@@ -137,14 +137,14 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
               }
               className="inline-flex items-center gap-2 px-6 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-2xl transition-all shadow-md shadow-purple-200"
             >
-              <span>Log In</span>
+              <span>{t("ielts.details.loginButton")}</span>
             </button>
             <button
               onClick={() => router.push("/")}
               className="inline-flex items-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-2xl border border-slate-200 transition-all"
             >
               <Home className="w-4 h-4" />
-              <span>Return to Home</span>
+              <span>{t("ielts.details.returnHome")}</span>
             </button>
           </div>
         </main>
@@ -163,7 +163,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
             <div className="space-y-3 text-center md:text-left">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/20 border border-white/30 text-white text-xs font-bold rounded-full uppercase tracking-wider">
                 <Award className="w-4 h-4" />
-                <span>IELTS Speaking Detailed Assessment Report</span>
+                <span>{t("ielts.details.heroBadge")}</span>
               </div>
 
               <h1 className="text-3xl md:text-4xl font-extrabold">
@@ -177,7 +177,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
             {/* Band Score Badge */}
             <div className="flex flex-col items-center justify-center p-6 bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl min-w-[200px] shadow-2xl shrink-0">
               <div className="text-xs uppercase tracking-widest font-bold text-amber-200">
-                Overall Band
+                {t("ielts.details.overallBandLabel")}
               </div>
               <div className="text-6xl font-extrabold text-white font-mono my-2">
                 {result.overall_band.toFixed(1)}
@@ -194,7 +194,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
           <div className="bg-purple-50/80 border border-purple-200 rounded-3xl p-6 shadow-sm space-y-2">
             <div className="flex items-center gap-2 text-xs font-bold text-purple-900 uppercase tracking-wider">
               <Sparkles className="w-4 h-4 text-purple-600" />
-              <span>Official IELTS Examiner Band Rationale</span>
+              <span>{t("ielts.details.bandRationaleLabel")}</span>
             </div>
             <p className="text-sm text-purple-900 font-medium leading-relaxed">
               {result.estimated_band_reason}
@@ -208,7 +208,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
           <div className="space-y-4">
             <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-purple-600" />
-              <span>4 IELTS Assessment Criteria Breakdown</span>
+              <span>{t("ielts.details.criteriaHeading")}</span>
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -239,7 +239,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
 
                   <div className="space-y-2 pt-4 border-t border-slate-100">
                     <div className="text-xs font-bold text-slate-900">
-                      Key Observations:
+                      {t("ielts.details.keyObservationsLabel")}
                     </div>
                     {crit.key_observations?.map((obs, idx) => (
                       <div
@@ -265,7 +265,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
               <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5 text-rose-600" />
-                <span>Filler Word Frequency Analysis</span>
+                <span>{t("ielts.details.fillerWordsHeading")}</span>
               </h3>
 
               <div className="space-y-3">
@@ -280,7 +280,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
                           "{f.word}"
                         </span>
                         <span className="text-xs text-slate-600">
-                          Count: {f.count}
+                          {t("ielts.details.countLabel", { count: f.count })}
                         </span>
                       </div>
                       <span
@@ -292,13 +292,13 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
                               : "bg-slate-200 text-slate-700"
                         }`}
                       >
-                        {f.impact} impact
+                        {t("ielts.details.impactLabel", { impact: f.impact })}
                       </span>
                     </div>
                   ))
                 ) : (
                   <p className="text-xs text-slate-500 italic p-3">
-                    No significant filler words detected.
+                    {t("ielts.details.noFillerWords")}
                   </p>
                 )}
               </div>
@@ -308,7 +308,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
               <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
                 <ArrowUpRight className="w-5 h-5 text-emerald-600" />
-                <span>Lexical Upgrade Recommendations (C1/C2)</span>
+                <span>{t("ielts.details.vocabHeading")}</span>
               </h3>
 
               <div className="space-y-3">
@@ -334,7 +334,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
                   ))
                 ) : (
                   <p className="text-xs text-slate-500 italic p-3">
-                    Vocabulary is well-varied with high lexical resource.
+                    {t("ielts.details.noVocabUpgrades")}
                   </p>
                 )}
               </div>
@@ -349,7 +349,7 @@ function ResultDetailsContent({ attemptId }: { attemptId: string }) {
             className="inline-flex items-center gap-2 px-8 py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-2xl transition-all shadow-md shadow-purple-200"
           >
             <Home className="w-4 h-4" />
-            <span>Return to Home</span>
+            <span>{t("ielts.details.returnHome")}</span>
           </button>
         </div>
       </main>
@@ -363,6 +363,7 @@ export default function IELTSSpeakingResultDetailsPage({
   params: Promise<{ attemptId: string }>;
 }) {
   const { attemptId } = use(params);
+  const { t } = useTranslation();
 
   return (
     <Suspense
@@ -370,7 +371,7 @@ export default function IELTSSpeakingResultDetailsPage({
         <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-center items-center">
           <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mb-4" />
           <p className="text-slate-600 font-medium">
-            Loading detailed IELTS test result...
+            {t("ielts.details.loading")}
           </p>
         </div>
       }

@@ -9,6 +9,7 @@ import {
   IELTSSpeakingResponse,
 } from '@/types/ielts';
 import { ChevronLeft, ChevronRight, Mic, Volume2, FileText, CheckCircle2, MessageSquare } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 interface QuestionItem {
   id: string;
@@ -20,6 +21,8 @@ interface QuestionItem {
 }
 
 export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) {
+  const { t } = useTranslation();
+
   // Build ordered list of all questions in test
   const questionList: QuestionItem[] = [];
 
@@ -29,7 +32,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
       questionList.push({
         id: q.id,
         partName: 'Part 1',
-        questionTitle: `Part 1 • Question ${idx + 1}`,
+        questionTitle: t('ielts.audioReviewer.part1QuestionTitle', { n: idx + 1 }),
         questionText: q.question_text,
         response: result.responses?.[q.id],
       });
@@ -42,7 +45,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
     questionList.push({
       id: card.id,
       partName: 'Part 2',
-      questionTitle: 'Part 2 • Cue Card (Long Turn)',
+      questionTitle: t('ielts.audioReviewer.part2QuestionTitle'),
       questionText: card.prompt_lead || card.cue_card_title,
       bulletPoints: card.bullet_points,
       response: result.responses?.[card.id],
@@ -55,7 +58,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
       questionList.push({
         id: q.id,
         partName: 'Part 3',
-        questionTitle: `Part 3 • Discussion ${idx + 1}`,
+        questionTitle: t('ielts.audioReviewer.part3QuestionTitle', { n: idx + 1 }),
         questionText: q.question_text,
         response: result.responses?.[q.id],
       });
@@ -76,9 +79,9 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-50 text-purple-700 border border-purple-200 text-xs font-bold rounded-full uppercase tracking-wider mb-1">
             <MessageSquare className="w-3.5 h-3.5" />
-            <span>Interactive Response Review</span>
+            <span>{t('ielts.audioReviewer.badge')}</span>
           </div>
-          <h2 className="text-xl font-bold text-slate-900">Recorded Audio & Script Review</h2>
+          <h2 className="text-xl font-bold text-slate-900">{t('ielts.audioReviewer.heading')}</h2>
         </div>
 
         {/* Carousel Arrow Controls */}
@@ -87,7 +90,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
             onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
             disabled={currentIndex === 0}
             className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all disabled:opacity-40"
-            title="Previous Question"
+            title={t('ielts.audioReviewer.prevQuestion')}
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -100,7 +103,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
             onClick={() => setCurrentIndex((prev) => Math.min(questionList.length - 1, prev + 1))}
             disabled={currentIndex === questionList.length - 1}
             className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all disabled:opacity-40"
-            title="Next Question"
+            title={t('ielts.audioReviewer.nextQuestion')}
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -124,7 +127,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
                     : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
                 }`}
             >
-              {item.partName === 'Part 2' ? 'Cue Card' : `Q${idx + 1}`}
+              {item.partName === 'Part 2' ? t('ielts.audioReviewer.cueCardTab') : t('ielts.audioReviewer.questionTab', { n: idx + 1 })}
             </button>
           );
         })}
@@ -158,11 +161,11 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider">
               <Volume2 className="w-4 h-4 text-purple-600" />
-              <span>Candidate Audio Recording</span>
+              <span>{t('ielts.audioReviewer.audioLabel')}</span>
             </div>
             {response?.duration_seconds ? (
               <span className="text-xs font-mono text-slate-500">
-                Duration: {response.duration_seconds}s
+                {t('ielts.audioReviewer.durationLabel', { seconds: response.duration_seconds })}
               </span>
             ) : null}
           </div>
@@ -171,7 +174,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
             <audio controls src={response.audio_url} className="w-full h-10 rounded-lg accent-purple-600" />
           ) : (
             <div className="text-xs text-slate-400 italic bg-slate-50 p-3 rounded-lg border border-slate-100 text-center">
-              No audio recording available for this question.
+              {t('ielts.audioReviewer.noAudio')}
             </div>
           )}
         </div>
@@ -192,10 +195,10 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider">
                       <Mic className="w-4 h-4 text-purple-600" />
-                      <span>Live Speech-to-Text</span>
+                      <span>{t('ielts.audioReviewer.liveSttLabel')}</span>
                     </div>
                     <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
-                      Browser STT
+                      {t('ielts.audioReviewer.browserSttBadge')}
                     </span>
                   </div>
 
@@ -203,7 +206,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
                     {liveStt ? (
                       <span className="italic">"{liveStt}"</span>
                     ) : (
-                      <span className="text-slate-400 italic">No live STT recorded.</span>
+                      <span className="text-slate-400 italic">{t('ielts.audioReviewer.noLiveStt')}</span>
                     )}
                   </div>
                 </div>
@@ -213,7 +216,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wider">
                       <FileText className="w-4 h-4 text-emerald-600" />
-                      <span>AI Examiner Transcript</span>
+                      <span>{t('ielts.audioReviewer.aiTranscriptLabel')}</span>
                     </div>
                     {matchPct !== undefined ? (
                       <span
@@ -225,7 +228,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
                           }`}
                       >
                         <CheckCircle2 className="w-3 h-3" />
-                        STT Capture Match: {matchPct}%
+                        {t('ielts.audioReviewer.sttMatchLabel', { percent: matchPct })}
                       </span>
                     ) : null}
                   </div>
@@ -234,7 +237,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
                     {aiTranscript ? (
                       <span className="italic">"{aiTranscript}"</span>
                     ) : (
-                      <span className="text-slate-400 italic">AI transcript pending.</span>
+                      <span className="text-slate-400 italic">{t('ielts.audioReviewer.aiTranscriptPending')}</span>
                     )}
                   </div>
                 </div>
@@ -245,7 +248,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
                 <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-4 space-y-1">
                   <div className="flex items-center gap-2 text-xs font-bold text-purple-900 uppercase tracking-wider">
                     <MessageSquare className="w-4 h-4 text-purple-600" />
-                    <span>AI Examiner Question Feedback</span>
+                    <span>{t('ielts.audioReviewer.feedbackLabel')}</span>
                   </div>
                   <p className="text-xs text-purple-800 leading-relaxed font-medium">
                     {aiAnalysis.feedback}
@@ -258,7 +261,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
                 <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-4 space-y-2">
                   <div className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-amber-600" />
-                    <span>Grammar & Phrasing Corrections</span>
+                    <span>{t('ielts.audioReviewer.grammarLabel')}</span>
                   </div>
                   <ul className="space-y-1 text-xs text-amber-800 font-medium">
                     {aiAnalysis.grammar_corrections.map((corr, cIdx) => (
@@ -276,7 +279,7 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
                 <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-4 space-y-2">
                   <div className="text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-2">
                     <FileText className="w-4 h-4 text-emerald-600" />
-                    <span>Model Response (Ideal Answer)</span>
+                    <span>{t('ielts.audioReviewer.modelResponseLabel')}</span>
                   </div>
                   <p className="text-xs text-emerald-850 italic font-medium leading-relaxed">
                     "{aiAnalysis.improved_version}"
