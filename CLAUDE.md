@@ -23,11 +23,12 @@ Next.js 15 App Router, React 19, Tailwind, strict TS, `@/*` → repo root. Every
 
 **Data layer is `lib/db/postgres.ts` alone.** `pgDb` holds every query used by the app; `getPool()` picks a connection three ways in order — a `DATABASE_URL`/`POSTGRES_URL*` connection string, a remote `POSTGRES_HOST`/`DB_HOST` with SSL, or local `DB_*` defaults — and caches the pool on `global` to survive hot reload. Each `pgDb` method calls `ensureDbInitialized()`, which runs `CREATE TABLE IF NOT EXISTS` DDL and seeds questions/topics from `SEED_QUESTIONS` (`lib/exam/questions.ts`) and `SEED_IELTS_TOPICS` (`lib/ielts/questions.ts`).
 
-Consequence worth remembering: `db/schema.sql` is a *copy* of that DDL, not the thing that runs. A schema change must be made in `ensureDbInitialized()` — editing only `db/schema.sql` changes nothing. `IF NOT EXISTS` also means altering an existing column requires a manual `ALTER` against the dev database.
+Consequence worth remembering: `db/schema.sql` is a _copy_ of that DDL, not the thing that runs. A schema change must be made in `ensureDbInitialized()` — editing only `db/schema.sql` changes nothing. `IF NOT EXISTS` also means altering an existing column requires a manual `ALTER` against the dev database.
 
 `lib/supabase/mock-db.ts` is a leftover in-memory store still wired into `/api/auth/mezon-hash` only. Everything else uses `pgDb`; don't extend the mock.
 
 **Dual auth, one session.** Both paths end by writing `session.user` into the iron-session cookie `mezon_exam_session` (`lib/auth/session.ts`, `getSession()`):
+
 - OAuth2: `/api/auth/login` → Mezon consent → `/api/auth/callback` exchanges the code (`lib/mezon/oauth.ts`) and upserts the user. `/api/auth/login?mock=true` — or any unset/placeholder `MEZON_CLIENT_ID` — skips Mezon entirely and redirects to `callback?code=mock_dev_code`, seeding a `dev_user_1001` account. That is the intended local login.
 - Mezon iframe: `app/page.tsx` reads `?data=` and POSTs it to `/api/auth/mezon-hash`, verified by the MD5→HMAC-SHA256 `WebAppData` scheme in `lib/mezon/hash-verifier.ts`.
 

@@ -8,20 +8,20 @@ import { landingEn, landingVi } from './landing';
 export type Locale = 'vi' | 'en';
 
 export const translations = {
-  en: {
-    common: commonEn,
-    navbar: navbarEn,
-    login: loginEn,
-    exam: examEn,
-    ielts: ieltsEn,
-    landing: landingEn,
-  },
-  vi: {
-    common: commonVi,
-    navbar: navbarVi,
-    login: loginVi,
-    exam: examVi,
-    ielts: ieltsVi,
-    landing: landingVi,
-  },
+	en: {
+		common: commonEn,
+		navbar: navbarEn,
+		login: loginEn,
+		exam: examEn,
+		ielts: ieltsEn,
+		landing: landingEn
+	},
+	vi: {
+		common: commonVi,
+		navbar: navbarVi,
+		login: loginVi,
+		exam: examVi,
+		ielts: ieltsVi,
+		landing: landingVi
+	}
 };
