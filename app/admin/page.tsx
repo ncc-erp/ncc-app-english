@@ -287,6 +287,23 @@ export default function AdminClassesPage() {
     return b.total_speaking_attempts - a.total_speaking_attempts;
   });
 
+  // Display-only approx.: null -> "Never" | <1m "Just now" | <60m "Xm ago"
+  // | <24h "Xh ago" | <30d "Xd ago" | <12mo "Xmo ago" (mo = 30d) | else "Xy ago" (y = 12mo)
+  const formatRelativeTime = (dateStr: string | null) => {
+    if (!dateStr) return "Never";
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "Just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHour = Math.floor(diffMin / 60);
+    if (diffHour < 24) return `${diffHour}h ago`;
+    const diffDay = Math.floor(diffHour / 24);
+    if (diffDay < 30) return `${diffDay}d ago`;
+    const diffMonth = Math.floor(diffDay / 30);
+    if (diffMonth < 12) return `${diffMonth}mo ago`;
+    return `${Math.floor(diffMonth / 12)}y ago`;
+  };
+
   const getBandBadgeColor = (band?: number | null) => {
     if (!band) return "bg-slate-100 text-slate-500 border-slate-200";
     if (band >= 7.5) return "bg-emerald-50 text-emerald-700 border-emerald-300";
@@ -814,6 +831,24 @@ export default function AdminClassesPage() {
                                 ? "test"
                                 : "tests"}
                             </span>
+                          </div>
+                        </div>
+
+                        {/* Last Exam */}
+                        <div className="text-left sm:text-right">
+                          <div className="text-[10px] text-slate-400 font-medium">
+                            Last Exam
+                          </div>
+                          <div
+                            className="text-xs font-black text-slate-900 flex items-center gap-1"
+                            title={
+                              s.latest_attempt_at
+                                ? new Date(s.latest_attempt_at).toLocaleString()
+                                : undefined
+                            }
+                          >
+                            <Calendar className="w-3 h-3 text-purple-600" />
+                            <span>{formatRelativeTime(s.latest_attempt_at)}</span>
                           </div>
                         </div>
 
