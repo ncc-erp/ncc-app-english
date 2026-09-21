@@ -470,9 +470,9 @@ export default function AdminClassesPage() {
               <div className="space-y-2">
                 {/* All Classes Button */}
                 <button
-                  onClick={() => handleSelectClass("all")}
+                  onClick={() => handleSelectClass(null)}
                   className={`w-full text-left p-3.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-between ${
-                    selectedClassId === "all"
+                    selectedClassId === null
                       ? "bg-purple-600 text-white shadow-md shadow-purple-200"
                       : "bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/80"
                   }`}
@@ -483,7 +483,7 @@ export default function AdminClassesPage() {
                   </div>
                   <span
                     className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                      selectedClassId === "all"
+                      selectedClassId === null
                         ? "bg-purple-800/80 text-white"
                         : "bg-slate-200 text-slate-700"
                     }`}
@@ -600,11 +600,11 @@ export default function AdminClassesPage() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-extrabold text-slate-900 text-xs">
-                      {selectedClassId === "all"
+                      {selectedClassId === null
                         ? "All Classrooms "
                         : currentClass?.name || "Classroom"}
                     </span>
-                    {selectedClassId !== "all" && currentClass?.is_private && (
+                    {selectedClassId !== null && currentClass?.is_private && (
                       <span className="px-1.5 py-0.5 rounded text-[9px] bg-amber-100 text-amber-800 font-bold flex items-center gap-0.5">
                         <Lock className="w-2.5 h-2.5" />
                         Private
@@ -656,9 +656,9 @@ export default function AdminClassesPage() {
                   <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                     <GraduationCap className="w-4 h-4 text-purple-600" />
                     <span>
-                      {selectedClassId === "all"
-                        ? "All Students (Role: Student)"
-                        : `Students: ${currentClass?.name || "Classroom"}`}
+                      {selectedClassId
+                        ?  `Students: ${currentClass?.name || "Classroom"}`
+                        : "All Students (Role: Student)"}
                     </span>
                   </h3>
                   <p className="text-xs text-slate-500">
