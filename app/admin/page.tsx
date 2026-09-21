@@ -262,9 +262,6 @@ export default function AdminClassesPage() {
     );
   });
 
-  // 3. Sort students
-
-
   if (authLoading) {
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center">
