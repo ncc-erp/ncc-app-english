@@ -29,6 +29,7 @@ import {
   X,
   Lock,
 } from "lucide-react";
+import { E_SORT_STUDENT_SCORE } from "@/lib/types/type";
 
 interface ClassroomItem {
   id: string;
@@ -70,8 +71,8 @@ export default function AdminClassesPage() {
 
   const [selectedClassId, setSelectedClassId] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"attempts" | "band" | "latest">(
-    "attempts",
+  const [sortBy, setSortBy] = useState<E_SORT_STUDENT_SCORE>(
+    E_SORT_STUDENT_SCORE.ATTEMPTS
   );
 
   const [loadingClasses, setLoadingClasses] = useState(true);
@@ -615,9 +616,9 @@ export default function AdminClassesPage() {
                     onChange={(e) => setSortBy(e.target.value as any)}
                     className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-3 py-2 focus:outline-none focus:border-purple-500"
                   >
-                    <option value="attempts">Most Tests Taken</option>
-                    <option value="band">Highest Average Band</option>
-                    <option value="latest">Most Recent Attempt</option>
+                    <option value={E_SORT_STUDENT_SCORE.ATTEMPTS}>Most Tests Taken</option>
+                    <option value={E_SORT_STUDENT_SCORE.BAND}>Highest Average Band</option>
+                    <option value={E_SORT_STUDENT_SCORE.LASTEST}>Most Recent Attempt</option>
                   </select>
                 </div>
               </div>
