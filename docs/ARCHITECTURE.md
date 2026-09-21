@@ -2,7 +2,7 @@
 
 **Tech Stack:** Next.js (App Router), Vercel, Supabase (PostgreSQL & Auth), Mezon SDK / Channel App Auth  
 **Version:** 1.0  
-**Target:** 1-2 Week MVP  
+**Target:** 1-2 Week MVP
 
 ---
 
@@ -201,14 +201,18 @@ CREATE INDEX idx_questions_section ON questions(section, active);
 The application supports **dual authentication pathways**, ensuring users can log in via Mezon regardless of how they access the app:
 
 ### Pathway A: Direct Web Entry (Mezon OAuth2)
+
 When a user visits the app URL directly outside of Mezon:
+
 1. **Landing Page**: App presents a **"Login with Mezon"** CTA button.
 2. **Authorization Request**: User clicks button → Redirects to `https://oauth2.mezon.ai/oauth2/auth` with `client_id`, `redirect_uri`, `scope=openid`, and anti-forgery `state` cookie.
 3. **Token Exchange**: Callback route (`/api/auth/callback`) receives authorization `code`, exchanges it via POST to `https://oauth2.mezon.ai/oauth2/token` (using `client_id` and `client_secret`), and fetches user info from `https://oauth2.mezon.ai/userinfo`.
 4. **Session Creation**: Upserts user record in Supabase `users` table and writes an `httpOnly`, `Secure`, `SameSite=Lax` encrypted session cookie (`iron-session`).
 
 ### Pathway B: Channel App Embedded Entry (Mezon WebAppData Hash Auth)
+
 When a user launches the app inside Mezon iframe:
+
 1. **URL Hash Parsing**: Mezon automatically loads iframe with `?data=...`.
 2. **Frontend Extraction**: Extraction script decodes parameter `data` and POSTs payload to `/api/auth/mezon-hash`.
 3. **Backend HMAC-SHA256 Validation** (`lib/mezon/hash-verifier.ts`):
@@ -216,23 +220,23 @@ When a user launches the app inside Mezon iframe:
    import crypto from 'crypto';
 
    export function validateMezonHash(appSecret: string, rawHashData: string): boolean {
-     try {
-       const delimiter = '&hash=';
-       const index = rawHashData.indexOf(delimiter);
-       const queryData = rawHashData.substring(0, index);
-       const receivedHash = rawHashData.substring(index + delimiter.length);
+   	try {
+   		const delimiter = '&hash=';
+   		const index = rawHashData.indexOf(delimiter);
+   		const queryData = rawHashData.substring(0, index);
+   		const receivedHash = rawHashData.substring(index + delimiter.length);
 
-       // Step 1: MD5 hash of App Secret
-       const hashedSecret = crypto.createHash('md5').update(appSecret).digest('hex');
-       // Step 2: HMAC-SHA256 of "WebAppData"
-       const secretKey = crypto.createHmac('sha256', hashedSecret).update('WebAppData').digest();
-       // Step 3: HMAC-SHA256 of query data
-       const computedHash = crypto.createHmac('sha256', secretKey).update(queryData).digest('hex');
+   		// Step 1: MD5 hash of App Secret
+   		const hashedSecret = crypto.createHash('md5').update(appSecret).digest('hex');
+   		// Step 2: HMAC-SHA256 of "WebAppData"
+   		const secretKey = crypto.createHmac('sha256', hashedSecret).update('WebAppData').digest();
+   		// Step 3: HMAC-SHA256 of query data
+   		const computedHash = crypto.createHmac('sha256', secretKey).update(queryData).digest('hex');
 
-       return computedHash === receivedHash;
-     } catch (err) {
-       return false;
-     }
+   		return computedHash === receivedHash;
+   	} catch (err) {
+   		return false;
+   	}
    }
    ```
 4. **Session Creation**: Upon signature verification, upserts user in Supabase and issues the exact same encrypted session cookie. Both pathways use a unified session structure!
@@ -242,6 +246,7 @@ When a user launches the app inside Mezon iframe:
 ## 5. Security Gate for Result Unlocking
 
 To guarantee client-side anti-tampering:
+
 - Full scores, explanations, and skill breakdowns are **never** returned by `/api/exam/submit` if `unlocked == false`.
 - The client receives only `raw_score`, `cefr_level`, and basic level description.
 - When the user clicks "Check Membership", `/api/membership/verify` runs the server-side bot check:
@@ -282,21 +287,25 @@ SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
 ## 7. Phased Implementation Plan (1-2 Weeks)
 
 ### Day 1-2: Core Setup & Auth Verification
+
 - Initialize Next.js 15 project in `mezon-app-sample`
 - Implement `validateMezonHash` and `/api/auth/mezon-hash` handler
 - Setup `iron-session` and Supabase SQL schema
 
 ### Day 3-4: Exam Core Engine
+
 - Seed initial 30-question bank into Supabase
 - Build exam runner UI (`/exam/[attemptId]`) with progress bar & autosave
 - Build server-side scoring API (`/api/exam/submit`) with CEFR level mapping
 
 ### Day 5-6: Results & Clan Unlock Gate
+
 - Build `PartialScoreView` (teaser) and `LockedTeaserCard`
 - Implement Mezon Bot integration for `verifyClanMembership`
 - Create `/api/membership/verify` route and full unlock trigger
 
 ### Day 7-8: Polish, Edge Cases & Vercel Deployment
+
 - Test Mezon Channel App iframe embed and OAuth fallback
 - Handle edge cases (browser refresh, retakes, rate-limiting)
 - Deploy to Vercel and execute test exam runs

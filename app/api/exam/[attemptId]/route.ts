@@ -5,98 +5,98 @@ import { calculateExamResult, getCEFRDescription } from '@/lib/exam/score-calcul
 import { ExamResultResponse } from '@/types';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ attemptId: string }> }) {
-  const session = await getSession();
-  const { attemptId } = await params;
+	const session = await getSession();
+	const { attemptId } = await params;
 
-  if (!session.user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
+	if (!session.user) {
+		return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+	}
 
-  try {
-    // Refresh clan_member from DB in case session is stale
-    const dbUser = await pgDb.findOrCreateUser({
-      mezon_id: session.user.mezon_id,
-      username: session.user.mezon_username,
-      display_name: session.user.display_name,
-      avatar_url: session.user.avatar_url,
-    });
-    if (dbUser.clan_member && !session.user.clan_member) {
-      session.user.clan_member = true;
-      await session.save();
-    }
+	try {
+		// Refresh clan_member from DB in case session is stale
+		const dbUser = await pgDb.findOrCreateUser({
+			mezon_id: session.user.mezon_id,
+			username: session.user.mezon_username,
+			display_name: session.user.display_name,
+			avatar_url: session.user.avatar_url
+		});
+		if (dbUser.clan_member && !session.user.clan_member) {
+			session.user.clan_member = true;
+			await session.save();
+		}
 
-    const attempt = await pgDb.getAttempt(attemptId);
-    if (!attempt) {
-      return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });
-    }
+		const attempt = await pgDb.getAttempt(attemptId);
+		if (!attempt) {
+			return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });
+		}
 
-    if (attempt.user_id !== session.user.user_id && attempt.user_id !== session.user.mezon_id) {
-      return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });
-    }
+		if (attempt.user_id !== session.user.user_id && attempt.user_id !== session.user.mezon_id) {
+			return NextResponse.json({ success: false, error: 'Attempt not found' }, { status: 404 });
+		}
 
-    const questions = await pgDb.getQuestionsByIds(attempt.question_ids);
+		const questions = await pgDb.getQuestionsByIds(attempt.question_ids);
 
-    // If attempt is still in progress, return sanitized questions and attempt state
-    if (attempt.status === 'in_progress') {
-      const sanitizedQuestions = questions.map((q) => ({
-        id: q.id,
-        section: q.section,
-        difficulty: q.difficulty,
-        question_text: q.question_text,
-        reading_passage: q.reading_passage,
-        options: q.options,
-      }));
+		// If attempt is still in progress, return sanitized questions and attempt state
+		if (attempt.status === 'in_progress') {
+			const sanitizedQuestions = questions.map((q) => ({
+				id: q.id,
+				section: q.section,
+				difficulty: q.difficulty,
+				question_text: q.question_text,
+				reading_passage: q.reading_passage,
+				options: q.options
+			}));
 
-      return NextResponse.json({
-        success: true,
-        attempt,
-        questions: sanitizedQuestions,
-      });
-    }
+			return NextResponse.json({
+				success: true,
+				attempt,
+				questions: sanitizedQuestions
+			});
+		}
 
-    // Attempt is submitted
-    const calculated = calculateExamResult(attempt, questions);
-    const levelInfo = getCEFRDescription(calculated.cefr_level);
-    const isUnlocked = session.user?.clan_member === true || attempt.unlocked;
+		// Attempt is submitted
+		const calculated = calculateExamResult(attempt, questions);
+		const levelInfo = getCEFRDescription(calculated.cefr_level);
+		const isUnlocked = session.user?.clan_member === true || attempt.unlocked;
 
-    const resultResponse: ExamResultResponse = {
-      attempt_id: attemptId,
-      status: attempt.status,
-      result_status: isUnlocked ? 'full' : 'partial',
-      unlocked: isUnlocked,
-      cefr_level: calculated.cefr_level,
-      level_title: levelInfo.title,
-      level_description: levelInfo.description,
-      percentage: calculated.percentage,
-      percentile_teaser: `Better than ${Math.min(95, Math.max(10, calculated.percentage + 5))}% of recent test takers`,
-    };
+		const resultResponse: ExamResultResponse = {
+			attempt_id: attemptId,
+			status: attempt.status,
+			result_status: isUnlocked ? 'full' : 'partial',
+			unlocked: isUnlocked,
+			cefr_level: calculated.cefr_level,
+			level_title: levelInfo.title,
+			level_description: levelInfo.description,
+			percentage: calculated.percentage,
+			percentile_teaser: `Better than ${Math.min(95, Math.max(10, calculated.percentage + 5))}% of recent test takers`
+		};
 
-    if (isUnlocked) {
-      resultResponse.raw_score = calculated.raw_score;
-      resultResponse.weighted_score = calculated.weighted_score;
-      resultResponse.max_weighted_score = calculated.max_weighted_score;
-      resultResponse.skill_scores = calculated.skill_scores;
-      resultResponse.weaknesses = calculated.weaknesses;
-      resultResponse.recommendations = calculated.recommendations;
+		if (isUnlocked) {
+			resultResponse.raw_score = calculated.raw_score;
+			resultResponse.weighted_score = calculated.weighted_score;
+			resultResponse.max_weighted_score = calculated.max_weighted_score;
+			resultResponse.skill_scores = calculated.skill_scores;
+			resultResponse.weaknesses = calculated.weaknesses;
+			resultResponse.recommendations = calculated.recommendations;
 
-      const explanations: Record<string, { correct_option_id: string; explanation: string }> = {};
-      questions.forEach((q) => {
-        if (q.correct_option_id) {
-          explanations[q.id] = {
-            correct_option_id: q.correct_option_id,
-            explanation: q.explanation || 'Refer to grammar guidelines.',
-          };
-        }
-      });
-      resultResponse.explanations = explanations;
-    }
+			const explanations: Record<string, { correct_option_id: string; explanation: string }> = {};
+			questions.forEach((q) => {
+				if (q.correct_option_id) {
+					explanations[q.id] = {
+						correct_option_id: q.correct_option_id,
+						explanation: q.explanation || 'Refer to grammar guidelines.'
+					};
+				}
+			});
+			resultResponse.explanations = explanations;
+		}
 
-    return NextResponse.json({
-      success: true,
-      result: resultResponse,
-    });
-  } catch (error) {
-    console.error('[GET /api/exam/[attemptId]] Error:', error);
-    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
-  }
+		return NextResponse.json({
+			success: true,
+			result: resultResponse
+		});
+	} catch (error) {
+		console.error('[GET /api/exam/[attemptId]] Error:', error);
+		return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+	}
 }

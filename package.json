@@ -1,35 +1,47 @@
 {
-  "name": "ncc-app-english",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "bot": "npx tsx scripts/bot-server.ts",
-    "bot:jiti": "npx jiti scripts/bot-server.ts"
-  },
-  "dependencies": {
-    "clsx": "^2.1.1",
-    "iron-session": "^8.0.4",
-    "lucide-react": "^0.475.0",
-    "mezon-english-exam-app": "file:../mezon-app-sample",
-    "mezon-sdk": "^2.8.57",
-    "next": "^15.1.7",
-    "pg": "^8.16.3",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "tailwind-merge": "^3.0.1"
-  },
-  "devDependencies": {
-    "@types/node": "^22.13.4",
-    "@types/pg": "^8.11.11",
-    "@types/react": "^19.0.10",
-    "@types/react-dom": "^19.0.4",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.5.2",
-    "tailwindcss": "^3.4.17",
-    "typescript": "^5.7.3"
-  }
+	"name": "ncc-app-english",
+	"version": "0.1.0",
+	"private": true,
+	"scripts": {
+		"dev": "next dev",
+		"build": "next build",
+		"start": "next start",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"bot": "npx tsx scripts/bot-server.ts",
+		"bot:jiti": "npx jiti scripts/bot-server.ts"
+	},
+	"lint-staged": {
+		"*.{js,jsx,ts,tsx,json,css,scss,md}": "prettier --write eslint --fix"
+	},
+	"dependencies": {
+		"clsx": "^2.1.1",
+		"iron-session": "^8.0.4",
+		"lucide-react": "^0.475.0",
+		"mezon-english-exam-app": "file:../mezon-app-sample",
+		"mezon-sdk": "^2.8.57",
+		"next": "^15.1.7",
+		"pg": "^8.16.3",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0",
+		"tailwind-merge": "^3.0.1"
+	},
+	"devDependencies": {
+		"@types/node": "^22.13.4",
+		"@types/pg": "^8.11.11",
+		"@types/react": "^19.0.10",
+		"@types/react-dom": "^19.0.4",
+		"@typescript-eslint/eslint-plugin": "^8.70.0",
+		"@typescript-eslint/parser": "^8.70.0",
+		"autoprefixer": "^10.4.20",
+		"eslint": "^8.57.0",
+		"eslint-config-next": "^15.1.7",
+		"eslint-plugin-unused-imports": "^4.4.1",
+		"husky": "^9.1.7",
+		"lint-staged": "^17.5.1",
+		"postcss": "^8.5.2",
+		"prettier": "^3.9.8",
+		"tailwindcss": "^3.4.17",
+		"typescript": "^5.7.3"
+	}
 }

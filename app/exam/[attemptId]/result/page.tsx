@@ -12,129 +12,126 @@ import { RotateCcw, ArrowLeft } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 export default function ExamResultPage({ params }: { params: Promise<{ attemptId: string }> }) {
-  const { attemptId } = use(params);
-  const router = useRouter();
-  const { t } = useTranslation();
+	const { attemptId } = use(params);
+	const router = useRouter();
+	const { t } = useTranslation();
 
-  const [result, setResult] = useState<ExamResultResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+	const [result, setResult] = useState<ExamResultResponse | null>(null);
+	const [isLoading, setIsLoading] = useState(true);
+	const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const fetchResult = async () => {
-    try {
-      const res = await fetch(`/api/exam/${attemptId}`);
-      if (res.status === 401) {
-        router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
-        return;
-      }
+	const fetchResult = async () => {
+		try {
+			const res = await fetch(`/api/exam/${attemptId}`);
+			if (res.status === 401) {
+				router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
+				return;
+			}
 
-      const data = await res.json();
-      if (data.success && data.result) {
-        setResult(data.result);
-      } else {
-        setErrorMsg(data.error || t('exam.result.loadError'));
-      }
-    } catch {
-      setErrorMsg(t('exam.result.networkError'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
+			const data = await res.json();
+			if (data.success && data.result) {
+				setResult(data.result);
+			} else {
+				setErrorMsg(data.error || t('exam.result.loadError'));
+			}
+		} catch {
+			setErrorMsg(t('exam.result.networkError'));
+		} finally {
+			setIsLoading(false);
+		}
+	};
 
-  useEffect(() => {
-    fetchResult();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attemptId, router]);
+	useEffect(() => {
+		fetchResult();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [attemptId, router]);
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-slate-600 text-sm font-medium">{t('exam.result.calculating')}</p>
-        </div>
-      </div>
-    );
-  }
+	if (isLoading) {
+		return (
+			<div className='min-h-screen bg-slate-50 flex items-center justify-center'>
+				<div className='text-center space-y-3'>
+					<div className='w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto' />
+					<p className='text-slate-600 text-sm font-medium'>{t('exam.result.calculating')}</p>
+				</div>
+			</div>
+		);
+	}
 
-  if (errorMsg || !result) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-xl max-w-md w-full text-center space-y-4">
-          <h2 className="text-xl font-bold text-slate-900">{t('exam.result.resultErrorTitle')}</h2>
-          <p className="text-slate-600 text-sm">{errorMsg || t('exam.result.resultNotFound')}</p>
-          <button
-            onClick={() => router.push('/exam')}
-            className="w-full py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm"
-          >
-            {t('exam.result.backToIntro')}
-          </button>
-        </div>
-      </div>
-    );
-  }
+	if (errorMsg || !result) {
+		return (
+			<div className='min-h-screen bg-slate-50 flex items-center justify-center p-4'>
+				<div className='bg-white rounded-3xl p-8 border border-slate-200 shadow-xl max-w-md w-full text-center space-y-4'>
+					<h2 className='text-xl font-bold text-slate-900'>{t('exam.result.resultErrorTitle')}</h2>
+					<p className='text-slate-600 text-sm'>{errorMsg || t('exam.result.resultNotFound')}</p>
+					<button onClick={() => router.push('/exam')} className='w-full py-3 rounded-xl bg-indigo-600 text-white font-bold text-sm'>
+						{t('exam.result.backToIntro')}
+					</button>
+				</div>
+			</div>
+		);
+	}
 
-  const isUnlocked = result.unlocked;
+	const isUnlocked = result.unlocked;
 
-  return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <Navbar />
+	return (
+		<div className='min-h-screen bg-slate-50 flex flex-col'>
+			<Navbar />
 
-      <main className="flex-1 max-w-3xl mx-auto px-4 py-8 space-y-6 w-full">
-        {/* Navigation Back Bar */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => {
-              if (window.history.length > 1) {
-                router.back();
-              } else {
-                router.push('/exam');
-              }
-            }}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all shadow-sm group"
-          >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>{t('common.back')}</span>
-          </button>
-        </div>
+			<main className='flex-1 max-w-3xl mx-auto px-4 py-8 space-y-6 w-full'>
+				{/* Navigation Back Bar */}
+				<div className='flex items-center justify-between'>
+					<button
+						onClick={() => {
+							if (window.history.length > 1) {
+								router.back();
+							} else {
+								router.push('/exam');
+							}
+						}}
+						className='inline-flex items-center gap-2 px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-all shadow-sm group'
+					>
+						<ArrowLeft className='w-4 h-4 group-hover:-translate-x-0.5 transition-transform' />
+						<span>{t('common.back')}</span>
+					</button>
+				</div>
 
-        {/* Top Partial Score View (Always Visible) */}
-        <PartialScoreView
-          cefrLevel={result.cefr_level || 'B1'}
-          levelTitle={result.level_title || t('exam.result.defaultLevelTitle')}
-          levelDescription={result.level_description || t('exam.result.defaultLevelDescription')}
-          percentage={result.percentage || 0}
-          percentileTeaser={result.percentile_teaser}
-        />
+				{/* Top Partial Score View (Always Visible) */}
+				<PartialScoreView
+					cefrLevel={result.cefr_level || 'B1'}
+					levelTitle={result.level_title || t('exam.result.defaultLevelTitle')}
+					levelDescription={result.level_description || t('exam.result.defaultLevelDescription')}
+					percentage={result.percentage || 0}
+					percentileTeaser={result.percentile_teaser}
+				/>
 
-        {/* Unlocked Full Report vs Gated Lock Section */}
-        {isUnlocked ? (
-          <FullReportView
-            rawScore={result.raw_score}
-            weightedScore={result.weighted_score}
-            maxWeightedScore={result.max_weighted_score}
-            skillScores={result.skill_scores}
-            weaknesses={result.weaknesses}
-            recommendations={result.recommendations}
-          />
-        ) : (
-          <>
-            <LockedTeaserCard />
-            <ClanJoinCTA attemptId={attemptId} onVerifySuccess={fetchResult} />
-          </>
-        )}
+				{/* Unlocked Full Report vs Gated Lock Section */}
+				{isUnlocked ? (
+					<FullReportView
+						rawScore={result.raw_score}
+						weightedScore={result.weighted_score}
+						maxWeightedScore={result.max_weighted_score}
+						skillScores={result.skill_scores}
+						weaknesses={result.weaknesses}
+						recommendations={result.recommendations}
+					/>
+				) : (
+					<>
+						<LockedTeaserCard />
+						<ClanJoinCTA attemptId={attemptId} onVerifySuccess={fetchResult} />
+					</>
+				)}
 
-        {/* Retake Button */}
-        <div className="text-center pt-4">
-          <button
-            onClick={() => router.push('/exam')}
-            className="inline-flex items-center space-x-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>{t('exam.result.retake')}</span>
-          </button>
-        </div>
-      </main>
-    </div>
-  );
+				{/* Retake Button */}
+				<div className='text-center pt-4'>
+					<button
+						onClick={() => router.push('/exam')}
+						className='inline-flex items-center space-x-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors'
+					>
+						<RotateCcw className='w-3.5 h-3.5' />
+						<span>{t('exam.result.retake')}</span>
+					</button>
+				</div>
+			</main>
+		</div>
+	);
 }
