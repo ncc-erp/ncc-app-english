@@ -26,8 +26,8 @@ export interface OverallStats {
 }
 
 export enum E_SORT_STUDENT_SCORE {
-	BAND = 'band',
-	SCORE = 'score',
+	HIGHEST = 'highest',
+	LOWEST = 'lowest',
 	ATTEMPTS = 'attempts',
-	LASTEST = 'latest'
+	LASTEST = 'lastest'
 }

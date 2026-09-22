@@ -176,6 +176,8 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
 					const liveStt = response?.transcript || aiAnalysis?.live_stt_transcript;
 					const aiTranscript = aiAnalysis?.ai_generated_transcript;
 					const matchPct = aiAnalysis?.match_percentage;
+					const academicAnswer = aiAnalysis?.academic_answer || aiAnalysis?.improved_version;
+					const naturalAnswer = aiAnalysis?.natural_answer;
 
 					return (
 						<div className='space-y-4'>
@@ -264,14 +266,25 @@ export function QuestionAudioReviewer({ result }: { result: IELTSScoreResult }) 
 								</div>
 							)}
 
-							{/* Model Answer */}
-							{aiAnalysis?.improved_version && (
+							{/* Suggested Answers */}
+							{(academicAnswer || naturalAnswer) && (
 								<div className='bg-emerald-50/80 border border-emerald-200 rounded-xl p-4 space-y-2'>
 									<div className='text-xs font-bold text-emerald-900 uppercase tracking-wider flex items-center gap-2'>
 										<FileText className='w-4 h-4 text-emerald-600' />
 										<span>{t('ielts.audioReviewer.modelResponseLabel')}</span>
 									</div>
-									<p className='text-xs text-emerald-850 italic font-medium leading-relaxed'>"{aiAnalysis.improved_version}"</p>
+									{academicAnswer && (
+										<p className='text-xs text-emerald-850 font-medium leading-relaxed'>
+											<span className='font-bold'>{t('ielts.audioReviewer.academicAnswerLabel')}:</span>{' '}
+											<span className='italic'>"{academicAnswer}"</span>
+										</p>
+									)}
+									{naturalAnswer && (
+										<p className='text-xs text-emerald-850 font-medium leading-relaxed'>
+											<span className='font-bold'>{t('ielts.audioReviewer.naturalAnswerLabel')}:</span>{' '}
+											<span className='italic'>"{naturalAnswer}"</span>
+										</p>
+									)}
 								</div>
 							)}
 						</div>

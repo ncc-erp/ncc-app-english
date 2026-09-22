@@ -75,8 +75,17 @@ try {
 				return origDecode(input, length);
 			} catch (err: any) {
 				if (err instanceof RangeError || err?.name === 'RangeError' || String(err?.message).includes('out of range')) {
-					console.warn('[mezon sdk-patch] Rescued RangeError during RoleListEventResponse decode:', err.message);
-					return apiProto.RoleListEventResponse.fromPartial({});
+					try {
+						const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+						const padded = new Uint8Array(bytes.length + 8);
+						padded.set(bytes);
+						const recovered = origDecode(padded, length);
+						console.warn('[mezon sdk-patch] Recovered RoleListEventResponse after padding retry (original error):', err.message);
+						return recovered;
+					} catch (retryErr) {
+						console.warn('[mezon sdk-patch] Rescued RangeError during RoleListEventResponse decode:', err.message);
+						return apiProto.RoleListEventResponse.fromPartial({});
+					}
 				}
 				throw err;
 			}
