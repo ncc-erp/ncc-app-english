@@ -106,7 +106,7 @@ export default function LandingPage() {
 							<Mic className='w-5 h-5' />
 						</div>
 						<div>
-							<span className='text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-700 to-indigo-700'>Mezon IELTS</span>
+							<span className='text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-700 to-indigo-700'>IELTS Thầy Huy</span>
 							<span className='block text-[10px] font-bold text-purple-600 uppercase tracking-widest'>Speaking Platform</span>
 						</div>
 					</a>
