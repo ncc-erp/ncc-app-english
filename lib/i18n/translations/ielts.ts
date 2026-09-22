@@ -184,7 +184,9 @@ export const ieltsEn = {
 		aiTranscriptPending: 'AI transcript pending.',
 		feedbackLabel: 'AI Examiner Question Feedback',
 		grammarLabel: 'Grammar & Phrasing Corrections',
-		modelResponseLabel: 'Model Response (Ideal Answer)'
+		modelResponseLabel: 'Suggested Answers',
+		academicAnswerLabel: 'Academic answer',
+		naturalAnswerLabel: 'Natural answer'
 	},
 	audioRecorder: {
 		statusRecording: 'Recording Speech...',
@@ -407,7 +409,9 @@ export const ieltsVi = {
 		aiTranscriptPending: 'Bản chép lời AI đang chờ xử lý.',
 		feedbackLabel: 'Phản hồi câu hỏi từ Giám khảo AI',
 		grammarLabel: 'Sửa lỗi ngữ pháp & cách diễn đạt',
-		modelResponseLabel: 'Câu trả lời mẫu (Đáp án lý tưởng)'
+		modelResponseLabel: 'Câu trả lời gợi ý',
+		academicAnswerLabel: 'Câu trả lời học thuật',
+		naturalAnswerLabel: 'Câu trả lời tự nhiên'
 	},
 	audioRecorder: {
 		statusRecording: 'Đang ghi âm...',

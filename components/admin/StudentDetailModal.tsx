@@ -355,14 +355,23 @@ const AttemptQuestionViewer: React.FC<{ questions: QuestionReviewItem[] }> = ({ 
 					</div>
 				)}
 
-				{/* Suggested High-Band Response */}
-				{qItem.analysis?.improved_version && (
+				{/* Suggested Answers */}
+				{(qItem.analysis?.academic_answer || qItem.analysis?.natural_answer || qItem.analysis?.improved_version) && (
 					<div className='p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1'>
 						<div className='text-[10px] font-extrabold text-emerald-800 uppercase flex items-center gap-1'>
 							<CheckCircle2 className='w-3.5 h-3.5 text-emerald-600' />
-							<span>Suggested High-Band Response:</span>
+							<span>Suggested Answers:</span>
 						</div>
-						<p className='text-xs text-emerald-950 font-medium leading-relaxed whitespace-pre-wrap break-words'>{qItem.analysis.improved_version}</p>
+						{(qItem.analysis.academic_answer || qItem.analysis.improved_version) && (
+							<p className='text-xs text-emerald-950 font-medium leading-relaxed whitespace-pre-wrap break-words'>
+								<strong>Academic answer:</strong> {qItem.analysis.academic_answer || qItem.analysis.improved_version}
+							</p>
+						)}
+						{qItem.analysis.natural_answer && (
+							<p className='text-xs text-emerald-950 font-medium leading-relaxed whitespace-pre-wrap break-words'>
+								<strong>Natural answer:</strong> {qItem.analysis.natural_answer}
+							</p>
+						)}
 					</div>
 				)}
 
