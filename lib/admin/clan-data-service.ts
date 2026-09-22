@@ -26,8 +26,11 @@ export interface StudentData {
 	latest_attempt_at: string | null;
 }
 
-// In-memory cache for Clan Admin verification (TTL 30 seconds) to avoid spamming Mezon Gateway
-const adminCache = new Map<string, { isAdmin: boolean; expiresAt: number }>();
+// Dedupes concurrent admin checks for the same user (e.g. the several /api/admin/* requests
+// a single /admin page load fires in parallel) without caching the result over time - this is
+// an access-control gate, so a user whose admin role is revoked must be blocked immediately,
+// not after some TTL expires.
+const inFlightAdminChecks = new Map<string, Promise<boolean>>();
 
 /**
  * Normalizes text for case-insensitive and accent-tolerant comparisons
@@ -102,31 +105,30 @@ function matchChannelAndRole(channelName: string, roleTitle: string): boolean {
 
 /**
  * Checks if a given Mezon User has the role "Admin" in the Clan.
- * Strictly queries the user's role in the Mezon Clan, NEVER from the database.
- *
- * Cache strategy:
- *  - Positive (isAdmin: true): cached 30s
- *  - Negative (confirmed not admin): cached 5s
- *  - Error / timeout: NOT cached (retry immediately on next request)
+ * Strictly queries the user's role in the Mezon Clan, NEVER from the database, and NEVER
+ * caches the result over time - concurrent calls for the same user share one in-flight
+ * check, but each new request re-verifies against Mezon.
  */
 export async function checkIsClanAdmin(mezonUserId: string): Promise<boolean> {
 	if (!mezonUserId) return false;
 
-	const POSITIVE_TTL = 30_000; // 30s
-	const NEGATIVE_TTL = 5_000; // 5s
+	const existing = inFlightAdminChecks.get(mezonUserId);
+	if (existing) return existing;
 
-	// 1. Check in-memory cache
-	const cached = adminCache.get(mezonUserId);
-	if (cached && Date.now() < cached.expiresAt) {
-		return cached.isAdmin;
-	}
+	const promise = resolveIsClanAdmin(mezonUserId).finally(() => {
+		inFlightAdminChecks.delete(mezonUserId);
+	});
+	inFlightAdminChecks.set(mezonUserId, promise);
+	return promise;
+}
 
-	// 2. Allow dev user in local development mode without Mezon bot
+async function resolveIsClanAdmin(mezonUserId: string): Promise<boolean> {
+	// 1. Allow dev user in local development mode without Mezon bot
 	if (process.env.NODE_ENV === 'development' && mezonUserId === 'dev_user_1001') {
 		return true;
 	}
 
-	// 3. Delegate to remote bot server if configured (e.g. Vercel deployment)
+	// 2. Delegate to remote bot server if configured (e.g. Vercel deployment)
 	const verifyUrl = process.env.MEZON_VERIFY_URL;
 	if (verifyUrl) {
 		try {
@@ -134,30 +136,22 @@ export async function checkIsClanAdmin(mezonUserId: string): Promise<boolean> {
 				headers: { 'x-bot-secret': process.env.BOT_VERIFY_SECRET || '' }
 			});
 			const data = await res.json();
-			const isAdmin = res.ok && data.isAdmin === true;
-			const ttl = isAdmin ? POSITIVE_TTL : NEGATIVE_TTL;
-			adminCache.set(mezonUserId, { isAdmin, expiresAt: Date.now() + ttl });
-			return isAdmin;
+			return res.ok && data.isAdmin === true;
 		} catch (error) {
 			console.error('[Clan Data Service] Remote verify-admin failed:', error);
-			// Network error → do NOT cache, allow immediate retry
 		}
 	}
 
-	// 4. Query live Mezon Clan roles directly via bot client
+	// 3. Query live Mezon Clan roles directly via bot client
 	try {
 		const client = await getSharedBotClient();
 		const clanId = process.env.MEZON_TARGET_CLAN_ID || '';
 
 		if (client && clanId) {
-			const isAdmin = await isClanAdminMember(client, mezonUserId, clanId);
-			const ttl = isAdmin ? POSITIVE_TTL : NEGATIVE_TTL;
-			adminCache.set(mezonUserId, { isAdmin, expiresAt: Date.now() + ttl });
-			return isAdmin;
+			return await isClanAdminMember(client, mezonUserId, clanId);
 		}
 	} catch (error) {
 		console.error('[Clan Data Service] Error checking clan admin role:', error);
-		// Error → do NOT cache, allow immediate retry
 	}
 
 	return false;
