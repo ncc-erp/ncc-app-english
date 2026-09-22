@@ -349,6 +349,8 @@ export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, 
 				ai_generated_transcript: aiTranscript,
 				match_percentage: matched?.match_percentage ?? (liveStt ? computeWordSimilarity(liveStt, aiTranscript) : 100),
 				feedback: matched?.feedback || 'Đã đánh giá.',
+				academic_answer: matched?.academic_answer,
+				natural_answer: matched?.natural_answer,
 				improved_version: matched?.improved_version,
 				grammar_corrections: matched?.grammar_corrections
 			};

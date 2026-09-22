@@ -65,7 +65,8 @@ idioms). This applies to: "estimated_band_reason", "overall_feedback",
 Do NOT translate the following — keep them in English exactly as spoken/written, since they are
 the candidate's own words or an English-language model answer for them to study:
 - "live_stt_transcript" and "ai_generated_transcript" (the candidate's actual spoken words)
-- "improved_version" (the Band 8.5+ model answer)
+- "academic_answer" (the polished academic English answer)
+- "natural_answer" (the natural, conversational English answer)
 - "grammar_corrections" (the corrected English phrases)
 - "vocab_upgrades" original/upgrade/context_example (the English vocabulary itself)
 - "filler_words" word and impact (keep "word" as spoken; keep "impact" as one of low/moderate/high)
@@ -82,6 +83,15 @@ WRONG (whole sentence left in English):
 
 CORRECT (Vietnamese explanation, English phrases kept quoted):
 Cách dùng của "I speak English" chưa tốt lắm. Bạn cần đổi thành "English is my 2nd language".
+
+--------------------------------------------------
+SUGGESTED ANSWERS
+--------------------------------------------------
+For every question, return both English-only fields:
+- "academic_answer": a polished Band 8.5+ answer with strong grammar and academic vocabulary.
+- "natural_answer": an accurate answer that sounds relaxed and conversational in everyday speech.
+
+The two answers must be distinct in style, answer the same question, and must never be translated into Vietnamese.
 
 --------------------------------------------------
 OUTPUT FORMAT (STRICT JSON SCHEMA)
