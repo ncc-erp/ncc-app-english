@@ -14,14 +14,14 @@ try {
 	// ignore
 }
 
-import { ExamAttempt, Question, UserSession } from '@/types';
+import { DailySubmitUser, ExamAttempt, Question, UserSession } from '@/types';
 import { SEED_QUESTIONS } from '@/lib/exam/questions';
 import { SEED_IELTS_TOPICS } from '@/lib/ielts/questions';
 import { IELTSSpeakingAttempt, IELTSSpeakingResponse, IELTSSpeakingTopic, IELTSSpeakingStatus, IELTSPart, IELTSScoreResult } from '@/types/ielts';
 
 // Global PostgreSQL connection pool instance for Next.js hot-reload handling
 const globalForPg = global as unknown as {
-	pgPool: Pool;
+	pgPool?: Pool;
 	dbInitialized?: boolean;
 };
 
@@ -263,7 +263,7 @@ export async function ensureDbInitialized() {
 						]
 					);
 				}
-				console.log(`[PostgreSQL] Seeded ${SEED_QUESTIONS.length} exam questions into DB.`);
+				console.warn(`[PostgreSQL] Seeded ${SEED_QUESTIONS.length} exam questions into DB.`);
 			}
 
 			// 3. Seed/Upsert IELTS topics
@@ -289,17 +289,17 @@ export async function ensureDbInitialized() {
 					]
 				);
 			}
-			console.log(`[PostgreSQL] Seeded/Upserted ${SEED_IELTS_TOPICS.length} IELTS Speaking topics into DB.`);
+			console.warn(`[PostgreSQL] Seeded/Upserted ${SEED_IELTS_TOPICS.length} IELTS Speaking topics into DB.`);
 
 			globalForPg.dbInitialized = true;
-			console.log('[PostgreSQL] Database tables & schema initialized successfully.');
+			console.warn('[PostgreSQL] Database tables & schema initialized successfully.');
 		} finally {
 			client.release();
 		}
 	} catch (err) {
 		console.error('[PostgreSQL Initialization Error]:', err);
 		// Invalidate cached pool so credentials can be re-evaluated
-		globalForPg.pgPool = undefined as any;
+		globalForPg.pgPool = undefined;
 	} finally {
 		isInitializing = false;
 	}
@@ -999,5 +999,32 @@ export const pgDb = {
 			if (att) results.push(att);
 		}
 		return results;
+	},
+	async getDailySubmitted(): Promise<DailySubmitUser[]> {
+		await ensureDbInitialized();
+		const query = `
+     SELECT
+    u.id,
+    u."mezonUserId",
+    u."avatarUrl",
+    u.metadata,
+    COUNT(a.id)::int AS count
+FROM ielts_speaking_attempts a
+LEFT JOIN users u
+    ON (
+        u.id::text = a.user_id
+        OR u."mezonUserId" = a.user_id
+    )
+WHERE a.status = 'submitted'
+GROUP BY
+    u.id,
+    u."mezonUserId",
+    u."avatarUrl",
+    u.metadata
+HAVING COUNT(a.id) >= 3
+ORDER BY count DESC;
+    `;
+		const { rows } = await pool.query(query);
+		return rows as DailySubmitUser[];
 	}
 };
