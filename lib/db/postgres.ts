@@ -35,10 +35,16 @@ export function getPool(): Pool {
 		process.env.POSTGRES_URL_NON_POOLING ||
 		process.env.POSTGRES_URL_NO_SSL;
 
-	const host = process.env.POSTGRES_HOST || process.env.DB_HOST;
-	const user = process.env.POSTGRES_USER || process.env.DB_USERNAME;
-	const password = process.env.POSTGRES_PASSWORD || process.env.DB_PASSWORD;
-	const database = process.env.POSTGRES_DATABASE || process.env.DB_NAME;
+	const host = process.env.POSTGRES_HOST || process.env.DB_HOST || '127.0.0.1';
+	const user = process.env.POSTGRES_USER || process.env.DB_USERNAME || 'postgres';
+	const password =
+		process.env.POSTGRES_PASSWORD !== undefined
+			? process.env.POSTGRES_PASSWORD
+			: process.env.DB_PASSWORD !== undefined
+				? process.env.DB_PASSWORD
+				: '123qwer';
+	const database = process.env.POSTGRES_DATABASE || process.env.DB_NAME || 'ncc_app_english';
+	const port = parseInt(process.env.POSTGRES_PORT || process.env.DB_PORT || (host !== '127.0.0.1' && host !== 'localhost' ? '5432' : '8104'), 10);
 
 	let newPool: Pool;
 
@@ -50,13 +56,13 @@ export function getPool(): Pool {
 			idleTimeoutMillis: 30000,
 			connectionTimeoutMillis: 10000
 		});
-	} else if (host && host !== '127.0.0.1' && host !== 'localhost') {
+	} else if (host !== '127.0.0.1' && host !== 'localhost') {
 		newPool = new Pool({
 			host,
-			port: parseInt(process.env.POSTGRES_PORT || process.env.DB_PORT || '5432', 10),
-			user: user || 'postgres',
-			password: password || '',
-			database: database || 'postgres',
+			port,
+			user,
+			password,
+			database,
 			ssl: { rejectUnauthorized: false },
 			max: 10,
 			idleTimeoutMillis: 30000,
@@ -64,11 +70,11 @@ export function getPool(): Pool {
 		});
 	} else {
 		newPool = new Pool({
-			host: host || '127.0.0.1',
-			port: parseInt(process.env.POSTGRES_PORT || process.env.DB_PORT || '8104', 10),
-			user: user || 'postgres',
-			password: password || '123qwe',
-			database: database || 'ncc_app_english',
+			host,
+			port,
+			user,
+			password,
+			database,
 			max: 10,
 			idleTimeoutMillis: 30000,
 			connectionTimeoutMillis: 5000
@@ -93,7 +99,7 @@ export const pool = new Proxy({} as Pool, {
 
 let isInitializing = false;
 
-// Auto initialize schema & seed questions & IELTS topics
+// Auto initialize schema & seed questions & IELTS topics (seeded 8 topics)
 export async function ensureDbInitialized() {
 	if (globalForPg.dbInitialized || isInitializing) return;
 	isInitializing = true;
@@ -121,21 +127,19 @@ export async function ensureDbInitialized() {
             CREATE TYPE result_status_enum AS ENUM ('none', 'partial', 'full');
         EXCEPTION WHEN duplicate_object THEN null; END $$;
 
+        -- Shared with ncc-bot-interview-english (TypeORM owns this shape). Our extra fields
+        -- (display_name, clan_member, clan_joined_at) live in metadata so synchronize can't drop them.
         CREATE TABLE IF NOT EXISTS users (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            mezon_id TEXT UNIQUE NOT NULL,
-            mezon_username TEXT,
-            display_name TEXT,
-            avatar_url TEXT,
-            clan_member BOOLEAN DEFAULT FALSE,
-            clan_joined_at TIMESTAMPTZ,
-            role TEXT NOT NULL DEFAULT 'user',
-            created_at TIMESTAMPTZ DEFAULT NOW(),
-            updated_at TIMESTAMPTZ DEFAULT NOW()
+            id BIGSERIAL PRIMARY KEY,
+            "mezonUserId" VARCHAR UNIQUE NOT NULL,
+            username VARCHAR NOT NULL,
+            email VARCHAR,
+            "avatarUrl" VARCHAR,
+            metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+            "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
+            "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+            "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
         );
-
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user';
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS clan_joined_at TIMESTAMPTZ;
 
         CREATE TABLE IF NOT EXISTS questions (
             id TEXT PRIMARY KEY,
@@ -262,38 +266,30 @@ export async function ensureDbInitialized() {
 				console.log(`[PostgreSQL] Seeded ${SEED_QUESTIONS.length} exam questions into DB.`);
 			}
 
-			// 3. Seed IELTS topics if empty, or upsert to ensure topics are updated
-			const { rows: ieltsRows } = await client.query('SELECT COUNT(*) as count FROM ielts_speaking_topics');
-			if (parseInt(ieltsRows[0].count, 10) === 0) {
-				for (const t of SEED_IELTS_TOPICS) {
-					await client.query(
-						`INSERT INTO ielts_speaking_topics (id, title, category, description, part1_questions, part2_cue_card, part3_questions)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
-             ON CONFLICT (id) DO NOTHING`,
-						[
-							t.id,
-							t.title,
-							t.category,
-							t.description || null,
-							JSON.stringify(t.part1_questions),
-							JSON.stringify(t.part2_cue_card),
-							JSON.stringify(t.part3_questions)
-						]
-					);
-				}
-				console.log(`[PostgreSQL] Seeded ${SEED_IELTS_TOPICS.length} IELTS Speaking topics into DB.`);
+			// 3. Seed/Upsert IELTS topics
+			for (const t of SEED_IELTS_TOPICS) {
+				await client.query(
+					`INSERT INTO ielts_speaking_topics (id, title, category, description, part1_questions, part2_cue_card, part3_questions)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (id) DO UPDATE SET
+             title = EXCLUDED.title,
+             category = EXCLUDED.category,
+             description = EXCLUDED.description,
+             part1_questions = EXCLUDED.part1_questions,
+             part2_cue_card = EXCLUDED.part2_cue_card,
+             part3_questions = EXCLUDED.part3_questions;`,
+					[
+						t.id,
+						t.title,
+						t.category,
+						t.description || null,
+						JSON.stringify(t.part1_questions),
+						JSON.stringify(t.part2_cue_card),
+						JSON.stringify(t.part3_questions)
+					]
+				);
 			}
-
-			// 4. Clear legacy multiple-choice exam attempt data safely & clean empty spammed IELTS attempts
-			try {
-				await client.query(`
-          DELETE FROM ielts_speaking_attempts
-          WHERE status = 'in_progress'
-            AND id NOT IN (SELECT DISTINCT attempt_id FROM ielts_speaking_responses WHERE attempt_id IS NOT NULL);
-        `);
-			} catch {
-				// Ignore if tables are empty or do not exist
-			}
+			console.log(`[PostgreSQL] Seeded/Upserted ${SEED_IELTS_TOPICS.length} IELTS Speaking topics into DB.`);
 
 			globalForPg.dbInitialized = true;
 			console.log('[PostgreSQL] Database tables & schema initialized successfully.');
@@ -309,27 +305,26 @@ export async function ensureDbInitialized() {
 	}
 }
 
-// Projection for users table columns matching UserSession
+// Projects the shared users table onto the field names the app uses (see DDL note).
 const USER_COLS = `
   id::text AS id,
-  mezon_id,
-  COALESCE(mezon_username, '') AS mezon_username,
-  COALESCE(display_name, mezon_username, '') AS display_name,
-  avatar_url,
-  COALESCE(clan_member, false) AS clan_member,
-  COALESCE(role, 'user') AS role`;
+  "mezonUserId" AS mezon_id,
+  username AS mezon_username,
+  COALESCE(metadata->>'display_name', username) AS display_name,
+  "avatarUrl" AS avatar_url,
+  COALESCE((metadata->>'clan_member')::boolean, false) AS clan_member,
+  COALESCE(metadata->>'role', 'user') AS role`;
 
 export const pgDb = {
 	async findOrCreateUser(mezonData: { mezon_id: string; username: string; display_name?: string; avatar_url?: string }): Promise<UserSession> {
 		await ensureDbInitialized();
 		const query = `
-      INSERT INTO users (mezon_id, mezon_username, display_name, avatar_url)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (mezon_id) DO UPDATE SET
-        display_name = COALESCE(EXCLUDED.display_name, users.display_name),
-        avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
-        mezon_username = COALESCE(EXCLUDED.mezon_username, users.mezon_username),
-        updated_at = NOW()
+      INSERT INTO users ("mezonUserId", username, "avatarUrl", metadata)
+      VALUES ($1, $2, $4, jsonb_build_object('display_name', $3::text))
+      ON CONFLICT ("mezonUserId") DO UPDATE SET
+        metadata = users.metadata || jsonb_build_object('display_name', EXCLUDED.metadata->>'display_name'),
+        "avatarUrl" = COALESCE(EXCLUDED."avatarUrl", users."avatarUrl"),
+        "updatedAt" = NOW()
       RETURNING ${USER_COLS};
     `;
 		const values = [mezonData.mezon_id, mezonData.username, mezonData.display_name || mezonData.username, mezonData.avatar_url || null];
@@ -342,8 +337,8 @@ export const pgDb = {
 			mezon_id: u.mezon_id,
 			mezon_username: u.mezon_username,
 			display_name: u.display_name,
-			avatar_url: u.avatar_url || undefined,
-			clan_member: Boolean(u.clan_member),
+			avatar_url: u.avatar_url,
+			clan_member: u.clan_member,
 			role: u.role === 'admin' ? 'admin' : 'user',
 			isLoggedIn: true
 		};
@@ -504,8 +499,9 @@ export const pgDb = {
 		await ensureDbInitialized();
 		await pool.query(
 			`UPDATE users
-       SET clan_member = $1, clan_joined_at = NOW(), updated_at = NOW()
-       WHERE mezon_id = $2`,
+         SET metadata = metadata || jsonb_build_object('clan_member', $1::boolean, 'clan_joined_at', NOW()),
+             "updatedAt" = NOW()
+       WHERE "mezonUserId" = $2`,
 			[isMember, mezonId]
 		);
 	},
@@ -515,9 +511,39 @@ export const pgDb = {
 	// ============================================================
 	async getIELTSTopics(): Promise<IELTSSpeakingTopic[]> {
 		await ensureDbInitialized();
-		const query = `SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`;
-		const { rows } = await pool.query(query);
-		if (rows.length === 0) return SEED_IELTS_TOPICS;
+		try {
+			await pool.query(`ALTER TABLE ielts_speaking_topics ADD COLUMN IF NOT EXISTS description TEXT;`);
+		} catch {
+			// Ignore if alter fails
+		}
+		let { rows } = await pool.query(`SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`);
+
+		if (rows.length < SEED_IELTS_TOPICS.length) {
+			for (const t of SEED_IELTS_TOPICS) {
+				await pool.query(
+					`INSERT INTO ielts_speaking_topics (id, title, category, description, part1_questions, part2_cue_card, part3_questions)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           ON CONFLICT (id) DO UPDATE SET
+             title = EXCLUDED.title,
+             category = EXCLUDED.category,
+             description = EXCLUDED.description,
+             part1_questions = EXCLUDED.part1_questions,
+             part2_cue_card = EXCLUDED.part2_cue_card,
+             part3_questions = EXCLUDED.part3_questions;`,
+					[
+						t.id,
+						t.title,
+						t.category,
+						t.description || null,
+						JSON.stringify(t.part1_questions),
+						JSON.stringify(t.part2_cue_card),
+						JSON.stringify(t.part3_questions)
+					]
+				);
+			}
+			const reQuery = await pool.query(`SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`);
+			rows = reQuery.rows;
+		}
 
 		return rows.map((r) => ({
 			id: r.id,
@@ -635,12 +661,7 @@ export const pgDb = {
       INSERT INTO ielts_speaking_responses (attempt_id, question_id, part, audio_url, audio_storage_path, transcript, duration_seconds)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       ON CONFLICT (attempt_id, question_id)
-      DO UPDATE SET
-        audio_url = EXCLUDED.audio_url,
-        audio_storage_path = EXCLUDED.audio_storage_path,
-        transcript = EXCLUDED.transcript,
-        duration_seconds = EXCLUDED.duration_seconds,
-        answered_at = NOW();
+      DO UPDATE SET audio_url = EXCLUDED.audio_url, audio_storage_path = EXCLUDED.audio_storage_path, transcript = EXCLUDED.transcript, duration_seconds = EXCLUDED.duration_seconds, answered_at = NOW();
     `;
 		await pool.query(query, [attemptId, questionId, part, audioUrl || null, audioStoragePath || null, transcript || null, durationSeconds]);
 		return this.getIELTSAttempt(attemptId);
@@ -673,16 +694,12 @@ export const pgDb = {
 		return this.getIELTSAttempt(attemptId);
 	},
 
-	async cancelIELTSAttempt(attemptId: string, userId?: string): Promise<void> {
+	async cancelIELTSAttempt(attemptId: string, userId: string): Promise<void> {
 		await ensureDbInitialized();
-		if (userId) {
-			await pool.query(`UPDATE ielts_speaking_attempts SET status = 'cancelled' WHERE id = $1 AND user_id = $2 AND status != 'submitted'`, [
-				attemptId,
-				userId
-			]);
-		} else {
-			await pool.query(`UPDATE ielts_speaking_attempts SET status = 'cancelled' WHERE id = $1 AND status != 'submitted'`, [attemptId]);
-		}
+		await pool.query(`UPDATE ielts_speaking_attempts SET status = 'cancelled' WHERE id = $1 AND user_id = $2 AND status != 'submitted'`, [
+			attemptId,
+			userId
+		]);
 	},
 
 	async getUserIELTSAttempts(userId: string): Promise<IELTSSpeakingAttempt[]> {
@@ -691,8 +708,7 @@ export const pgDb = {
       SELECT a.*, t.title as topic_title
       FROM ielts_speaking_attempts a
       LEFT JOIN ielts_speaking_topics t ON a.topic_id = t.id
-      LEFT JOIN users u ON (u.id::text = a.user_id OR u.mezon_id = a.user_id)
-      WHERE (a.user_id = $1 OR u.id::text = $1 OR u.mezon_id = $1)
+      WHERE a.user_id = $1
       ORDER BY a.created_at DESC;
     `;
 		const { rows } = await pool.query(query, [userId]);
@@ -791,17 +807,17 @@ export const pgDb = {
 
 	async getUserByMezonId(mezonId: string): Promise<UserSession | null> {
 		await ensureDbInitialized();
-		const query = `SELECT ${USER_COLS} FROM users WHERE mezon_id = $1 OR id::text = $1`;
+		const query = `SELECT ${USER_COLS} FROM users WHERE "mezonUserId" = $1 OR id::text = $1`;
 		const { rows } = await pool.query(query, [mezonId]);
 		if (rows.length === 0) return null;
 		const u = rows[0];
 		return {
 			user_id: u.id,
 			mezon_id: u.mezon_id,
-			mezon_username: u.mezon_username || '',
-			display_name: u.display_name || u.mezon_username || '',
-			avatar_url: u.avatar_url || undefined,
-			clan_member: Boolean(u.clan_member),
+			mezon_username: u.mezon_username,
+			display_name: u.display_name,
+			avatar_url: u.avatar_url,
+			clan_member: u.clan_member,
 			role: u.role === 'admin' ? 'admin' : 'user',
 			isLoggedIn: true
 		};
@@ -813,7 +829,10 @@ export const pgDb = {
 
 	async setUserRole(mezonId: string, role: 'user' | 'admin'): Promise<void> {
 		await ensureDbInitialized();
-		await pool.query(`UPDATE users SET role = $1, updated_at = NOW() WHERE mezon_id = $2`, [role, mezonId]);
+		await pool.query(`UPDATE users SET metadata = metadata || jsonb_build_object('role', $1::text), "updatedAt" = NOW() WHERE "mezonUserId" = $2`, [
+			role,
+			mezonId
+		]);
 	},
 
 	/**
@@ -831,8 +850,8 @@ export const pgDb = {
 		const query = `
       SELECT a.id
       FROM ielts_speaking_attempts a
-      LEFT JOIN users u ON (u.id::text = a.user_id OR u.mezon_id = a.user_id)
-      WHERE (a.user_id = $1 OR u.id::text = $1 OR u.mezon_id = $1)
+      LEFT JOIN users u ON (u.id::text = a.user_id OR u."mezonUserId" = a.user_id)
+      WHERE (a.user_id = $1 OR u.id::text = $1 OR u."mezonUserId" = $1)
         AND (a.status = 'submitted' OR a.overall_band IS NOT NULL OR a.score_result IS NOT NULL)
       ORDER BY COALESCE(a.submitted_at, a.started_at) DESC
       LIMIT 1;
@@ -847,8 +866,8 @@ export const pgDb = {
 		const query = `
       SELECT a.id
       FROM ielts_speaking_attempts a
-      LEFT JOIN users u ON (u.id::text = a.user_id OR u.mezon_id = a.user_id)
-      WHERE (a.user_id = $1 OR u.id::text = $1 OR u.mezon_id = $1)
+      LEFT JOIN users u ON (u.id::text = a.user_id OR u."mezonUserId" = a.user_id)
+      WHERE (a.user_id = $1 OR u.id::text = $1 OR u."mezonUserId" = $1)
         AND (a.status = 'submitted' OR a.overall_band IS NOT NULL OR a.score_result IS NOT NULL)
       ORDER BY COALESCE(a.submitted_at, a.started_at) DESC
       LIMIT $2;
@@ -867,9 +886,9 @@ export const pgDb = {
 		const query = `
       SELECT a.id
       FROM ielts_speaking_attempts a
-      LEFT JOIN users u ON (u.id::text = a.user_id OR u.mezon_id = a.user_id)
+      LEFT JOIN users u ON (u.id::text = a.user_id OR u."mezonUserId" = a.user_id)
       WHERE a.id = $1
-        AND (a.user_id = $2 OR u.id::text = $2 OR u.mezon_id = $2);
+        AND (a.user_id = $2 OR u.id::text = $2 OR u."mezonUserId" = $2);
     `;
 		const { rows } = await pool.query(query, [attemptId, userId]);
 		if (rows.length === 0) return null;
@@ -896,18 +915,18 @@ export const pgDb = {
 
 		const query = `
       SELECT
-        COALESCE(u.mezon_id, a.user_id) AS student_id,
-        u.mezon_id AS user_mezon_id,
+        COALESCE(u."mezonUserId", a.user_id) AS student_id,
+        u."mezonUserId" AS user_mezon_id,
         a.user_id AS attempt_user_id,
         COUNT(a.id)::int AS total_attempts,
         ROUND(AVG(a.overall_band)::numeric, 1)::float AS average_band,
         MAX(a.overall_band)::float AS highest_band,
         MAX(COALESCE(a.submitted_at, a.started_at)) AS latest_attempt_at
       FROM ielts_speaking_attempts a
-      LEFT JOIN users u ON (u.id::text = a.user_id OR u.mezon_id = a.user_id)
-      WHERE (a.user_id = ANY($1) OR u.mezon_id = ANY($1))
-        AND a.status != 'cancelled'
-      GROUP BY COALESCE(u.mezon_id, a.user_id), u.mezon_id, a.user_id;
+      LEFT JOIN users u ON (u.id::text = a.user_id OR u."mezonUserId" = a.user_id)
+      WHERE (a.user_id = ANY($1) OR u."mezonUserId" = ANY($1))
+        AND a.status = 'submitted'
+      GROUP BY COALESCE(u."mezonUserId", a.user_id), u."mezonUserId", a.user_id;
     `;
 
 		const { rows } = await pool.query(query, [mezonUserIds]);
@@ -949,7 +968,7 @@ export const pgDb = {
         COUNT(id)::int AS total_attempts,
         ROUND(AVG(overall_band)::numeric, 1)::float AS average_band
       FROM ielts_speaking_attempts
-      WHERE status != 'cancelled' AND (overall_band IS NOT NULL OR score_result IS NOT NULL);
+      WHERE status = 'submitted' AND (overall_band IS NOT NULL OR score_result IS NOT NULL);
     `;
 		const { rows } = await pool.query(query);
 		return {
@@ -967,9 +986,9 @@ export const pgDb = {
 		const query = `
       SELECT a.id
       FROM ielts_speaking_attempts a
-      LEFT JOIN users u ON (u.id::text = a.user_id OR u.mezon_id = a.user_id)
-      WHERE (a.user_id = $1 OR u.id::text = $1 OR u.mezon_id = $1)
-        AND a.status != 'cancelled'
+      LEFT JOIN users u ON (u.id::text = a.user_id OR u."mezonUserId" = a.user_id)
+      WHERE (a.user_id = $1 OR u.id::text = $1 OR u."mezonUserId" = $1)
+        AND a.status = 'submitted'
       ORDER BY COALESCE(a.submitted_at, a.started_at) DESC;
     `;
 		const { rows } = await pool.query(query, [studentId]);
