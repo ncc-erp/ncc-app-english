@@ -1,5 +1,8 @@
 let timer: ReturnType<typeof setTimeout> | null = null;
 
+const CLAN_SUBMIT = '2091711303834931200';
+const CHANNEL_SUBMIT = '2102306495197614080';
+
 export async function startScheduler() {
 	const { sendDailyMessage } = await import('./bot/bot-messenger');
 
@@ -23,9 +26,9 @@ export async function startScheduler() {
 
 			try {
 				await sendDailyMessage({
-					clanId: '2091711303834931200',
+					clanId: CLAN_SUBMIT,
 					isPublic: true,
-					channelId: '2102306495197614080'
+					channelId: CHANNEL_SUBMIT
 				});
 			} catch (error: unknown) {
 				console.error('[Scheduler] Failed to send message:', error);
