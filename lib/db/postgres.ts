@@ -18,6 +18,7 @@ import { ExamAttempt, Question, UserSession } from '@/types';
 import { SEED_QUESTIONS } from '@/lib/exam/questions';
 import { SEED_IELTS_TOPICS } from '@/lib/ielts/questions';
 import { IELTSSpeakingAttempt, IELTSSpeakingResponse, IELTSSpeakingTopic, IELTSSpeakingStatus, IELTSPart, IELTSScoreResult } from '@/types/ielts';
+import { Meeting, MeetingParticipant, MeetingParticipantRole, MeetingRoomOption, MeetingRosterMember } from '@/types/meeting';
 
 // Global PostgreSQL connection pool instance for Next.js hot-reload handling
 const globalForPg = global as unknown as {
@@ -240,6 +241,49 @@ export async function ensureDbInitialized() {
         CREATE TABLE IF NOT EXISTS launch_tokens (
             jti TEXT PRIMARY KEY,
             used_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS meetings (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            scheduled_at TIMESTAMPTZ NOT NULL,
+            room_id TEXT,
+            room_name TEXT,
+            created_by TEXT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS meeting_participants (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            meeting_id TEXT REFERENCES meetings(id) ON DELETE CASCADE,
+            mezon_id TEXT NOT NULL,
+            username TEXT,
+            display_name TEXT,
+            avatar_url TEXT,
+            role TEXT,
+            joined_at TIMESTAMPTZ,
+            reminded_10min_at TIMESTAMPTZ,
+            reminded_start_at TIMESTAMPTZ,
+            CONSTRAINT unique_meeting_participant UNIQUE(meeting_id, mezon_id)
+        );
+
+        -- Synced from the Mezon clan bot (rooms + student/teacher roster). Populated by the
+        -- bot sync job; the admin UI only ever reads these two for its assign dropdowns.
+        CREATE TABLE IF NOT EXISTS meeting_rooms_cache (
+            room_id TEXT PRIMARY KEY,
+            room_name TEXT NOT NULL,
+            clan_id TEXT NOT NULL,
+            synced_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS meeting_roster_cache (
+            mezon_id TEXT PRIMARY KEY,
+            username TEXT,
+            display_name TEXT NOT NULL,
+            avatar_url TEXT,
+            role TEXT NOT NULL,
+            clan_id TEXT NOT NULL,
+            synced_at TIMESTAMPTZ DEFAULT NOW()
         );
       `);
 
@@ -999,5 +1043,194 @@ export const pgDb = {
 			if (att) results.push(att);
 		}
 		return results;
+	},
+
+	// ============================================================
+	// MEETING MANAGEMENT
+	// ============================================================
+	async createMeeting(title: string, scheduledAt: string, createdBy: string): Promise<Meeting> {
+		await ensureDbInitialized();
+		const id = `meeting-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+		const query = `
+      INSERT INTO meetings (id, title, scheduled_at, created_by)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *;
+    `;
+		const { rows } = await pool.query(query, [id, title, scheduledAt, createdBy]);
+		const r = rows[0];
+		return {
+			id: r.id,
+			title: r.title,
+			scheduled_at: new Date(r.scheduled_at).toISOString(),
+			room_id: r.room_id || undefined,
+			room_name: r.room_name || undefined,
+			created_by: r.created_by,
+			created_at: new Date(r.created_at).toISOString(),
+			participant_count: 0,
+			participants: []
+		};
+	},
+
+	// List view: each meeting carries only a 10-item participant preview plus the true count,
+	// matching the ticket's "display 10, click through for the rest" requirement.
+	async getMeetings(limit: number = 50): Promise<Meeting[]> {
+		await ensureDbInitialized();
+		const { rows: meetingRows } = await pool.query(`SELECT * FROM meetings ORDER BY scheduled_at DESC LIMIT $1`, [limit]);
+		if (meetingRows.length === 0) return [];
+
+		const meetingIds = meetingRows.map((r) => r.id);
+		const { rows: participantRows } = await pool.query(`SELECT * FROM meeting_participants WHERE meeting_id = ANY($1) ORDER BY id ASC`, [
+			meetingIds
+		]);
+
+		const participantsByMeeting = new Map<string, MeetingParticipant[]>();
+		participantRows.forEach((p) => {
+			const list = participantsByMeeting.get(p.meeting_id) || [];
+			list.push({
+				mezon_id: p.mezon_id,
+				username: p.username || undefined,
+				display_name: p.display_name || p.username || p.mezon_id,
+				avatar_url: p.avatar_url || undefined,
+				role: p.role || undefined,
+				joined_at: p.joined_at ? new Date(p.joined_at).toISOString() : undefined
+			});
+			participantsByMeeting.set(p.meeting_id, list);
+		});
+
+		return meetingRows.map((r) => {
+			const allParticipants = participantsByMeeting.get(r.id) || [];
+			return {
+				id: r.id,
+				title: r.title,
+				scheduled_at: new Date(r.scheduled_at).toISOString(),
+				room_id: r.room_id || undefined,
+				room_name: r.room_name || undefined,
+				created_by: r.created_by,
+				created_at: new Date(r.created_at).toISOString(),
+				participant_count: allParticipants.length,
+				participants: allParticipants.slice(0, 10)
+			};
+		});
+	},
+
+	async getMeeting(id: string): Promise<Meeting | null> {
+		await ensureDbInitialized();
+		const { rows } = await pool.query(`SELECT * FROM meetings WHERE id = $1`, [id]);
+		if (rows.length === 0) return null;
+		const r = rows[0];
+
+		const { rows: participantRows } = await pool.query(`SELECT * FROM meeting_participants WHERE meeting_id = $1 ORDER BY id ASC`, [id]);
+		const participants: MeetingParticipant[] = participantRows.map((p) => ({
+			mezon_id: p.mezon_id,
+			username: p.username || undefined,
+			display_name: p.display_name || p.username || p.mezon_id,
+			avatar_url: p.avatar_url || undefined,
+			role: p.role || undefined,
+			joined_at: p.joined_at ? new Date(p.joined_at).toISOString() : undefined
+		}));
+
+		return {
+			id: r.id,
+			title: r.title,
+			scheduled_at: new Date(r.scheduled_at).toISOString(),
+			room_id: r.room_id || undefined,
+			room_name: r.room_name || undefined,
+			created_by: r.created_by,
+			created_at: new Date(r.created_at).toISOString(),
+			participant_count: participants.length,
+			participants
+		};
+	},
+
+	// Upserts so re-assigning (e.g. changing someone's role) doesn't need a separate remove step.
+	async assignMeetingParticipants(meetingId: string, participants: Omit<MeetingParticipant, 'joined_at'>[]): Promise<Meeting | null> {
+		await ensureDbInitialized();
+		for (const p of participants) {
+			await pool.query(
+				`INSERT INTO meeting_participants (meeting_id, mezon_id, username, display_name, avatar_url, role)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (meeting_id, mezon_id) DO UPDATE SET
+           username = EXCLUDED.username,
+           display_name = EXCLUDED.display_name,
+           avatar_url = EXCLUDED.avatar_url,
+           role = EXCLUDED.role;`,
+				[meetingId, p.mezon_id, p.username || null, p.display_name, p.avatar_url || null, p.role || null]
+			);
+		}
+		return this.getMeeting(meetingId);
+	},
+
+	async assignMeetingRoom(meetingId: string, roomId: string, roomName: string): Promise<Meeting | null> {
+		await ensureDbInitialized();
+		await pool.query(`UPDATE meetings SET room_id = $1, room_name = $2 WHERE id = $3`, [roomId, roomName, meetingId]);
+		return this.getMeeting(meetingId);
+	},
+
+	// Read side of the room/roster cache — the assign UI queries these regardless of whether
+	// the bot sync job has run yet (empty tables just mean empty dropdowns).
+	async getMeetingRoomsCache(): Promise<MeetingRoomOption[]> {
+		await ensureDbInitialized();
+		const { rows } = await pool.query(`SELECT * FROM meeting_rooms_cache ORDER BY room_name ASC`);
+		return rows.map((r) => ({
+			room_id: r.room_id,
+			room_name: r.room_name,
+			clan_id: r.clan_id,
+			synced_at: new Date(r.synced_at).toISOString()
+		}));
+	},
+
+	async getMeetingRosterCache(): Promise<MeetingRosterMember[]> {
+		await ensureDbInitialized();
+		const { rows } = await pool.query(`SELECT * FROM meeting_roster_cache ORDER BY display_name ASC`);
+		return rows.map((r) => ({
+			mezon_id: r.mezon_id,
+			username: r.username || undefined,
+			display_name: r.display_name,
+			avatar_url: r.avatar_url || undefined,
+			role: r.role,
+			clan_id: r.clan_id,
+			synced_at: new Date(r.synced_at).toISOString()
+		}));
+	},
+
+	// Write side of the cache — this is what the Mezon bot sync job (Person B) calls after
+	// pulling rooms/members from the "IELTS thầy Huy" clan.
+	async upsertMeetingRoomsCache(rooms: { room_id: string; room_name: string; clan_id: string }[]): Promise<void> {
+		await ensureDbInitialized();
+		for (const room of rooms) {
+			await pool.query(
+				`INSERT INTO meeting_rooms_cache (room_id, room_name, clan_id, synced_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (room_id) DO UPDATE SET room_name = EXCLUDED.room_name, clan_id = EXCLUDED.clan_id, synced_at = NOW();`,
+				[room.room_id, room.room_name, room.clan_id]
+			);
+		}
+	},
+
+	async upsertMeetingRosterCache(
+		members: {
+			mezon_id: string;
+			username?: string;
+			display_name: string;
+			avatar_url?: string;
+			role: MeetingParticipantRole;
+			clan_id: string;
+		}[]
+	): Promise<void> {
+		await ensureDbInitialized();
+		for (const m of members) {
+			await pool.query(
+				`INSERT INTO meeting_roster_cache (mezon_id, username, display_name, avatar_url, role, clan_id, synced_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+         ON CONFLICT (mezon_id) DO UPDATE SET
+           username = EXCLUDED.username,
+           display_name = EXCLUDED.display_name,
+           avatar_url = EXCLUDED.avatar_url,
+           role = EXCLUDED.role,
+           clan_id = EXCLUDED.clan_id,
+           synced_at = NOW();`,
+				[m.mezon_id, m.username || null, m.display_name, m.avatar_url || null, m.role, m.clan_id]
+			);
+		}
 	}
 };
