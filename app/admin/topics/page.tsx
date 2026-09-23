@@ -2,10 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Navbar } from '@/components/Navbar';
+import { useAdminUser, useAdminSidebarVisible } from '@/components/admin/AdminAuthContext';
 import { IELTSSpeakingTopic } from '@/types/ielts';
-import { UserSession } from '@/types';
 import {
 	ShieldAlert,
 	Plus,
@@ -27,10 +25,9 @@ import {
 } from 'lucide-react';
 
 export default function AdminTopicsPage() {
-	const router = useRouter();
-
-	const [user, setUser] = useState<UserSession | null>(null);
-	const [authLoading, setAuthLoading] = useState(true);
+	const user = useAdminUser();
+	const isAuthorized = user.role === 'admin';
+	useAdminSidebarVisible(isAuthorized);
 
 	const [topics, setTopics] = useState<IELTSSpeakingTopic[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -57,31 +54,15 @@ export default function AdminTopicsPage() {
 	const [saving, setSaving] = useState(false);
 	const [errorMsg, setErrorMsg] = useState('');
 
-	// 1. Verify Admin Session
+	// 1. Fetch Topics List (session/role already gated by the /admin layout + isAuthorized check below)
 	useEffect(() => {
-		async function checkAuth() {
-			try {
-				setAuthLoading(true);
-				const res = await fetch('/api/auth/me');
-				const data = await res.json();
-
-				if (data.isLoggedIn && data.user && data.user.role === 'admin') {
-					setUser(data.user);
-					fetchTopics();
-				} else {
-					setUser(null);
-				}
-			} catch (err) {
-				console.error('Admin auth check error:', err);
-				setUser(null);
-			} finally {
-				setAuthLoading(false);
-			}
+		if (isAuthorized) {
+			fetchTopics();
+		} else {
+			setLoading(false);
 		}
-		checkAuth();
-	}, []);
-
-	// 2. Fetch Topics List
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isAuthorized]);
 	const fetchTopics = async () => {
 		try {
 			setLoading(true);
@@ -224,47 +205,23 @@ export default function AdminTopicsPage() {
 		return matchesSearch && matchesCat;
 	});
 
-	if (authLoading) {
+	if (!isAuthorized) {
 		return (
-			<div className='min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center'>
-				<div className='flex items-center space-x-3'>
-					<Loader2 className='w-6 h-6 animate-spin text-purple-600' />
-					<span className='text-sm font-medium text-slate-600'>Verifying Admin Access...</span>
+			<div className='bg-white border border-slate-200 rounded-3xl p-8 max-w-md mx-auto text-center space-y-4 shadow-xl'>
+				<div className='w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto border border-rose-200'>
+					<ShieldAlert className='w-7 h-7' />
 				</div>
-			</div>
-		);
-	}
-
-	if (!user) {
-		return (
-			<div className='min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans'>
-				<Navbar />
-				<main className='flex-1 flex items-center justify-center p-4'>
-					<div className='bg-white border border-slate-200 rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-xl'>
-						<div className='w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto border border-rose-200'>
-							<ShieldAlert className='w-7 h-7' />
-						</div>
-						<h1 className='text-xl font-bold text-slate-900'>Access Denied</h1>
-						<p className='text-xs text-slate-600 leading-relaxed'>
-							You must be logged in as an Administrator (`admin`) to access the IELTS Topic Management Portal.
-						</p>
-						<button
-							onClick={() => router.push('/login')}
-							className='w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-purple-200'
-						>
-							Go to Login Page
-						</button>
-					</div>
-				</main>
+				<h1 className='text-xl font-bold text-slate-900'>Access Denied</h1>
+				<p className='text-xs text-slate-600 leading-relaxed'>
+					You must be logged in as an Administrator (`admin`) to access the IELTS Topic Management Portal.
+				</p>
 			</div>
 		);
 	}
 
 	return (
-		<div className='min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans'>
-			<Navbar user={user} />
-
-			<main className='flex-1 max-w-6xl mx-auto px-4 py-8 w-full space-y-8'>
+		<>
+			<div className='space-y-8'>
 				{/* Portal Header */}
 				<div className='flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm'>
 					<div className='space-y-1'>
@@ -459,7 +416,7 @@ export default function AdminTopicsPage() {
 						))}
 					</div>
 				)}
-			</main>
+			</div>
 
 			{/* Create / Edit Modal */}
 			{isCreateModalOpen && (
@@ -816,6 +773,6 @@ export default function AdminTopicsPage() {
 					</div>
 				</div>
 			)}
-		</div>
+		</>
 	);
 }
