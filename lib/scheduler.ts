@@ -1,7 +1,7 @@
 let timer: ReturnType<typeof setTimeout> | null = null;
 
-const CLAN_SUBMIT = '2091711303834931200';
-const CHANNEL_SUBMIT = '2102306495197614080';
+const CLAN_SUBMIT = '2099411459485208576';
+const CHANNEL_SUBMIT = '2101880863624007680';
 
 export async function startScheduler() {
 	const { sendDailyMessage } = await import('./bot/bot-messenger');
@@ -14,7 +14,7 @@ export async function startScheduler() {
 		const now: Date = new Date();
 
 		const next: Date = new Date(now);
-		next.setHours(8, 0, 0, 0);
+		next.setHours(20, 0, 0, 0);
 		// Nếu đã qua 08:00 → chạy ngày mai
 		if (next <= now) {
 			next.setDate(next.getDate() + 1);

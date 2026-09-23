@@ -1003,26 +1003,60 @@ export const pgDb = {
 	async getDailySubmitted(): Promise<DailySubmitUser[]> {
 		await ensureDbInitialized();
 		const query = `
-     SELECT
+   WITH submitted_days AS (
+    SELECT
+        a.user_id,
+        DATE(a.created_at) AS submitted_date
+    FROM ielts_speaking_attempts a
+    WHERE a.status = 'submitted'
+      AND a.created_at >= CURRENT_DATE - INTERVAL '5 days'
+    GROUP BY
+        a.user_id,
+        DATE(a.created_at)
+),
+
+user_streaks AS (
+    SELECT
+        user_id,
+        submitted_date,
+        submitted_date
+            - ROW_NUMBER() OVER (
+                PARTITION BY user_id
+                ORDER BY submitted_date
+            )::int AS grp
+    FROM submitted_days
+),
+
+streak_counts AS (
+    SELECT
+        user_id,
+        COUNT(*)::int AS streak
+    FROM user_streaks
+    GROUP BY user_id, grp
+),
+
+max_streaks AS (
+    SELECT
+        user_id,
+        MAX(streak)::int AS count
+    FROM streak_counts
+    WHERE streak >= 3
+    GROUP BY user_id
+)
+
+SELECT
     u.id,
     u."mezonUserId",
     u."avatarUrl",
     u.metadata,
-    COUNT(a.id)::int AS count
-FROM ielts_speaking_attempts a
+    s.count
+FROM max_streaks s
 LEFT JOIN users u
     ON (
-        u.id::text = a.user_id
-        OR u."mezonUserId" = a.user_id
+        u.id::text = s.user_id
+        OR u."mezonUserId" = s.user_id
     )
-WHERE a.status = 'submitted'
-GROUP BY
-    u.id,
-    u."mezonUserId",
-    u."avatarUrl",
-    u.metadata
-HAVING COUNT(a.id) >= 3
-ORDER BY count DESC;
+ORDER BY s.count DESC;
     `;
 		const { rows } = await pool.query(query);
 		return rows as DailySubmitUser[];
