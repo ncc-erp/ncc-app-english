@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { UserSession } from '@/types';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { Mic, LogOut, User, Sparkles, History, Shield, BookOpen } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 interface NavbarProps {
 	user?: UserSession | null;
@@ -17,36 +18,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
 	const router = useRouter();
 	const pathname = usePathname();
 	const { t, locale, setLocale } = useTranslation();
-	const [currentUser, setCurrentUser] = useState<UserSession | null | undefined>(propUser);
-
-	useEffect(() => {
-		if (propUser !== undefined) {
-			setCurrentUser(propUser);
-			return;
-		}
-
-		let isMounted = true;
-		async function fetchMe() {
-			try {
-				const res = await fetch('/api/auth/me');
-				const data = await res.json();
-				if (isMounted) {
-					if (data.isLoggedIn && data.user) {
-						setCurrentUser(data.user);
-					} else {
-						setCurrentUser(null);
-					}
-				}
-			} catch {
-				if (isMounted) setCurrentUser(null);
-			}
-		}
-		fetchMe();
-
-		return () => {
-			isMounted = false;
-		};
-	}, [propUser]);
+	const { user, logout } = useAuth();
 
 	const handleLogout = async () => {
 		if (onLogout) {
@@ -55,7 +27,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
 		}
 		try {
 			await fetch('/api/auth/logout', { method: 'POST' });
-			setCurrentUser(null);
+			logout();
 			router.push('/');
 			router.refresh();
 		} catch (err) {
@@ -63,7 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
 		}
 	};
 
-	const activeUser = propUser !== undefined ? propUser : currentUser;
+	const activeUser = propUser !== undefined ? propUser : user;
 	const isAdmin = activeUser?.role === 'admin';
 
 	return (
