@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
 
 	// Fallback to Mock Dev Login if Client ID is placeholder or ?mock=true is requested
 	if (isMock || isPlaceholderClient) {
-		console.log('[Auth Login] Using Dev Mock Login mode (Client ID is placeholder or mock=true).');
+		console.warn('[Auth Login] Using Dev Mock Login mode (Client ID is placeholder or mock=true).');
 		const mockUrl = new URL('/api/auth/callback?code=mock_dev_code', req.url);
 		const mockRedirect = searchParams.get('redirect') || '';
 		const response = NextResponse.redirect(mockUrl);
