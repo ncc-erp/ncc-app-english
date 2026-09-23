@@ -11,6 +11,28 @@ export default function LoginLayout({
 	const { login, user } = useAuth();
 
 	useEffect(() => {
+		const hashData = new URLSearchParams(window.location.search).get('data');
+		if (!hashData) return;
+		fetch('/api/auth/mezon-hash', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ hashData })
+		})
+			.then(async (response) => {
+				const data = await response.json();
+				if (data?.success && data?.user?.mezon_id && data?.user?.isLoggedIn) {
+					login(data?.user);
+				}
+				return data;
+			})
+			.catch((err) => {
+				console.error('Hash auth error:', err);
+			});
+	}, []);
+
+	useEffect(() => {
 		// Đã login rồi thì không cần check và không show loading
 		if (user) {
 			return;
