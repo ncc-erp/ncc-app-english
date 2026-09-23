@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { pgDb } from '@/lib/db/postgres';
+import { AdminVerificationUnavailableError } from '@/lib/admin/clan-data-service';
 import { checkIsClanAdmin } from '@/lib/admin/clan-data-service';
 
 async function isAdmin(): Promise<boolean> {
@@ -20,6 +21,9 @@ export async function GET() {
 		const topics = await pgDb.getIELTSTopics();
 		return NextResponse.json({ success: true, topics });
 	} catch (error) {
+		if (error instanceof AdminVerificationUnavailableError) {
+			return NextResponse.json({ success: false, error: 'Admin verification is temporarily unavailable. Please try again.' }, { status: 503 });
+		}
 		console.error('[Admin Topics GET Error]:', error);
 		return NextResponse.json({ success: false, error: 'Failed to fetch topics' }, { status: 500 });
 	}
@@ -57,6 +61,9 @@ export async function POST(req: NextRequest) {
 
 		return NextResponse.json({ success: true, topic: newTopic });
 	} catch (error) {
+		if (error instanceof AdminVerificationUnavailableError) {
+			return NextResponse.json({ success: false, error: 'Admin verification is temporarily unavailable. Please try again.' }, { status: 503 });
+		}
 		console.error('[Admin Topics POST Error]:', error);
 		return NextResponse.json({ success: false, error: 'Failed to create topic' }, { status: 500 });
 	}

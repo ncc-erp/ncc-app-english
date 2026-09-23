@@ -83,8 +83,11 @@ try {
 						console.warn('[mezon sdk-patch] Recovered RoleListEventResponse after padding retry (original error):', err.message);
 						return recovered;
 					} catch (retryErr) {
-						console.warn('[mezon sdk-patch] Rescued RangeError during RoleListEventResponse decode:', err.message);
-						return apiProto.RoleListEventResponse.fromPartial({});
+						// An empty role list is indistinguishable from a valid response
+						// with no Administrator roles. Preserve the decoding failure so
+						// authorization can return a retryable error instead of 403.
+						console.warn('[mezon sdk-patch] RoleListEventResponse decode failed:', err.message);
+						throw err;
 					}
 				}
 				throw err;

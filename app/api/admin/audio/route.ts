@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
+import { AdminVerificationUnavailableError } from '@/lib/admin/clan-data-service';
 import { checkIsClanAdmin } from '@/lib/admin/clan-data-service';
 import { downloadAudioBuffer } from '@/lib/supabase/storage';
 
@@ -15,7 +16,15 @@ export async function GET(req: NextRequest) {
 			return new NextResponse('Unauthorized. Login required.', { status: 401 });
 		}
 
-		const isAdmin = await checkIsClanAdmin(user.mezon_id);
+		let isAdmin: boolean;
+		try {
+			isAdmin = await checkIsClanAdmin(user.mezon_id);
+		} catch (error) {
+			if (error instanceof AdminVerificationUnavailableError) {
+				return new NextResponse('Admin verification is temporarily unavailable. Please try again.', { status: 503 });
+			}
+			throw error;
+		}
 		if (!isAdmin) {
 			return new NextResponse('Forbidden. Admin role in clan required.', {
 				status: 403

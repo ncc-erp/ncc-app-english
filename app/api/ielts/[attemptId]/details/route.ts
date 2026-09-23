@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { pgDb } from '@/lib/db/postgres';
 import { createSignedAudioUrl } from '@/lib/supabase/storage';
 import { verifyLaunchToken } from '@/lib/auth/launch-token';
+import { AdminVerificationUnavailableError } from '@/lib/admin/clan-data-service';
 import { checkIsClanAdmin } from '@/lib/admin/clan-data-service';
 
 import { getSession } from '@/lib/auth/session';
@@ -109,6 +110,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ atte
 			}
 		});
 	} catch (error) {
+		if (error instanceof AdminVerificationUnavailableError) {
+			return NextResponse.json(
+				{ success: false, error: 'Admin verification is temporarily unavailable. Please try again.' },
+				{ status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '5' } }
+			);
+		}
 		console.error('[GET /api/ielts/[attemptId]/details] Error:', error);
 		return NextResponse.json(
 			{
