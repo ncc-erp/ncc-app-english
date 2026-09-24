@@ -68,6 +68,5 @@ export default function LoginLayout({
 			</div>
 		);
 	}
-
 	return <>{children}</>;
 }

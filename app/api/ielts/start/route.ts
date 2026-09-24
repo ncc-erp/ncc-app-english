@@ -5,8 +5,7 @@ import { pgDb } from '@/lib/db/postgres';
 export async function GET() {
 	try {
 		const topics = await pgDb.getIELTSTopics();
-		const topic = topics.length > 0 ? topics[0] : null;
-		return NextResponse.json({ success: true, topic, topics });
+		return NextResponse.json({ success: true, topics });
 	} catch (error) {
 		console.error('[GET /api/ielts/start] Error:', error);
 		return NextResponse.json({ success: false, error: 'Failed to fetch topic' }, { status: 500 });
