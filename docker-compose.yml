@@ -12,28 +12,28 @@ services:
       - traefik_network
       - internal_network
     labels:
-      - "traefik.enable=true"
+      - 'traefik.enable=true'
       # Khai báo network kết nối với Traefik (tránh Traefik trỏ nhầm IP mạng internal)
-      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik-net}"
+      - 'traefik.docker.network=${TRAEFIK_NETWORK:-traefik-net}'
 
       # Cấu hình Router HTTPS
-      - "traefik.http.routers.ncc-english.rule=Host(`${APP_DOMAIN:-english.mrdnd.dev}`)"
-      - "traefik.http.routers.ncc-english.entrypoints=websecure"
-      - "traefik.http.routers.ncc-english.tls=true"
-      - "traefik.http.routers.ncc-english.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+      - 'traefik.http.routers.ncc-english.rule=Host(`${APP_DOMAIN:-english.mrdnd.dev}`)'
+      - 'traefik.http.routers.ncc-english.entrypoints=websecure'
+      - 'traefik.http.routers.ncc-english.tls=true'
+      - 'traefik.http.routers.ncc-english.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}'
 
       # Tùy chọn chuyển hướng HTTP -> HTTPS (nếu Traefik entrypoint chưa cấu hình redirect sẵn)
-      - "traefik.http.routers.ncc-english-http.rule=Host(`${APP_DOMAIN:-english.mrdnd.dev}`)"
-      - "traefik.http.routers.ncc-english-http.entrypoints=web"
-      - "traefik.http.routers.ncc-english-http.middlewares=redirect-to-https@docker"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+      - 'traefik.http.routers.ncc-english-http.rule=Host(`${APP_DOMAIN:-english.mrdnd.dev}`)'
+      - 'traefik.http.routers.ncc-english-http.entrypoints=web'
+      - 'traefik.http.routers.ncc-english-http.middlewares=redirect-to-https@docker'
+      - 'traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https'
+      - 'traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true'
 
       # Cổng dịch vụ Next.js standalone bên trong container
-      - "traefik.http.services.ncc-english.loadbalancer.server.port=3000"
+      - 'traefik.http.services.ncc-english.loadbalancer.server.port=3000'
 
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/robots.txt || exit 1"]
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/robots.txt || exit 1']
       interval: 30s
       timeout: 5s
       retries: 3

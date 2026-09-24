@@ -3,12 +3,12 @@ import './globals.css';
 import { LanguageProvider } from '@/lib/i18n/LanguageContext';
 
 const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-const TITLE = 'Mezon IELTS – Luyện IELTS Speaking cùng giám khảo AI';
+const TITLE = 'IELTS Thầy Huy – Luyện IELTS Speaking cùng giám khảo AI';
 const DESCRIPTION = 'Thi thử IELTS Speaking đủ 3 Part, ghi âm ngay trên trình duyệt, nhận Band score 1.0–9.0 và nhận xét chi tiết miễn phí.';
 
 export const metadata: Metadata = {
 	metadataBase: new URL(SITE_URL),
-	title: { default: TITLE, template: '%s | Mezon IELTS' },
+	title: { default: TITLE, template: '%s | IELTS Thầy Huy' },
 	description: DESCRIPTION,
 	alternates: { canonical: '/' },
 	robots: { index: true, follow: true },
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 		type: 'website',
 		locale: 'vi_VN',
 		url: '/',
-		siteName: 'Mezon IELTS',
+		siteName: 'IELTS Thầy Huy',
 		title: TITLE,
 		description: DESCRIPTION,
 		images: ['/opengraph-image']

@@ -280,7 +280,8 @@ async function main() {
 				}
 
 				const contentType =
-					downloadRes.headers.get('content-type') || (filePath.endsWith('.ogg') ? 'audio/ogg' : filePath.endsWith('.mp3') ? 'audio/mp3' : 'audio/webm');
+					downloadRes.headers.get('content-type') ||
+					(filePath.endsWith('.ogg') ? 'audio/ogg' : filePath.endsWith('.mp3') ? 'audio/mp3' : 'audio/webm');
 
 				const arrayBuffer = await downloadRes.arrayBuffer();
 				const buffer = Buffer.from(arrayBuffer);
@@ -331,10 +332,7 @@ async function main() {
 
 				if (needUpdate) {
 					values.push(dbRecord.id);
-					await pool.query(
-						`UPDATE ielts_speaking_responses SET ${updates.join(', ')} WHERE id = $${paramIdx}`,
-						values
-					);
+					await pool.query(`UPDATE ielts_speaking_responses SET ${updates.join(', ')} WHERE id = $${paramIdx}`, values);
 					updatedDbCount++;
 				}
 			} catch (dbUpdateErr) {
@@ -366,10 +364,7 @@ async function main() {
 							}
 						}
 					}
-					await pool.query(
-						`UPDATE ielts_speaking_attempts SET score_result = $1 WHERE id = $2`,
-						[JSON.stringify(updatedScoreResult), att.id]
-					);
+					await pool.query(`UPDATE ielts_speaking_attempts SET score_result = $1 WHERE id = $2`, [JSON.stringify(updatedScoreResult), att.id]);
 					updatedAttempts++;
 				}
 			}

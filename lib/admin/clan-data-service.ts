@@ -128,7 +128,19 @@ async function resolveIsClanAdmin(mezonUserId: string): Promise<boolean> {
 		return true;
 	}
 
-	// 2. Delegate to remote bot server if configured (e.g. Vercel deployment)
+	// 2. Query live Mezon Clan roles directly via bot client in memory
+	try {
+		const client = await getSharedBotClient();
+		const clanId = process.env.MEZON_TARGET_CLAN_ID || '';
+
+		if (client && clanId) {
+			return await isClanAdminMember(client, mezonUserId, clanId);
+		}
+	} catch (error) {
+		console.error('[Clan Data Service] Error checking clan admin role:', error);
+	}
+
+	// 3. Fallback to remote bot server if configured
 	const verifyUrl = process.env.MEZON_VERIFY_URL;
 	if (verifyUrl) {
 		try {
@@ -140,18 +152,6 @@ async function resolveIsClanAdmin(mezonUserId: string): Promise<boolean> {
 		} catch (error) {
 			console.error('[Clan Data Service] Remote verify-admin failed:', error);
 		}
-	}
-
-	// 3. Query live Mezon Clan roles directly via bot client
-	try {
-		const client = await getSharedBotClient();
-		const clanId = process.env.MEZON_TARGET_CLAN_ID || '';
-
-		if (client && clanId) {
-			return await isClanAdminMember(client, mezonUserId, clanId);
-		}
-	} catch (error) {
-		console.error('[Clan Data Service] Error checking clan admin role:', error);
 	}
 
 	return false;

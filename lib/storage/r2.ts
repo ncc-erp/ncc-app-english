@@ -11,15 +11,10 @@ function getR2Config() {
 	const accessKeyId = process.env.R2_ACCESS_KEY_ID;
 	const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
 	const bucket = process.env.R2_BUCKET_NAME || DEFAULT_BUCKET;
-	const publicDomain = (process.env.R2_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_R2_URL || process.env.R2_PUBLIC_URL || '').replace(
-		/\/$/,
-		''
-	);
+	const publicDomain = (process.env.R2_PUBLIC_DOMAIN || process.env.NEXT_PUBLIC_R2_URL || process.env.R2_PUBLIC_URL || '').replace(/\/$/, '');
 
 	if (!accountId || !accessKeyId || !secretAccessKey) {
-		throw new Error(
-			'Cloudflare R2 is not configured. Missing R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, or R2_SECRET_ACCESS_KEY in environment variables.'
-		);
+		throw new Error('Cloudflare R2 is not configured. Missing R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, or R2_SECRET_ACCESS_KEY in environment variables.');
 	}
 
 	return { accountId, accessKeyId, secretAccessKey, bucket, publicDomain };
@@ -45,11 +40,7 @@ export function getR2Client(): S3Client {
 /**
  * Uploads an audio recording file directly to Cloudflare R2 bucket.
  */
-export async function uploadAudio(
-	path: string,
-	body: ArrayBuffer | Buffer,
-	contentType = 'audio/webm'
-): Promise<string> {
+export async function uploadAudio(path: string, body: ArrayBuffer | Buffer, contentType = 'audio/webm'): Promise<string> {
 	const { bucket } = getR2Config();
 	const client = getR2Client();
 	const cleanPath = extractAudioStoragePath(path);
@@ -92,9 +83,7 @@ export async function createSignedAudioUrl(path: string, expiresIn = 3600): Prom
 /**
  * Downloads audio file buffer and its MIME content type from Cloudflare R2.
  */
-export async function downloadAudioBuffer(
-	path: string
-): Promise<{ buffer: Buffer; contentType: string } | null> {
+export async function downloadAudioBuffer(path: string): Promise<{ buffer: Buffer; contentType: string } | null> {
 	try {
 		const { bucket } = getR2Config();
 		const client = getR2Client();
@@ -132,9 +121,7 @@ export async function downloadAudioBuffer(
  * Downloads audio file from Cloudflare R2 and converts it to base64.
  * Useful for AI evaluations (Anthropic, Gemini, Deepgram, etc.).
  */
-export async function downloadAudioAsBase64(
-	path: string
-): Promise<{ base64: string; mimeType: string } | null> {
+export async function downloadAudioAsBase64(path: string): Promise<{ base64: string; mimeType: string } | null> {
 	const result = await downloadAudioBuffer(path);
 	if (!result) return null;
 	return {

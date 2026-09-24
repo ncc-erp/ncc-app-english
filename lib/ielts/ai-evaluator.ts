@@ -82,12 +82,12 @@ export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, 
 		})),
 		...(topic.part2_cue_card
 			? [
-				{
-					id: topic.part2_cue_card.id,
-					part: 'Part 2 Cue Card',
-					questionText: `${topic.part2_cue_card.prompt_lead} Points: ${topic.part2_cue_card.bullet_points.join(', ')}`
-				}
-			]
+					{
+						id: topic.part2_cue_card.id,
+						part: 'Part 2 Cue Card',
+						questionText: `${topic.part2_cue_card.prompt_lead} Points: ${topic.part2_cue_card.bullet_points.join(', ')}`
+					}
+				]
 			: []),
 		...topic.part3_questions.map((q) => ({
 			id: q.id,

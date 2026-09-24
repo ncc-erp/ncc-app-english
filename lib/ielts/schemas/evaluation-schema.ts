@@ -173,14 +173,24 @@ export const ieltsEvaluationJsonSchema = {
 					},
 					academic_answer: {
 						type: 'string',
-						description: 'Academic answer: a polished, grammatically sophisticated Band 8.5+ response. Keep in English. Use 2-3 sentences for Part 1/3 and 4-5 sentences for Part 2.'
+						description:
+							'Academic answer: a polished, grammatically sophisticated Band 8.5+ response. Keep in English. Use 2-3 sentences for Part 1/3 and 4-5 sentences for Part 2.'
 					},
 					natural_answer: {
 						type: 'string',
-						description: 'Natural answer: a fluent, everyday native-like response that sounds conversational while remaining accurate. Keep in English. Use 2-3 sentences for Part 1/3 and 4-5 sentences for Part 2.'
+						description:
+							'Natural answer: a fluent, everyday native-like response that sounds conversational while remaining accurate. Keep in English. Use 2-3 sentences for Part 1/3 and 4-5 sentences for Part 2.'
 					}
 				},
-				required: ['question_id', 'live_stt_transcript', 'ai_generated_transcript', 'match_percentage', 'feedback', 'academic_answer', 'natural_answer']
+				required: [
+					'question_id',
+					'live_stt_transcript',
+					'ai_generated_transcript',
+					'match_percentage',
+					'feedback',
+					'academic_answer',
+					'natural_answer'
+				]
 			}
 		}
 	},

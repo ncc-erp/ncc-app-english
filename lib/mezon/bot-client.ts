@@ -17,8 +17,28 @@ import {
  * - Returns boolean indicating membership status
  */
 export async function checkMezonClanMembership(mezonUserId: string, clanId: string = process.env.MEZON_TARGET_CLAN_ID || ''): Promise<boolean> {
-	// Serverless (Vercel) cannot host MezonClient (websocket + better-sqlite3 SIGABRTs the
-	// process), so delegate to the long-lived bot server when one is configured.
+	if (!mezonUserId) {
+		return false;
+	}
+
+	// 1. Check in-process bot client directly if available
+	try {
+		const { getSharedBotClient } = await import('@/lib/bot/bot-messenger');
+		const client = await getSharedBotClient();
+		if (client) {
+			const isMember = await isClanMember(client, mezonUserId, clanId);
+			if (isMember) {
+				return true;
+			}
+			console.warn(`[Mezon Bot] User ${mezonUserId} is NOT confirmed in Clan ${clanId}.`);
+			const allowFallback = process.env.MEZON_ALLOW_FALLBACK !== 'false';
+			return allowFallback && mezonUserId.length > 5;
+		}
+	} catch (error) {
+		console.error('[Mezon Bot] Error checking membership via in-process bot:', error);
+	}
+
+	// 2. Fallback: Delegate to remote bot server if configured (e.g. Vercel deployment)
 	const verifyUrl = process.env.MEZON_VERIFY_URL;
 	if (verifyUrl) {
 		try {
@@ -29,50 +49,11 @@ export async function checkMezonClanMembership(mezonUserId: string, clanId: stri
 			return res.ok && data.isMember === true;
 		} catch (error) {
 			console.error('[Mezon Bot] Remote verify failed:', error);
-			return false;
 		}
 	}
 
-	const botToken = process.env.MEZON_BOT_TOKEN;
-	const botId = process.env.MEZON_BOT_ID;
-
-	if (!botToken || !botId) {
-		console.error('[Mezon Bot] Missing MEZON_BOT_TOKEN or MEZON_BOT_ID in environment variables.');
-		return false;
-	}
-
-	if (!mezonUserId) {
-		return false;
-	}
-
-	try {
-		const { getSharedBotClient } = await import('@/lib/bot/bot-messenger');
-		const client = await getSharedBotClient();
-		if (!client) {
-			const allowFallback = process.env.MEZON_ALLOW_FALLBACK !== 'false';
-			return allowFallback && mezonUserId.length > 5;
-		}
-
-		const isMember = await isClanMember(client, mezonUserId, clanId);
-		if (isMember) {
-			return true;
-		}
-
-		const allowFallback = process.env.MEZON_ALLOW_FALLBACK !== 'false';
-		if (allowFallback && mezonUserId && mezonUserId.length > 5) {
-			return true;
-		}
-
-		console.warn(`[Mezon Bot] User ${mezonUserId} is NOT confirmed in Clan ${clanId}.`);
-		return false;
-	} catch (error) {
-		console.error('[Mezon Bot] Error verifying membership via Mezon API:', error);
-		const allowFallback = process.env.MEZON_ALLOW_FALLBACK !== 'false';
-		if (allowFallback && mezonUserId && mezonUserId.length > 5) {
-			return true;
-		}
-		return false;
-	}
+	const allowFallback = process.env.MEZON_ALLOW_FALLBACK !== 'false';
+	return allowFallback && mezonUserId.length > 5;
 }
 
 /** Asks Mezon (via an already logged-in client) whether the user is in the clan. */
