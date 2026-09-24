@@ -250,12 +250,85 @@ async function main() {
 	}
 
 	console.log('\n===========================================================');
-	console.log(`🎉 KẾT QUẢ MIGRATION:`);
+	console.log(`🎉 KẾT QUẢ MIGRATION FILE:`);
 	console.log(`   - Tổng số file      : ${total}`);
 	console.log(`   - Chuyển thành công : ${successCount}`);
 	console.log(`   - Đã có sẵn trên R2 : ${skipCount}`);
 	console.log(`   - Gặp lỗi           : ${errorCount}`);
-	console.log('===========================================================\n');
+	console.log('===========================================================');
+
+	// 5. Cập nhật Neon PostgreSQL database
+	const shouldUpdateDb = !process.argv.includes('--skip-db');
+	if (shouldUpdateDb && dbConnectionString && !isDryRun) {
+		console.log('\n🔄 Đang cập nhật dữ liệu trong database Neon...');
+		try {
+			const pool = new Pool({
+				connectionString: dbConnectionString,
+				ssl: { rejectUnauthorized: false }
+			});
+
+			const r2PublicDomain = (getArg('r2-public-domain') || process.env.R2_PUBLIC_DOMAIN || '').replace(/\/$/, '');
+
+			// 5a. Chuẩn hóa audio_storage_path cho những row bị thiếu nhưng có audio_url
+			const fixPathsRes = await pool.query(`
+				UPDATE ielts_speaking_responses
+				SET audio_storage_path = substring(audio_url from '(?:ielts-recordings|ielts-speaking-recordings)/([^?#]+)')
+				WHERE (audio_storage_path IS NULL OR audio_storage_path = '')
+				  AND audio_url ~ '(?:ielts-recordings|ielts-speaking-recordings)/([^?#]+)';
+			`);
+			if (fixPathsRes.rowCount && fixPathsRes.rowCount > 0) {
+				console.log(`   ➔ Đã chuẩn hóa audio_storage_path cho ${fixPathsRes.rowCount} bản ghi.`);
+			}
+
+			// 5b. Nếu có R2_PUBLIC_DOMAIN, cập nhật audio_url thành URL R2
+			if (r2PublicDomain) {
+				const updateUrlRes = await pool.query(
+					`UPDATE ielts_speaking_responses
+					 SET audio_url = $1 || '/' || audio_storage_path
+					 WHERE audio_storage_path IS NOT NULL AND audio_storage_path != ''`,
+					[r2PublicDomain]
+				);
+				console.log(`   ➔ Đã cập nhật audio_url thành R2 URL (${r2PublicDomain}/...) cho ${updateUrlRes.rowCount} bản ghi.`);
+
+				// Cập nhật các URL supabase cũ trong score_result của ielts_speaking_attempts
+				const attemptsWithOldUrl = await pool.query(
+					`SELECT id, score_result FROM ielts_speaking_attempts WHERE score_result::text LIKE '%supabase.co%'`
+				);
+				let updatedAttempts = 0;
+				for (const att of attemptsWithOldUrl.rows) {
+					if (!att.score_result) continue;
+					const updatedScoreResult = JSON.parse(JSON.stringify(att.score_result));
+					if (updatedScoreResult.responses) {
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
+						for (const [, r] of Object.entries(updatedScoreResult.responses as Record<string, any>)) {
+							if (r.audio_url && typeof r.audio_url === 'string') {
+								const match = r.audio_url.match(/(?:ielts-recordings|ielts-speaking-recordings)\/([^?#]+)/);
+								if (match?.[1]) {
+									const decoded = decodeURIComponent(match[1]);
+									r.audio_storage_path = decoded;
+									r.audio_url = `${r2PublicDomain}/${decoded}`;
+								}
+							}
+						}
+						await pool.query(`UPDATE ielts_speaking_attempts SET score_result = $1 WHERE id = $2`, [JSON.stringify(updatedScoreResult), att.id]);
+						updatedAttempts++;
+					}
+				}
+				if (updatedAttempts > 0) {
+					console.log(`   ➔ Đã cập nhật R2 URLs trong score_result cho ${updatedAttempts} attempts.`);
+				}
+			} else {
+				console.log('   ℹ️ Gợi ý: Nếu Cloudflare R2 của bạn có bật Public URL / Custom domain, hãy truyền thêm:');
+				console.log('      --r2-public-domain="https://pub-xxx.r2.dev" (hoặc cấu hình R2_PUBLIC_DOMAIN trong .env.local)');
+				console.log('      để script tự động thay thế toàn bộ link Supabase cũ trong database sang link R2!');
+			}
+
+			await pool.end();
+			console.log('   ✅ Kiểm tra và cập nhật database Neon hoàn tất!\n');
+		} catch (dbUpdateErr) {
+			console.error('   ❌ Lỗi khi cập nhật database Neon:', dbUpdateErr);
+		}
+	}
 }
 
 main().catch((err) => {
