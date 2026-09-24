@@ -33,7 +33,7 @@ function parseAiJson(jsonStr: string): any {
 export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, topic: IELTSSpeakingTopic): Promise<IELTSScoreResult | null> {
 	const apiKey = process.env.AI_API_KEY || '';
 	const endpoint = process.env.AI_ENDPOINT || 'https://llm.mrdnd.dev/v1/chat/completions';
-	const model = process.env.AI_MODEL || 'gemini-3.7-flash-high';
+	const model = process.env.AI_MODEL || 'gemini-3.8-flash-high';
 
 	if (!apiKey) {
 		console.warn('[AI Evaluator Warning] Missing AI_API_KEY.');
@@ -83,12 +83,12 @@ export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, 
 		})),
 		...(topic.part2_cue_card
 			? [
-					{
-						id: topic.part2_cue_card.id,
-						part: 'Part 2 Cue Card',
-						questionText: `${topic.part2_cue_card.prompt_lead} Points: ${topic.part2_cue_card.bullet_points.join(', ')}`
-					}
-				]
+				{
+					id: topic.part2_cue_card.id,
+					part: 'Part 2 Cue Card',
+					questionText: `${topic.part2_cue_card.prompt_lead} Points: ${topic.part2_cue_card.bullet_points.join(', ')}`
+				}
+			]
 			: []),
 		...topic.part3_questions.map((q) => ({
 			id: q.id,

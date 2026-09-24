@@ -9,7 +9,8 @@
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"bot": "npx tsx scripts/bot-server.ts",
-		"bot:jiti": "npx jiti scripts/bot-server.ts"
+		"bot:jiti": "npx jiti scripts/bot-server.ts",
+		"migrate:storage": "npx tsx scripts/migrate-supabase-to-r2.ts"
 	},
 	"lint-staged": {
 		"*.{js,jsx,ts,tsx}": [
@@ -21,6 +22,8 @@
 		]
 	},
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.1139.0",
+		"@aws-sdk/s3-request-presigner": "^3.1139.0",
 		"clsx": "^2.1.1",
 		"iron-session": "^8.0.4",
 		"lucide-react": "^0.475.0",
