@@ -16,7 +16,6 @@ export default function IELTSSpeakingPortalPage() {
 	const [loading, setLoading] = useState(true);
 	const [startingTopicId, setStartingTopicId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
-
 	// Search & Filter state
 	const [searchQuery, setSearchQuery] = useState('');
 	const [selectedCategory, setSelectedCategory] = useState('all');
