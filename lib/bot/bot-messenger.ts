@@ -1,5 +1,5 @@
 import '@/lib/mezon/sdk-patch';
-import { MezonClient, ChannelMessageContent } from 'mezon-sdk';
+import { MezonClient, ChannelMessageContent, IInteractiveMessageProps } from 'mezon-sdk';
 import type { TextChannel } from 'mezon-sdk/dist/cjs/mezon-client/structures/TextChannel';
 import { pgDb } from '@/lib/db/postgres';
 import { formatIELTSResult } from './bot-formatter';
@@ -74,7 +74,7 @@ export async function resolveChannel(client: MezonClient, channelId: string, cla
 export async function sendEphemeralMessage(channel: TextChannel, receiverId: string, content: ChannelMessageContent, replyToMessageId?: string) {
 	try {
 		const response = await channel.sendEphemeral(receiverId, content, replyToMessageId);
-		console.log(`[Mezon Bot Messenger] Ephemeral message sent to ${receiverId}`);
+		console.warn(`[Mezon Bot Messenger] Ephemeral message sent to ${receiverId}`);
 		return response;
 	} catch (error) {
 		console.error(`[Mezon Bot Messenger] Failed to send ephemeral message:`, error);
@@ -148,8 +148,8 @@ function extractLinksFromText(text: string): Array<{ s: number; e: number }> {
 /**
  * Builds a ChannelMessageContent object with text, link ranges (lk), and components.
  */
-function buildMessageContent(text: string, components?: any[]): ChannelMessageContent {
-	const content: any = { t: text };
+function buildMessageContent(text: string, components?: IInteractiveMessageProps[]): ChannelMessageContent {
+	const content: ChannelMessageContent = { t: text };
 	const lk = extractLinksFromText(text);
 	if (lk.length > 0) {
 		content.lk = lk;
@@ -171,7 +171,7 @@ export async function sendChannelMessage(
 		isPublic?: boolean;
 		mentions?: Array<{ user_id: string; username?: string }>;
 		replyToMessageId?: string;
-		components?: any[];
+		components?: IInteractiveMessageProps[];
 	}
 ): Promise<boolean> {
 	const client = await getSharedBotClient();
@@ -185,9 +185,12 @@ export async function sendChannelMessage(
 
 	// Ensure channel.clan is attached so channel.send / channel.sendEphemeral does not fail on this.clan.id
 	if (!channel.clan) {
-		const clanId = options?.clanId || (channel as any).clan_id || process.env.MEZON_TARGET_CLAN_ID;
-		if (clanId && client.clans.get(clanId)) {
-			(channel as any).clan = client.clans.get(clanId);
+		const clanId = options?.clanId || process.env.MEZON_TARGET_CLAN_ID;
+
+		const clan = clanId ? client.clans.get(clanId) : undefined;
+
+		if (clan) {
+			channel.clan = clan;
 		}
 	}
 
@@ -199,7 +202,7 @@ export async function sendChannelMessage(
 		if (!isPublic && mentions.length > 0) {
 			const receiverId = mentions[0].user_id;
 			try {
-				console.log(
+				console.warn(
 					`[Mezon Bot Messenger] Delivering ephemeral message (${chunks.length} chunk(s)) to user ${receiverId} in channel ${channelId}...`
 				);
 				for (let i = 0; i < chunks.length; i++) {
@@ -215,7 +218,7 @@ export async function sendChannelMessage(
 						await new Promise((resolve) => setTimeout(resolve, 300));
 					}
 				}
-				console.log(`[Mezon Bot Messenger] ✅ Ephemeral message delivered successfully to ${receiverId}`);
+				console.warn(`[Mezon Bot Messenger] ✅ Ephemeral message delivered successfully to ${receiverId}`);
 				return true;
 			} catch (ephemeralErr) {
 				// Never fall back to a public channel post here: these messages carry
@@ -254,7 +257,7 @@ export async function sendDirectMessage(
 	userId: string,
 	text: string,
 	options?: {
-		components?: any[];
+		components?: IInteractiveMessageProps[];
 	}
 ): Promise<boolean> {
 	const client = await getSharedBotClient();
@@ -341,14 +344,14 @@ export async function notifyExamResult(
 					username: user.mezon_username || user.display_name
 				}
 			],
-			components
+			components: components as IInteractiveMessageProps[]
 		});
 	}
 
 	// If channel sending was not configured or failed, fallback to DM
 	if (!sent) {
 		const dmSent = await sendDirectMessage(targetMezonUserId, messageText, {
-			components
+			components: components as IInteractiveMessageProps[]
 		});
 		if (dmSent) {
 			return {
@@ -367,4 +370,123 @@ export async function notifyExamResult(
 		message: 'Báo cáo bài thi đã được gửi cho bạn trong kênh thi trên Mezon Clan!',
 		channelId: examChannelId
 	};
+}
+
+export async function sendDailyMessage(options?: {
+	channelId: string;
+	clanId?: string;
+	isPublic?: boolean;
+	mentions?: Array<{ user_id: string; username?: string }>;
+	replyToMessageId?: string;
+}): Promise<boolean> {
+	const client = await getSharedBotClient();
+	if (!client || !options?.channelId) return false;
+
+	const channel = await resolveChannel(client, options?.channelId, options?.clanId);
+	if (!channel) {
+		console.warn(`[Mezon Bot Messenger] Channel ${options?.channelId} not found.`);
+		return false;
+	}
+
+	// Ensure channel.clan is attached so channel.send / channel.sendEphemeral does not fail on this.clan.id
+	if (!channel.clan) {
+		const clanId = options?.clanId || process.env.MEZON_TARGET_CLAN_ID;
+
+		const clan = clanId ? client.clans.get(clanId) : undefined;
+
+		if (clan) {
+			channel.clan = clan;
+		}
+	}
+
+	const users = await pgDb.getDailySubmitted();
+
+	const mentions = options?.mentions || [];
+	const isPublic = options?.isPublic !== undefined ? options.isPublic : true;
+	const { tripple, quadra, penta, rampage } = users.reduce(
+		(acc, user) => {
+			const name = user.metadata.display_name;
+
+			if (user.count === 3) {
+				acc.tripple.push(name);
+			} else if (user.count === 4) {
+				acc.quadra.push(name);
+			} else if (user.count === 5) {
+				acc.penta.push(name);
+			} else if (user.count > 5) {
+				acc.rampage.push(name);
+			}
+
+			return acc;
+		},
+		{
+			tripple: [] as string[],
+			quadra: [] as string[],
+			penta: [] as string[],
+			rampage: [] as string[]
+		}
+	);
+	const textDecor = `
+	#### ✨ Tripple
+	${tripple.join(', ') || '-'}
+	
+	#### 💫 Quadra
+	${quadra.join(', ') || '-'}
+	
+	#### ⭐ Penta
+	${penta.join(', ') || '-'}
+	
+	#### 🌟 Rampage
+	${rampage.join(', ') || '-'}
+	`;
+	const contentCheck = { t: textDecor };
+	const chunks = splitTextIntoChunks(textDecor, 3500);
+
+	try {
+		if (!isPublic && mentions.length > 0) {
+			const receiverId = mentions[0].user_id;
+			try {
+				console.warn(
+					`[Mezon Bot Messenger] Delivering ephemeral message (${chunks.length} chunk(s)) to user ${receiverId} in channel ${options?.channelId}...`
+				);
+				for (let i = 0; i < chunks.length; i++) {
+					const isLast = i === chunks.length - 1;
+					await sendEphemeralMessage(
+						channel,
+						receiverId,
+						contentCheck,
+						undefined // Keep undefined to avoid SQLite cache miss errors
+					);
+					if (i < chunks.length - 1) {
+						await new Promise((resolve) => setTimeout(resolve, 300));
+					}
+				}
+				console.warn(`[Mezon Bot Messenger] ✅ Ephemeral message delivered successfully to ${receiverId}`);
+				return true;
+			} catch (ephemeralErr) {
+				// Never fall back to a public channel post here: these messages carry
+				// band scores and single-use launch links. Returning false lets the
+				// caller retry over DM instead.
+				console.warn(`[Mezon Bot Messenger] sendEphemeral failed; caller should fall back to DM:`, ephemeralErr);
+				return false;
+			}
+		}
+		for (let i = 0; i < chunks.length; i++) {
+			const isLast = i === chunks.length - 1;
+			await channel.send(
+				contentCheck,
+				mentions.map((m) => ({
+					user_id: m.user_id,
+					username: m.username || ''
+				}))
+			);
+			if (i < chunks.length - 1) {
+				await new Promise((resolve) => setTimeout(resolve, 300));
+			}
+		}
+		return true;
+	} catch (err) {
+		console.error(`[Mezon Bot Messenger] Error sending to channel ${options?.channelId}:`, err);
+		return false;
+	}
 }
