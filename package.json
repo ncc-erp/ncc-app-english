@@ -10,7 +10,10 @@
 		"format:check": "prettier --check .",
 		"bot": "npx tsx scripts/bot-server.ts",
 		"bot:jiti": "npx jiti scripts/bot-server.ts",
-		"migrate:storage": "npx tsx scripts/migrate-supabase-to-r2.ts"
+		"migrate:storage": "npx tsx scripts/migrate-supabase-to-r2.ts",
+		"docker:build": "docker build -t registry.mrdnd.dev/ncc-app-english:latest .",
+		"docker:push": "docker push registry.mrdnd.dev/ncc-app-english:latest",
+		"docker:release": "npm run docker:build && npm run docker:push"
 	},
 	"lint-staged": {
 		"*.{js,jsx,ts,tsx}": [

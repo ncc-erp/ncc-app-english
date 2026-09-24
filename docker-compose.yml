@@ -1,0 +1,50 @@
+services:
+  web:
+    image: ${DOCKER_REGISTRY:-registry.mrdnd.dev}/ncc-app-english:${IMAGE_TAG:-latest}
+    container_name: ncc-app-english
+    restart: unless-stopped
+    env_file:
+      - path: .env.production
+        required: false
+      - path: .env
+        required: false
+    networks:
+      - traefik_network
+      - internal_network
+    labels:
+      - "traefik.enable=true"
+      # Khai báo network kết nối với Traefik (tránh Traefik trỏ nhầm IP mạng internal)
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik-net}"
+
+      # Cấu hình Router HTTPS
+      - "traefik.http.routers.ncc-english.rule=Host(`${APP_DOMAIN:-english.mrdnd.dev}`)"
+      - "traefik.http.routers.ncc-english.entrypoints=websecure"
+      - "traefik.http.routers.ncc-english.tls=true"
+      - "traefik.http.routers.ncc-english.tls.certresolver=${TRAEFIK_CERT_RESOLVER:-letsencrypt}"
+
+      # Tùy chọn chuyển hướng HTTP -> HTTPS (nếu Traefik entrypoint chưa cấu hình redirect sẵn)
+      - "traefik.http.routers.ncc-english-http.rule=Host(`${APP_DOMAIN:-english.mrdnd.dev}`)"
+      - "traefik.http.routers.ncc-english-http.entrypoints=web"
+      - "traefik.http.routers.ncc-english-http.middlewares=redirect-to-https@docker"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+
+      # Cổng dịch vụ Next.js standalone bên trong container
+      - "traefik.http.services.ncc-english.loadbalancer.server.port=3000"
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/robots.txt || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+networks:
+  # Network của Traefik đã tồn tại sẵn trên VPS (traefik-net / traefik_default / proxy)
+  traefik_network:
+    name: ${TRAEFIK_NETWORK:-traefik-net}
+    external: true
+
+  # Network nội bộ
+  internal_network:
+    driver: bridge
