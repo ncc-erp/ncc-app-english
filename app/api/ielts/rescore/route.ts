@@ -5,7 +5,8 @@ import { evaluateIELTSAttemptWithAI } from '@/lib/ielts/ai-evaluator';
 import { IELTSScoreResult } from '@/types/ielts';
 import { toTeaserResult } from '@/lib/ielts/result-view';
 
-export const maxDuration = 600; // Allow up to 300s AI evaluation + retries, audio download & DB overhead
+export const maxDuration = 300; // 300 seconds (maximum allowed on Vercel)
+export const dynamic = 'force-dynamic';
 
 // In-flight deduplication map to prevent multiple concurrent evaluations for the same attempt
 const inFlightRescores = new Map<string, Promise<IELTSScoreResult | null>>();
