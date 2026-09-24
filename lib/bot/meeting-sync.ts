@@ -246,3 +246,22 @@ export function registerMeetingJoinListener(client: MezonClient): void {
 		}
 	});
 }
+
+/** Records when an assigned participant leaves their meeting's voice room (counterpart to the join listener). */
+export function registerMeetingLeaveListener(client: MezonClient): void {
+	console.log('[Meeting Sync] [Leave] Listening for onVoiceLeavedEvent...');
+
+	client.onVoiceLeavedEvent(async (e) => {
+		console.log(`[Meeting Sync] [Leave] onVoiceLeavedEvent: user=${e.voice_user_id}, room=${e.voice_channel_id}`);
+		try {
+			const matched = await pgDb.markMeetingParticipantLeftByRoom(e.voice_channel_id, e.voice_user_id);
+			console.log(
+				matched
+					? `[Meeting Sync] [Leave] Marked ${e.voice_user_id} as left for the meeting in room ${e.voice_channel_id}.`
+					: `[Meeting Sync] [Leave] No matching meeting participant found for ${e.voice_user_id} in room ${e.voice_channel_id} (not a tracked meeting right now).`
+			);
+		} catch (err) {
+			console.error('[Meeting Sync] [Leave] Failed to process onVoiceLeavedEvent:', err);
+		}
+	});
+}

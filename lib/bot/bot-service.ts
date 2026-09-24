@@ -7,7 +7,8 @@ import {
 	fullSyncMeetingRoster,
 	registerMeetingRoomListeners,
 	registerMeetingRosterListener,
-	registerMeetingJoinListener
+	registerMeetingJoinListener,
+	registerMeetingLeaveListener
 } from './meeting-sync';
 import { startMeetingScheduler } from './meeting-scheduler';
 
@@ -255,6 +256,7 @@ export async function initBotService(): Promise<MezonClient | null> {
 				registerMeetingRoomListeners(client);
 				registerMeetingRosterListener(client);
 				registerMeetingJoinListener(client);
+				registerMeetingLeaveListener(client);
 				await fullSyncMeetingRooms(client);
 				await fullSyncMeetingRoster(client);
 				startMeetingScheduler();

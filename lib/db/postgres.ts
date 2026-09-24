@@ -1,5 +1,5 @@
 import path from 'path';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { loadEnvConfig } from '@next/env';
 
 // Ensure .env.local and .env are loaded even when run outside Next.js process (e.g. bot server worker)
@@ -247,14 +247,26 @@ export async function ensureDbInitialized() {
             id TEXT PRIMARY KEY,
             title TEXT NOT NULL,
             scheduled_at TIMESTAMPTZ NOT NULL,
+            ended_at TIMESTAMPTZ,
             room_id TEXT,
             room_name TEXT,
+            class_id TEXT,
+            class_name TEXT,
+            user_id TEXT,
+            user_name TEXT,
             created_by TEXT NOT NULL,
             created_at TIMESTAMPTZ DEFAULT NOW(),
             noshow_notified_at TIMESTAMPTZ
         );
 
         ALTER TABLE meetings ADD COLUMN IF NOT EXISTS noshow_notified_at TIMESTAMPTZ;
+        ALTER TABLE meetings ADD COLUMN IF NOT EXISTS class_id TEXT;
+        ALTER TABLE meetings ADD COLUMN IF NOT EXISTS class_name TEXT;
+        ALTER TABLE meetings ADD COLUMN IF NOT EXISTS ended_at TIMESTAMPTZ;
+        -- user_id/user_name: the teacher in charge (their Mezon user id), picked separately from
+        -- meeting_participants.
+        ALTER TABLE meetings ADD COLUMN IF NOT EXISTS user_id TEXT;
+        ALTER TABLE meetings ADD COLUMN IF NOT EXISTS user_name TEXT;
 
         CREATE TABLE IF NOT EXISTS meeting_participants (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -265,10 +277,13 @@ export async function ensureDbInitialized() {
             avatar_url TEXT,
             role TEXT,
             joined_at TIMESTAMPTZ,
+            end_at TIMESTAMPTZ,
             reminded_10min_at TIMESTAMPTZ,
             reminded_start_at TIMESTAMPTZ,
             CONSTRAINT unique_meeting_participant UNIQUE(meeting_id, mezon_id)
         );
+
+        ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS end_at TIMESTAMPTZ;
 
         -- Synced from the Mezon clan bot (rooms + student/teacher roster). Populated by the
         -- bot sync job; the admin UI only ever reads these two for its assign dropdowns.
@@ -373,6 +388,8 @@ function rowToMeetingParticipantPair(row: any): { meeting: Meeting; participant:
 			scheduled_at: new Date(row.m_scheduled_at).toISOString(),
 			room_id: row.m_room_id || undefined,
 			room_name: row.m_room_name || undefined,
+			class_id: row.m_class_id || undefined,
+			class_name: row.m_class_name || undefined,
 			created_by: row.m_created_by,
 			created_at: new Date(row.m_created_at).toISOString(),
 			participant_count: 0,
@@ -384,9 +401,44 @@ function rowToMeetingParticipantPair(row: any): { meeting: Meeting; participant:
 			display_name: row.display_name || row.username || row.mezon_id,
 			avatar_url: row.avatar_url || undefined,
 			role: row.role || undefined,
-			joined_at: row.joined_at ? new Date(row.joined_at).toISOString() : undefined
+			joined_at: row.joined_at ? new Date(row.joined_at).toISOString() : undefined,
+			end_at: row.end_at ? new Date(row.end_at).toISOString() : undefined
 		}
 	};
+}
+
+// Thrown by updateMeeting/saveMeetingAssignments when a room would double-book: same room_id,
+// overlapping [scheduled_at, ended_at) with another meeting. Carries the conflicting meeting so
+// the API route can build a message naming it, instead of a generic failure.
+export class RoomConflictError extends Error {
+	conflict: { id: string; title: string; scheduled_at: string; ended_at: string | null };
+	constructor(conflict: { id: string; title: string; scheduled_at: string; ended_at: string | null }) {
+		super(`Room already booked by meeting "${conflict.title}" for an overlapping time.`);
+		this.name = 'RoomConflictError';
+		this.conflict = conflict;
+	}
+}
+
+// Legacy rows may have no ended_at - treat those as a 1-hour block for overlap purposes (matches
+// the admin UI's own default end-time when one isn't picked).
+async function assertNoRoomConflict(client: PoolClient, roomId: string, scheduledAt: string, endedAt: string, excludeMeetingId: string): Promise<void> {
+	const { rows } = await client.query(
+		`SELECT id, title, scheduled_at, ended_at FROM meetings
+     WHERE room_id = $1 AND id != $2
+       AND scheduled_at < $4
+       AND COALESCE(ended_at, scheduled_at + interval '1 hour') > $3
+     ORDER BY scheduled_at ASC
+     LIMIT 1;`,
+		[roomId, excludeMeetingId, scheduledAt, endedAt]
+	);
+	if (rows[0]) {
+		throw new RoomConflictError({
+			id: rows[0].id,
+			title: rows[0].title,
+			scheduled_at: new Date(rows[0].scheduled_at).toISOString(),
+			ended_at: rows[0].ended_at ? new Date(rows[0].ended_at).toISOString() : null
+		});
+	}
 }
 
 export const pgDb = {
@@ -1078,22 +1130,27 @@ export const pgDb = {
 	// ============================================================
 	// MEETING MANAGEMENT
 	// ============================================================
-	async createMeeting(title: string, scheduledAt: string, createdBy: string): Promise<Meeting> {
+	async createMeeting(title: string, scheduledAt: string, endedAt: string, createdBy: string): Promise<Meeting> {
 		await ensureDbInitialized();
 		const id = `meeting-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 		const query = `
-      INSERT INTO meetings (id, title, scheduled_at, created_by)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO meetings (id, title, scheduled_at, ended_at, created_by)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *;
     `;
-		const { rows } = await pool.query(query, [id, title, scheduledAt, createdBy]);
+		const { rows } = await pool.query(query, [id, title, scheduledAt, endedAt, createdBy]);
 		const r = rows[0];
 		return {
 			id: r.id,
 			title: r.title,
 			scheduled_at: new Date(r.scheduled_at).toISOString(),
+			ended_at: r.ended_at ? new Date(r.ended_at).toISOString() : undefined,
 			room_id: r.room_id || undefined,
 			room_name: r.room_name || undefined,
+			class_id: r.class_id || undefined,
+			class_name: r.class_name || undefined,
+			user_id: r.user_id || undefined,
+			user_name: r.user_name || undefined,
 			created_by: r.created_by,
 			created_at: new Date(r.created_at).toISOString(),
 			participant_count: 0,
@@ -1120,7 +1177,8 @@ export const pgDb = {
 				display_name: p.display_name || p.username || p.mezon_id,
 				avatar_url: p.avatar_url || undefined,
 				role: p.role || undefined,
-				joined_at: p.joined_at ? new Date(p.joined_at).toISOString() : undefined
+				joined_at: p.joined_at ? new Date(p.joined_at).toISOString() : undefined,
+				end_at: p.end_at ? new Date(p.end_at).toISOString() : undefined
 			});
 			participantsByMeeting.set(p.meeting_id, list);
 		});
@@ -1131,8 +1189,13 @@ export const pgDb = {
 				id: r.id,
 				title: r.title,
 				scheduled_at: new Date(r.scheduled_at).toISOString(),
+				ended_at: r.ended_at ? new Date(r.ended_at).toISOString() : undefined,
 				room_id: r.room_id || undefined,
 				room_name: r.room_name || undefined,
+				class_id: r.class_id || undefined,
+				class_name: r.class_name || undefined,
+				user_id: r.user_id || undefined,
+				user_name: r.user_name || undefined,
 				created_by: r.created_by,
 				created_at: new Date(r.created_at).toISOString(),
 				participant_count: allParticipants.length,
@@ -1141,9 +1204,26 @@ export const pgDb = {
 		});
 	},
 
-	async updateMeeting(id: string, title: string, scheduledAt: string): Promise<Meeting | null> {
+	async updateMeeting(id: string, title: string, scheduledAt: string, endedAt: string): Promise<Meeting | null> {
 		await ensureDbInitialized();
-		await pool.query('UPDATE meetings SET title = $2, scheduled_at = $3 WHERE id = $1', [id, title, scheduledAt]);
+		const client = await pool.connect();
+		try {
+			await client.query('BEGIN');
+			const { rows } = await client.query('SELECT room_id FROM meetings WHERE id = $1 FOR UPDATE', [id]);
+			if (!rows.length) {
+				await client.query('ROLLBACK');
+				return null;
+			}
+			// Moving the time can create a room clash even without touching the room itself.
+			if (rows[0].room_id) await assertNoRoomConflict(client, rows[0].room_id, scheduledAt, endedAt, id);
+			await client.query('UPDATE meetings SET title = $2, scheduled_at = $3, ended_at = $4 WHERE id = $1', [id, title, scheduledAt, endedAt]);
+			await client.query('COMMIT');
+		} catch (error) {
+			await client.query('ROLLBACK');
+			throw error;
+		} finally {
+			client.release();
+		}
 		return this.getMeeting(id);
 	},
 
@@ -1166,15 +1246,21 @@ export const pgDb = {
 			display_name: p.display_name || p.username || p.mezon_id,
 			avatar_url: p.avatar_url || undefined,
 			role: p.role || undefined,
-			joined_at: p.joined_at ? new Date(p.joined_at).toISOString() : undefined
+			joined_at: p.joined_at ? new Date(p.joined_at).toISOString() : undefined,
+			end_at: p.end_at ? new Date(p.end_at).toISOString() : undefined
 		}));
 
 		return {
 			id: r.id,
 			title: r.title,
 			scheduled_at: new Date(r.scheduled_at).toISOString(),
+			ended_at: r.ended_at ? new Date(r.ended_at).toISOString() : undefined,
 			room_id: r.room_id || undefined,
 			room_name: r.room_name || undefined,
+			class_id: r.class_id || undefined,
+			class_name: r.class_name || undefined,
+			user_id: r.user_id || undefined,
+			user_name: r.user_name || undefined,
 			created_by: r.created_by,
 			created_at: new Date(r.created_at).toISOString(),
 			participant_count: participants.length,
@@ -1187,16 +1273,26 @@ export const pgDb = {
 		meetingId: string,
 		participants: Omit<MeetingParticipant, 'joined_at'>[] | undefined,
 		room: { id: string; name: string } | undefined,
-		replace: boolean
+		replace: boolean,
+		classInfo?: { id: string; name: string },
+		userInfo?: { id: string; name: string }
 	): Promise<Meeting | null> {
 		await ensureDbInitialized();
 		const client = await pool.connect();
 		try {
 			await client.query('BEGIN');
-			const locked = await client.query('SELECT id FROM meetings WHERE id = $1 FOR UPDATE', [meetingId]);
+			const locked = await client.query('SELECT id, scheduled_at, ended_at FROM meetings WHERE id = $1 FOR UPDATE', [meetingId]);
 			if (!locked.rowCount) {
 				await client.query('ROLLBACK');
 				return null;
+			}
+			// Assigning a non-empty room to this meeting's existing time slot - reject if another
+			// meeting already has that room for an overlapping window.
+			if (room?.id) {
+				const meetingRow = locked.rows[0];
+				const thisStart = new Date(meetingRow.scheduled_at);
+				const thisEnd = meetingRow.ended_at ? new Date(meetingRow.ended_at) : new Date(thisStart.getTime() + 60 * 60 * 1000);
+				await assertNoRoomConflict(client, room.id, thisStart.toISOString(), thisEnd.toISOString(), meetingId);
 			}
 			if (participants !== undefined) {
 				if (replace)
@@ -1215,6 +1311,10 @@ export const pgDb = {
 			}
 			if (room !== undefined)
 				await client.query('UPDATE meetings SET room_id = $2, room_name = $3 WHERE id = $1', [meetingId, room.id || null, room.name || null]);
+			if (classInfo !== undefined)
+				await client.query('UPDATE meetings SET class_id = $2, class_name = $3 WHERE id = $1', [meetingId, classInfo.id || null, classInfo.name || null]);
+			if (userInfo !== undefined)
+				await client.query('UPDATE meetings SET user_id = $2, user_name = $3 WHERE id = $1', [meetingId, userInfo.id || null, userInfo.name || null]);
 			await client.query('COMMIT');
 		} catch (error) {
 			await client.query('ROLLBACK');
@@ -1357,6 +1457,33 @@ export const pgDb = {
 		return (rowCount ?? 0) > 0;
 	},
 
+	// Counterpart to markMeetingParticipantJoinedByRoom (onVoiceLeavedEvent) - always overwrites,
+	// so a rejoin-then-leave cycle ends up recording the most recent leave, not the first one. No
+	// upper bound on how late the leave can be - it's recorded whenever it actually happens. To
+	// pick the right meeting when the same room has hosted several over time, this targets the
+	// most recently-STARTED meeting for that room+person (highest scheduled_at with scheduled_at
+	// <= NOW()); once a later meeting in that room has started, leave events naturally start
+	// attaching to that one instead.
+	async markMeetingParticipantLeftByRoom(roomId: string, mezonId: string): Promise<boolean> {
+		await ensureDbInitialized();
+		const { rowCount } = await pool.query(
+			`UPDATE meeting_participants mp
+       SET end_at = NOW()
+       WHERE mp.id = (
+         SELECT mp2.id
+         FROM meeting_participants mp2
+         JOIN meetings m2 ON m2.id = mp2.meeting_id
+         WHERE m2.room_id = $1
+           AND mp2.mezon_id = $2
+           AND m2.scheduled_at <= NOW()
+         ORDER BY m2.scheduled_at DESC
+         LIMIT 1
+       );`,
+			[roomId, mezonId]
+		);
+		return (rowCount ?? 0) > 0;
+	},
+
 	// Participants of meetings starting within MEETING_REMINDER_MINUTES_BEFORE (not yet sent the
 	// T-10 reminder) or that have already started (not yet sent the "starting now" reminder).
 	// Both thresholds are env-configurable so testing doesn't require sitting through real 10/5min waits.
@@ -1364,7 +1491,7 @@ export const pgDb = {
 		await ensureDbInitialized();
 		const minutesBefore = parseInt(process.env.MEETING_REMINDER_MINUTES_BEFORE || '10', 10);
 		const { rows } = await pool.query(
-			`SELECT mp.*, m.id AS m_id, m.title AS m_title, m.scheduled_at AS m_scheduled_at, m.room_id AS m_room_id, m.room_name AS m_room_name, m.created_by AS m_created_by, m.created_at AS m_created_at
+			`SELECT mp.*, m.id AS m_id, m.title AS m_title, m.scheduled_at AS m_scheduled_at, m.room_id AS m_room_id, m.room_name AS m_room_name, m.class_id AS m_class_id, m.class_name AS m_class_name, m.created_by AS m_created_by, m.created_at AS m_created_at
        FROM meeting_participants mp
        JOIN meetings m ON m.id = mp.meeting_id
        WHERE mp.reminded_10min_at IS NULL
@@ -1381,7 +1508,7 @@ export const pgDb = {
 		await ensureDbInitialized();
 		const minutesAfter = parseInt(process.env.MEETING_NOSHOW_CHECK_MINUTES_AFTER || '5', 10);
 		const { rows } = await pool.query(
-			`SELECT mp.*, m.id AS m_id, m.title AS m_title, m.scheduled_at AS m_scheduled_at, m.room_id AS m_room_id, m.room_name AS m_room_name, m.created_by AS m_created_by, m.created_at AS m_created_at
+			`SELECT mp.*, m.id AS m_id, m.title AS m_title, m.scheduled_at AS m_scheduled_at, m.room_id AS m_room_id, m.room_name AS m_room_name, m.class_id AS m_class_id, m.class_name AS m_class_name, m.created_by AS m_created_by, m.created_at AS m_created_at
        FROM meeting_participants mp
        JOIN meetings m ON m.id = mp.meeting_id
        WHERE mp.reminded_start_at IS NULL

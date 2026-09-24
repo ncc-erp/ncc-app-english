@@ -39,12 +39,12 @@ export async function POST(req: NextRequest) {
 
 		if (!input) {
 			return NextResponse.json(
-				{ success: false, error: 'Provide a title (1–200 characters) and a valid scheduled_at with timezone.' },
+				{ success: false, error: 'Provide a title (1–200 characters), a valid scheduled_at, and an ended_at after it (both with timezone).' },
 				{ status: 400 }
 			);
 		}
 
-		const meeting = await pgDb.createMeeting(input.title, input.scheduled_at, user.mezon_id);
+		const meeting = await pgDb.createMeeting(input.title, input.scheduled_at, input.ended_at, user.mezon_id);
 		return NextResponse.json({ success: true, meeting });
 	} catch (error) {
 		console.error('[Admin Meetings POST Error]:', error);

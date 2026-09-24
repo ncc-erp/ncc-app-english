@@ -1,6 +1,13 @@
 import { sendDirectMessage, sendChannelMessage, getSharedBotClient } from './bot-messenger';
 import { pgDb } from '@/lib/db/postgres';
+import { getChannelMemberIds } from '@/lib/admin/clan-data-service';
 import { Meeting } from '@/types/meeting';
+import {
+	formatMeetingTimeVi as formatMeetingTime,
+	meetingRoomLabel as roomLabelText,
+	meetingRoomMention as roomMentionOption,
+	meetingClassLabel as classLabelText
+} from '@/lib/admin/meeting-notify';
 
 declare global {
 	// eslint-disable-next-line no-var
@@ -9,31 +16,12 @@ declare global {
 
 const CHECK_INTERVAL_MS = 60 * 1000;
 
-function formatMeetingTime(iso: string): string {
-	return new Date(iso).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
-}
-
 function reminderMinutesBefore(): number {
 	return parseInt(process.env.MEETING_REMINDER_MINUTES_BEFORE || '10', 10);
 }
 
 function noShowMinutesAfter(): number {
 	return parseInt(process.env.MEETING_NOSHOW_CHECK_MINUTES_AFTER || '5', 10);
-}
-
-// "#phòng học 1" instead of plain "phòng học 1" so sendDirectMessage/sendChannelMessage can
-// render it as a clickable link straight into that voice room (see roomMention in bot-messenger.ts).
-// The recipient's client may briefly show a generic "private channel" placeholder the very first
-// time (before it has that clan's channels cached) - it self-corrects, including on old messages,
-// once they've opened the clan once. Not a real access problem.
-function roomLabelText(meeting: { room_id?: string; room_name?: string }): string {
-	if (meeting.room_id && meeting.room_name) return `#${meeting.room_name}`;
-	return meeting.room_name || meeting.room_id || 'chưa gán phòng';
-}
-
-function roomMentionOption(meeting: { room_id?: string; room_name?: string }): { roomMention: { channelId: string; label: string } } | undefined {
-	if (!meeting.room_id || !meeting.room_name) return undefined;
-	return { roomMention: { channelId: meeting.room_id, label: meeting.room_name } };
 }
 
 async function checkReminders(): Promise<void> {
@@ -46,7 +34,7 @@ async function checkReminders(): Promise<void> {
 			console.log(`[Meeting Scheduler] [Reminder] Sending T-${minutesBefore}min DM to ${participant.display_name} for "${meeting.title}"...`);
 			const sent = await sendDirectMessage(
 				participant.mezon_id,
-				`⏰ Buổi học "${meeting.title}" sẽ bắt đầu sau ${minutesBefore} phút (${formatMeetingTime(meeting.scheduled_at)}). Phòng: ${roomLabelText(meeting)}.`,
+				`⏰ Buổi học "${meeting.title}" sẽ bắt đầu sau ${minutesBefore} phút (${formatMeetingTime(meeting.scheduled_at)}). Phòng: ${roomLabelText(meeting)}.${classLabelText(meeting)}`,
 				roomMentionOption(meeting)
 			);
 			if (sent) {
@@ -68,7 +56,7 @@ async function checkReminders(): Promise<void> {
 			console.log(`[Meeting Scheduler] [Reminder] Sending "starting now" DM to ${participant.display_name} for "${meeting.title}"...`);
 			const sent = await sendDirectMessage(
 				participant.mezon_id,
-				`🔔 Buổi học "${meeting.title}" đang bắt đầu. Vào phòng: ${roomLabelText(meeting)}.`,
+				`🔔 Buổi học "${meeting.title}" đang bắt đầu. Vào phòng: ${roomLabelText(meeting)}.${classLabelText(meeting)}`,
 				roomMentionOption(meeting)
 			);
 			if (sent) {
@@ -127,6 +115,10 @@ async function checkNoShows(): Promise<void> {
 	try {
 		const meetings = await pgDb.getMeetingsNeedingNoShowCheck();
 		console.log(`[Meeting Scheduler] [NoShow] Found ${meetings.length} meeting(s) to check.`);
+		// Only people who are actual members of the admin channel resolve as a real, clickable
+		// @mention there - anyone else just needs to be resolvable, so skip mentioning them and
+		// let their plain "@username" text render unstyled instead of a broken/misleading chip.
+		const adminChannelMemberIds = meetings.length ? await getChannelMemberIds(adminChannelId) : new Set<string>();
 		for (let meeting of meetings) {
 			await reconcileLiveVoicePresence(meeting);
 			const refreshed = await pgDb.getMeeting(meeting.id);
@@ -141,10 +133,12 @@ async function checkNoShows(): Promise<void> {
 				console.log(`[Meeting Scheduler] [NoShow] Notifying admin channel ${adminChannelId} about: ${names}`);
 				await sendChannelMessage(
 					adminChannelId,
-					`⚠️ Buổi học "${meeting.title}" (${formatMeetingTime(meeting.scheduled_at)}) đã bắt đầu ${minutesAfter} phút nhưng chưa thấy join phòng ${roomLabelText(meeting)}: ${names}.`,
+					`⚠️ Buổi học "${meeting.title}" (${formatMeetingTime(meeting.scheduled_at)}) đã bắt đầu ${minutesAfter} phút nhưng chưa thấy join phòng ${roomLabelText(meeting)}: ${names}.${classLabelText(meeting)}`,
 					{
 						...roomMentionOption(meeting),
-						mentions: noShows.filter((p) => p.username).map((p) => ({ user_id: p.mezon_id, username: p.username }))
+						mentions: noShows
+							.filter((p) => p.username && adminChannelMemberIds.has(p.mezon_id))
+							.map((p) => ({ user_id: p.mezon_id, username: p.username }))
 					}
 				);
 			}

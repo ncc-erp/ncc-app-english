@@ -7,14 +7,23 @@ export interface MeetingParticipant {
 	avatar_url?: string;
 	role?: MeetingParticipantRole;
 	joined_at?: string;
+	// Most recent time this participant left the meeting's voice room (onVoiceLeavedEvent).
+	end_at?: string;
 }
 
 export interface Meeting {
 	id: string;
 	title: string;
 	scheduled_at: string;
+	// Optional (backfilled) - meetings created before this field existed have no end time.
+	ended_at?: string;
 	room_id?: string;
 	room_name?: string;
+	class_id?: string;
+	class_name?: string;
+	// The teacher in charge (their Mezon user id) - separate from meeting_participants (the roster shown up).
+	user_id?: string;
+	user_name?: string;
 	created_by: string;
 	created_at: string;
 	participant_count: number;
@@ -39,4 +48,11 @@ export interface MeetingRosterMember {
 	role: MeetingParticipantRole;
 	clan_id: string;
 	synced_at: string;
+}
+
+// A text channel ("Lớp cơ bản", "Lớp nâng cao", ...) the assign UI can filter the people list by.
+export interface MeetingClassOption {
+	channel_id: string;
+	channel_name: string;
+	category_name?: string;
 }
