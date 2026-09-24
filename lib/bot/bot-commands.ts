@@ -138,7 +138,7 @@ export async function handleTestingNowCommand(
 	}
 
 	// 2. Retrieve available IELTS Speaking topics
-	const topics = await pgDb.getIELTSTopics();
+	const topics = await pgDb.getIELTSTopics({ includePrivate: false });
 	if (!topics || topics.length === 0) {
 		return {
 			text: `⚠️ Hiện chưa có bộ đề thi IELTS Speaking nào khả dụng trong hệ thống. Vui lòng thử lại sau!`,

@@ -1,12 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Navbar } from '@/components/Navbar';
-import { useTranslation } from '@/lib/i18n/LanguageContext';
+import { useAdminUser, useAdminSidebarVisible } from '@/components/admin/AdminAuthContext';
 import { IELTSSpeakingTopic } from '@/types/ielts';
-import { UserSession } from '@/types';
 import {
 	ShieldAlert,
 	Plus,
@@ -24,21 +20,24 @@ import {
 	AlertCircle,
 	ChevronRight,
 	Eye,
-	School
+	School,
+	Lock,
+	Globe,
+	Copy,
+	CheckCheck,
+	RefreshCw
 } from 'lucide-react';
 
 export default function AdminTopicsPage() {
-	const router = useRouter();
-	const { t } = useTranslation();
-
-	const [user, setUser] = useState<UserSession | null>(null);
-	const [authLoading, setAuthLoading] = useState(true);
-	const [verificationError, setVerificationError] = useState(false);
+	const user = useAdminUser();
+	const isAuthorized = user.role === 'admin';
+	useAdminSidebarVisible(isAuthorized);
 
 	const [topics, setTopics] = useState<IELTSSpeakingTopic[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [selectedCategory, setSelectedCategory] = useState<string>('all');
+	const [selectedVisibility, setSelectedVisibility] = useState<'all' | 'public' | 'private'>('all');
 
 	// Modal States
 	const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -56,48 +55,35 @@ export default function AdminTopicsPage() {
 	const [formPart2Bullets, setFormPart2Bullets] = useState<string[]>(['What it is', 'Where it took place', 'Who was involved']);
 	const [formPart2FollowUp, setFormPart2FollowUp] = useState('');
 	const [formPart3Questions, setFormPart3Questions] = useState<string[]>(['']);
+	const [formIsPrivate, setFormIsPrivate] = useState(false);
+	const [formAccessToken, setFormAccessToken] = useState('');
+	const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+	const handleCopyLink = (token: string, e?: React.MouseEvent) => {
+		if (e) e.stopPropagation();
+		const origin = typeof window !== 'undefined' ? window.location.origin : '';
+		const url = `${origin}/ielts-speaking?token=${token}`;
+		navigator.clipboard.writeText(url);
+		setCopiedToken(token);
+		setTimeout(() => setCopiedToken(null), 2500);
+	};
 
 	const [saving, setSaving] = useState(false);
 	const [errorMsg, setErrorMsg] = useState('');
 
-	// 1. Verify Admin Session
+	// 1. Fetch Topics List (session/role already gated by the /admin layout + isAuthorized check below)
 	useEffect(() => {
-		async function checkAuth() {
-			try {
-				setAuthLoading(true);
-				setVerificationError(false);
-				const res = await fetch('/api/auth/me');
-				if (res.status === 503) {
-					setVerificationError(true);
-					return;
-				}
-				const data = await res.json();
-
-				if (data.isLoggedIn && data.user && data.user.role === 'admin') {
-					setUser(data.user);
-					fetchTopics();
-				} else {
-					setUser(null);
-				}
-			} catch (err) {
-				console.error('Admin auth check error:', err);
-				setVerificationError(true);
-			} finally {
-				setAuthLoading(false);
-			}
+		if (isAuthorized) {
+			fetchTopics();
+		} else {
+			setLoading(false);
 		}
-		checkAuth();
-	}, []);
-
-	// 2. Fetch Topics List
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isAuthorized]);
 	const fetchTopics = async () => {
 		try {
 			setLoading(true);
 			const res = await fetch('/api/admin/topics');
-			if (res.status === 503) {
-				setVerificationError(true);
-				return;
-			}
 			const data = await res.json();
 			if (data.success && data.topics) {
 				setTopics(data.topics);
@@ -115,6 +101,8 @@ export default function AdminTopicsPage() {
 		setFormTitle('');
 		setFormCategory('General');
 		setFormDescription('');
+		setFormIsPrivate(false);
+		setFormAccessToken(`tok_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`);
 		setFormPart1Questions(['Do you work or are you a student?', 'What do you enjoy most about your daily routine?']);
 		setFormPart2Title('Describe a memorable experience');
 		setFormPart2PromptLead('You should say:');
@@ -131,6 +119,8 @@ export default function AdminTopicsPage() {
 		setFormTitle(t.title);
 		setFormCategory(t.category || 'General');
 		setFormDescription(t.description || '');
+		setFormIsPrivate(t.is_private === true);
+		setFormAccessToken(t.access_token || `tok_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`);
 		setFormPart1Questions(t.part1_questions?.map((q) => q.question_text) || ['']);
 		setFormPart2Title(t.part2_cue_card?.cue_card_title || t.title);
 		setFormPart2PromptLead(t.part2_cue_card?.prompt_lead || 'You should say:');
@@ -158,6 +148,8 @@ export default function AdminTopicsPage() {
 				title: formTitle.trim(),
 				category: formCategory.trim(),
 				description: formDescription.trim() || undefined,
+				is_private: formIsPrivate,
+				access_token: formIsPrivate ? formAccessToken || `tok_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}` : undefined,
 				part1_questions: formPart1Questions
 					.filter((q) => q.trim().length > 0)
 					.map((q, idx) => ({
@@ -233,66 +225,28 @@ export default function AdminTopicsPage() {
 	const filteredTopics = topics.filter((t) => {
 		const matchesSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase()) || t.category.toLowerCase().includes(searchQuery.toLowerCase());
 		const matchesCat = selectedCategory === 'all' || t.category === selectedCategory;
-		return matchesSearch && matchesCat;
+		const matchesVisibility =
+			selectedVisibility === 'all' || (selectedVisibility === 'private' && t.is_private) || (selectedVisibility === 'public' && !t.is_private);
+		return matchesSearch && matchesCat && matchesVisibility;
 	});
 
-	if (authLoading) {
+	if (!isAuthorized) {
 		return (
-			<div className='min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center'>
-				<div className='flex items-center space-x-3'>
-					<Loader2 className='w-6 h-6 animate-spin text-purple-600' />
-					<span className='text-sm font-medium text-slate-600'>{t('common.adminAccess.verifying')}</span>
+			<div className='bg-white border border-slate-200 rounded-3xl p-8 max-w-md mx-auto text-center space-y-4 shadow-xl'>
+				<div className='w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto border border-rose-200'>
+					<ShieldAlert className='w-7 h-7' />
 				</div>
-			</div>
-		);
-	}
-
-	if (verificationError) {
-		return (
-			<div className='min-h-screen bg-slate-50 text-slate-900 flex flex-col'>
-				<Navbar user={user} />
-				<main className='flex-1 flex items-center justify-center p-4'>
-					<div className='bg-white border border-slate-200 rounded-3xl p-8 max-w-md w-full text-center space-y-4'>
-						<AlertCircle className='w-8 h-8 text-amber-600 mx-auto' />
-						<h1 className='text-xl font-bold'>{t('common.adminAccess.verificationUnavailableTitle')}</h1>
-						<p role='alert' className='text-sm text-slate-600'>{t('common.adminAccess.verificationUnavailableMessage')}</p>
-						<button onClick={() => window.location.reload()} className='w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl'>{t('common.adminAccess.retry')}</button>
-					</div>
-				</main>
-			</div>
-		);
-	}
-
-	if (!user) {
-		return (
-			<div className='min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans'>
-				<Navbar />
-				<main className='flex-1 flex items-center justify-center p-4'>
-					<div className='bg-white border border-slate-200 rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-xl'>
-						<div className='w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto border border-rose-200'>
-							<ShieldAlert className='w-7 h-7' />
-						</div>
-						<h1 className='text-xl font-bold text-slate-900'>{t('common.adminAccess.accessDeniedTitle')}</h1>
-						<p className='text-xs text-slate-600 leading-relaxed'>
-							{t('common.adminAccess.topicsDeniedMessage')}
-						</p>
-						<button
-							onClick={() => router.push('/login')}
-							className='w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-purple-200'
-						>
-						{t('common.adminAccess.goToLogin')}
-						</button>
-					</div>
-				</main>
+				<h1 className='text-xl font-bold text-slate-900'>Access Denied</h1>
+				<p className='text-xs text-slate-600 leading-relaxed'>
+					You must be logged in as an Administrator (`admin`) to access the IELTS Topic Management Portal.
+				</p>
 			</div>
 		);
 	}
 
 	return (
-		<div className='min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans'>
-			<Navbar user={user} />
-
-			<main className='flex-1 max-w-6xl mx-auto px-4 py-8 w-full space-y-8'>
+		<>
+			<div className='space-y-8'>
 				{/* Portal Header */}
 				<div className='flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm'>
 					<div className='space-y-1'>
@@ -307,13 +261,13 @@ export default function AdminTopicsPage() {
 					</div>
 
 					<div className='flex items-center gap-3 shrink-0 flex-wrap'>
-						<Link
+						{/* <Link
 							href='/admin'
 							className='inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all'
 						>
 							<School className='w-4 h-4 text-purple-600' />
 							<span>Classes & Student</span>
-						</Link>
+						</Link> */}
 
 						<button
 							onClick={handleOpenCreateModal}
@@ -370,7 +324,7 @@ export default function AdminTopicsPage() {
 
 				{/* Filter Controls */}
 				<div className='flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm'>
-					<div className='relative w-full sm:w-80'>
+					<div className='relative w-full sm:w-72'>
 						<Search className='w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2' />
 						<input
 							type='text'
@@ -382,6 +336,37 @@ export default function AdminTopicsPage() {
 					</div>
 
 					<div className='flex items-center gap-2 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0'>
+						{/* Visibility Filter */}
+						<div className='flex items-center bg-slate-100 p-1 rounded-xl text-xs shrink-0'>
+							<button
+								onClick={() => setSelectedVisibility('all')}
+								className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+									selectedVisibility === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+								}`}
+							>
+								All
+							</button>
+							<button
+								onClick={() => setSelectedVisibility('public')}
+								className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 ${
+									selectedVisibility === 'public' ? 'bg-white text-purple-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+								}`}
+							>
+								<Globe className='w-3 h-3' /> Public
+							</button>
+							<button
+								onClick={() => setSelectedVisibility('private')}
+								className={`px-2.5 py-1 rounded-lg font-bold transition-all flex items-center gap-1 ${
+									selectedVisibility === 'private' ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+								}`}
+							>
+								<Lock className='w-3 h-3' /> Private
+							</button>
+						</div>
+
+						<div className='h-4 w-px bg-slate-200 shrink-0' />
+
+						{/* Categories Filter */}
 						<button
 							onClick={() => setSelectedCategory('all')}
 							className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
@@ -390,7 +375,7 @@ export default function AdminTopicsPage() {
 									: 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
 							}`}
 						>
-							All ({topics.length})
+							All Cats ({topics.length})
 						</button>
 						{categories.map((cat) => (
 							<button
@@ -430,11 +415,47 @@ export default function AdminTopicsPage() {
 								className='bg-white border border-slate-200 hover:border-purple-300 rounded-3xl p-6 transition-all shadow-sm hover:shadow-md flex flex-col justify-between space-y-4'
 							>
 								<div className='space-y-3'>
-									<div className='flex items-center justify-between gap-2'>
-										<span className='px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold uppercase tracking-wider'>
-											{t.category || 'General'}
-										</span>
+									<div className='flex items-center justify-between gap-2 flex-wrap'>
+										<div className='flex items-center gap-1.5 flex-wrap'>
+											<span className='px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200 text-[10px] font-bold uppercase tracking-wider'>
+												{t.category || 'General'}
+											</span>
+											{t.is_private ? (
+												<span className='inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold uppercase tracking-wider'>
+													<Lock className='w-3 h-3 text-amber-600' />
+													<span>Private</span>
+												</span>
+											) : (
+												<span className='inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-semibold'>
+													<Globe className='w-3 h-3 text-slate-400' />
+													<span>Public</span>
+												</span>
+											)}
+										</div>
 										<div className='flex items-center gap-1'>
+											{t.is_private && t.access_token && (
+												<button
+													onClick={(e) => handleCopyLink(t.access_token!, e)}
+													className={`p-1.5 px-2.5 rounded-xl transition-all flex items-center gap-1 text-xs font-semibold ${
+														copiedToken === t.access_token
+															? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+															: 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
+													}`}
+													title='Sao chép link truy cập đặc biệt'
+												>
+													{copiedToken === t.access_token ? (
+														<>
+															<CheckCheck className='w-3.5 h-3.5 text-emerald-600' />
+															<span className='text-[10px] font-bold'>Copied!</span>
+														</>
+													) : (
+														<>
+															<Copy className='w-3.5 h-3.5 text-amber-700' />
+															<span className='text-[10px] font-bold'>Copy Link</span>
+														</>
+													)}
+												</button>
+											)}
 											<button
 												onClick={() => setPreviewTopic(t)}
 												className='p-2 text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all'
@@ -487,7 +508,7 @@ export default function AdminTopicsPage() {
 						))}
 					</div>
 				)}
-			</main>
+			</div>
 
 			{/* Create / Edit Modal */}
 			{isCreateModalOpen && (
@@ -554,6 +575,93 @@ export default function AdminTopicsPage() {
 										placeholder='Provide a short overview of questions and themes covered in this test set...'
 										className='w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:border-purple-500 focus:bg-white focus:outline-none resize-none'
 									/>
+								</div>
+
+								{/* Privacy & Visibility Settings */}
+								<div className='p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3'>
+									<div className='flex items-start justify-between gap-3'>
+										<div className='space-y-0.5'>
+											<div className='flex items-center gap-1.5'>
+												<Lock className='w-4 h-4 text-amber-600' />
+												<label htmlFor='isPrivateToggle' className='font-bold text-slate-900 text-xs cursor-pointer select-none'>
+													Private topic (Private)
+												</label>
+											</div>
+											<p className='text-[11px] text-slate-500 leading-relaxed'>
+												This test will not appear on the public mock test list (/ielts-speaking). Only users with the exclusive link can access and
+												take the test.
+											</p>
+										</div>
+
+										<label className='relative inline-flex items-center cursor-pointer shrink-0 mt-0.5'>
+											<input
+												type='checkbox'
+												id='isPrivateToggle'
+												checked={formIsPrivate}
+												onChange={(e) => {
+													const checked = e.target.checked;
+													setFormIsPrivate(checked);
+													if (checked && !formAccessToken) {
+														setFormAccessToken(`tok_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`);
+													}
+												}}
+												className='sr-only peer'
+											/>
+											<div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+										</label>
+									</div>
+
+									{formIsPrivate && (
+										<div className='pt-3 border-t border-slate-200 space-y-2'>
+											<div className='flex items-center justify-between text-[11px]'>
+												<span className='font-bold text-amber-800 flex items-center gap-1'>
+													<span>Exclusive access link (Special Link):</span>
+												</span>
+												<button
+													type='button'
+													onClick={() => setFormAccessToken(`tok_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`)}
+													className='text-[10px] text-slate-600 hover:text-slate-900 flex items-center gap-1 font-semibold underline'
+													title='Đổi mã truy cập mới (vô hiệu hóa link cũ)'
+												>
+													<RefreshCw className='w-3 h-3' /> Get a new code
+												</button>
+											</div>
+
+											<div className='flex items-center gap-2'>
+												<input
+													type='text'
+													readOnly
+													value={
+														typeof window !== 'undefined'
+															? `${window.location.origin}/ielts-speaking?token=${formAccessToken}`
+															: `/ielts-speaking?token=${formAccessToken}`
+													}
+													className='flex-1 p-2.5 bg-white border border-amber-300 rounded-xl text-[11px] font-mono text-slate-800 select-all'
+												/>
+												<button
+													type='button'
+													onClick={() => handleCopyLink(formAccessToken)}
+													className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
+														copiedToken === formAccessToken
+															? 'bg-emerald-600 text-white shadow-sm'
+															: 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm'
+													}`}
+												>
+													{copiedToken === formAccessToken ? (
+														<>
+															<CheckCheck className='w-3.5 h-3.5' />
+															<span>Copied!</span>
+														</>
+													) : (
+														<>
+															<Copy className='w-3.5 h-3.5' />
+															<span>Copy</span>
+														</>
+													)}
+												</button>
+											</div>
+										</div>
+									)}
 								</div>
 							</div>
 
@@ -844,6 +952,6 @@ export default function AdminTopicsPage() {
 					</div>
 				</div>
 			)}
-		</div>
+		</>
 	);
 }

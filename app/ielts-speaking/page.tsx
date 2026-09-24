@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
-import { Sparkles, Layers, Search, BookOpen, Eye, ChevronLeft, ChevronRight, Play, X, AlertCircle } from 'lucide-react';
+import { Sparkles, Layers, Search, BookOpen, Eye, ChevronLeft, ChevronRight, Play, X, AlertCircle, Lock } from 'lucide-react';
 import { IELTSSpeakingTopic } from '@/types/ielts';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 
@@ -17,6 +17,11 @@ export default function IELTSSpeakingPortalPage() {
 	const [startingTopicId, setStartingTopicId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
+	// Private topic access state (?token=...)
+	const [privateTopic, setPrivateTopic] = useState<IELTSSpeakingTopic | null>(null);
+	const [privateToken, setPrivateToken] = useState<string | null>(null);
+	const [tokenError, setTokenError] = useState<string | null>(null);
+
 	// Search & Filter state
 	const [searchQuery, setSearchQuery] = useState('');
 	const [selectedCategory, setSelectedCategory] = useState('all');
@@ -28,25 +33,47 @@ export default function IELTSSpeakingPortalPage() {
 	const [previewTopic, setPreviewTopic] = useState<IELTSSpeakingTopic | null>(null);
 
 	useEffect(() => {
-		async function loadTopics() {
-			try {
-				setLoading(true);
-				const res = await fetch('/api/ielts/start');
-				const data = await res.json();
-				if (data.success && Array.isArray(data.topics)) {
-					setTopics(data.topics);
-				} else if (data.success && data.topic) {
-					setTopics([data.topic]);
-				}
-			} catch (err) {
-				console.error('Failed to load IELTS topics:', err);
-				setError(t('ielts.topics.loadTopicsError'));
-			} finally {
-				setLoading(false);
-			}
+		const token = new URLSearchParams(window.location.search).get('token');
+		if (token) {
+			setPrivateToken(token);
+			loadPrivateTopic(token);
 		}
 		loadTopics();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
+
+	async function loadPrivateTopic(token: string) {
+		try {
+			const res = await fetch(`/api/ielts/start?token=${encodeURIComponent(token)}`);
+			const data = await res.json();
+			if (data.success && data.topic) {
+				setPrivateTopic(data.topic);
+			} else {
+				setTokenError(data.error || t('ielts.topics.invalidTokenDesc'));
+			}
+		} catch (err) {
+			console.error('Failed to load private IELTS topic:', err);
+			setTokenError(t('ielts.topics.invalidTokenDesc'));
+		}
+	}
+
+	async function loadTopics() {
+		try {
+			setLoading(true);
+			const res = await fetch('/api/ielts/start');
+			const data = await res.json();
+			if (data.success && Array.isArray(data.topics)) {
+				setTopics(data.topics);
+			} else if (data.success && data.topic) {
+				setTopics([data.topic]);
+			}
+		} catch (err) {
+			console.error('Failed to load IELTS topics:', err);
+			setError(t('ielts.topics.loadTopicsError'));
+		} finally {
+			setLoading(false);
+		}
+	}
 
 	// Filter topics based on search & category
 	const categories = Array.from(new Set(topics.map((t) => t.category).filter(Boolean)));
@@ -82,21 +109,25 @@ export default function IELTSSpeakingPortalPage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [loading]);
 
-	const handleStartTest = async (topicId: string) => {
+	const handleStartTest = async (topicId: string, customToken?: string) => {
 		try {
 			setStartingTopicId(topicId);
 			setError(null);
+			const tokenToUse = customToken || privateToken || undefined;
 			const res = await fetch('/api/ielts/start', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ topicId })
+				body: JSON.stringify({ topicId, token: tokenToUse })
 			});
 			const data = await res.json();
 
 			if (!res.ok || !data.success) {
 				if (res.status === 401) {
-					// Come back here with ?start=<topicId> so the test begins right after login
-					router.push(`/login?redirect=${encodeURIComponent(`/ielts-speaking?start=${topicId}`)}`);
+					// Come back here with ?token=<token> or ?start=<topicId> so the test begins right after login
+					const redirectUrl = tokenToUse
+						? `/ielts-speaking?token=${encodeURIComponent(tokenToUse)}`
+						: `/ielts-speaking?start=${encodeURIComponent(topicId)}`;
+					router.push(`/login?redirect=${encodeURIComponent(redirectUrl)}`);
 					return;
 				}
 				throw new Error(data.error || t('ielts.topics.startTestError'));
@@ -131,6 +162,69 @@ export default function IELTSSpeakingPortalPage() {
 						<p className='text-purple-100 text-sm leading-relaxed'>{t('ielts.topics.heroSubtitle')}</p>
 					</div>
 				</div>
+
+				{/* Token Error Notice */}
+				{tokenError && (
+					<div className='p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-3xl text-xs space-y-1 shadow-sm'>
+						<div className='flex items-center gap-2 font-bold'>
+							<AlertCircle className='w-4 h-4 text-amber-600 shrink-0' />
+							<span>{t('ielts.topics.invalidTokenTitle')}</span>
+						</div>
+						<p className='text-slate-600 pl-6'>{tokenError}</p>
+					</div>
+				)}
+
+				{/* Private Topic Access Banner */}
+				{privateTopic && (
+					<div className='relative overflow-hidden bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white rounded-3xl p-6 md:p-8 shadow-xl space-y-4'>
+						<div className='flex items-center justify-between gap-2 flex-wrap'>
+							<div className='inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 border border-white/30 text-white text-xs font-bold rounded-full uppercase tracking-wider'>
+								<Lock className='w-3.5 h-3.5 text-amber-200' />
+								<span>{t('ielts.topics.privateBadge')}</span>
+							</div>
+							{/* <button
+								onClick={() => setPreviewTopic(privateTopic)}
+								className='px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all'
+							>
+								<Eye className='w-4 h-4' />
+								<span>{t('ielts.topics.previewButton')}</span>
+							</button> */}
+						</div>
+
+						<div className='space-y-1.5'>
+							<h2 className='text-2xl md:text-3xl font-extrabold tracking-tight'>{privateTopic.title}</h2>
+							<p className='text-amber-100 text-xs md:text-sm leading-relaxed max-w-3xl'>
+								{privateTopic.description || t('ielts.topics.privateNoticeDesc')}
+							</p>
+						</div>
+
+						<div className='pt-2 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/20'>
+							<div className='flex items-center gap-2 text-xs'>
+								<span className='px-2.5 py-1 bg-white/20 rounded-lg font-medium'>Part 1: {privateTopic.part1_questions?.length || 0} Qs</span>
+								<span className='px-2.5 py-1 bg-white/20 rounded-lg font-medium'>Part 2: 1 Cue Card</span>
+								<span className='px-2.5 py-1 bg-white/20 rounded-lg font-medium'>Part 3: {privateTopic.part3_questions?.length || 0} Qs</span>
+							</div>
+
+							<button
+								onClick={() => handleStartTest(privateTopic.id, privateToken || undefined)}
+								disabled={startingTopicId === privateTopic.id}
+								className='w-full sm:w-auto px-6 py-3 bg-white text-amber-900 hover:bg-amber-50 font-bold text-xs rounded-2xl flex items-center justify-center gap-2 shadow-lg transition-all hover:scale-105 active:scale-95 disabled:opacity-50'
+							>
+								{startingTopicId === privateTopic.id ? (
+									<>
+										<div className='w-4 h-4 border-2 border-amber-900 border-t-transparent rounded-full animate-spin'></div>
+										<span>{t('common.preparingExam')}</span>
+									</>
+								) : (
+									<>
+										<Play className='w-4 h-4 fill-amber-900 text-amber-900' />
+										<span>{t('ielts.topics.startPrivateExam')}</span>
+									</>
+								)}
+							</button>
+						</div>
+					</div>
+				)}
 
 				{error && (
 					<div className='p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl text-xs font-medium flex items-center gap-2'>

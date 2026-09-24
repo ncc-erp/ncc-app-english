@@ -1,4 +1,5 @@
 import path from 'path';
+import crypto from 'crypto';
 import { Pool } from 'pg';
 import { loadEnvConfig } from '@next/env';
 
@@ -21,7 +22,7 @@ import { IELTSSpeakingAttempt, IELTSSpeakingResponse, IELTSSpeakingTopic, IELTSS
 
 // Global PostgreSQL connection pool instance for Next.js hot-reload handling
 const globalForPg = global as unknown as {
-	pgPool?: Pool;
+	pgPool: Pool;
 	dbInitialized?: boolean;
 };
 
@@ -203,6 +204,9 @@ export async function ensureDbInitialized() {
         );
 
         ALTER TABLE ielts_speaking_topics ADD COLUMN IF NOT EXISTS description TEXT;
+        ALTER TABLE ielts_speaking_topics ADD COLUMN IF NOT EXISTS is_private BOOLEAN DEFAULT FALSE;
+        ALTER TABLE ielts_speaking_topics ADD COLUMN IF NOT EXISTS access_token TEXT;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_ielts_topics_access_token ON ielts_speaking_topics(access_token) WHERE access_token IS NOT NULL;
 
         CREATE TABLE IF NOT EXISTS ielts_speaking_attempts (
             id TEXT PRIMARY KEY,
@@ -263,7 +267,7 @@ export async function ensureDbInitialized() {
 						]
 					);
 				}
-				console.warn(`[PostgreSQL] Seeded ${SEED_QUESTIONS.length} exam questions into DB.`);
+				console.log(`[PostgreSQL] Seeded ${SEED_QUESTIONS.length} exam questions into DB.`);
 			}
 
 			// 3. Seed/Upsert IELTS topics
@@ -289,17 +293,17 @@ export async function ensureDbInitialized() {
 					]
 				);
 			}
-			console.warn(`[PostgreSQL] Seeded/Upserted ${SEED_IELTS_TOPICS.length} IELTS Speaking topics into DB.`);
+			console.log(`[PostgreSQL] Seeded/Upserted ${SEED_IELTS_TOPICS.length} IELTS Speaking topics into DB.`);
 
 			globalForPg.dbInitialized = true;
-			console.warn('[PostgreSQL] Database tables & schema initialized successfully.');
+			console.log('[PostgreSQL] Database tables & schema initialized successfully.');
 		} finally {
 			client.release();
 		}
 	} catch (err) {
 		console.error('[PostgreSQL Initialization Error]:', err);
 		// Invalidate cached pool so credentials can be re-evaluated
-		globalForPg.pgPool = undefined;
+		globalForPg.pgPool = undefined as any;
 	} finally {
 		isInitializing = false;
 	}
@@ -509,20 +513,14 @@ export const pgDb = {
 	// ============================================================
 	// IELTS SPEAKING DATABASE HELPERS
 	// ============================================================
-	async getIELTSTopics(): Promise<IELTSSpeakingTopic[]> {
+	async getIELTSTopics(options?: { includePrivate?: boolean }): Promise<IELTSSpeakingTopic[]> {
 		await ensureDbInitialized();
-		try {
-			await pool.query(`ALTER TABLE ielts_speaking_topics ADD COLUMN IF NOT EXISTS description TEXT;`);
-		} catch {
-			// Ignore if alter fails
-		}
-		let { rows } = await pool.query(`SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`);
-
-		if (rows.length < SEED_IELTS_TOPICS.length) {
+		const { rows: countRows } = await pool.query(`SELECT COUNT(*) as count FROM ielts_speaking_topics`);
+		if (parseInt(countRows[0]?.count || '0', 10) === 0) {
 			for (const t of SEED_IELTS_TOPICS) {
 				await pool.query(
-					`INSERT INTO ielts_speaking_topics (id, title, category, description, part1_questions, part2_cue_card, part3_questions)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
+					`INSERT INTO ielts_speaking_topics (id, title, category, description, part1_questions, part2_cue_card, part3_questions, is_private)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, false)
            ON CONFLICT (id) DO UPDATE SET
              title = EXCLUDED.title,
              category = EXCLUDED.category,
@@ -541,9 +539,10 @@ export const pgDb = {
 					]
 				);
 			}
-			const reQuery = await pool.query(`SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`);
-			rows = reQuery.rows;
 		}
+
+		const condition = options?.includePrivate ? 'WHERE active = true' : 'WHERE active = true AND (is_private IS FALSE OR is_private IS NULL)';
+		const { rows } = await pool.query(`SELECT * FROM ielts_speaking_topics ${condition} ORDER BY created_at DESC`);
 
 		return rows.map((r) => ({
 			id: r.id,
@@ -552,7 +551,9 @@ export const pgDb = {
 			description: r.description || undefined,
 			part1_questions: typeof r.part1_questions === 'string' ? JSON.parse(r.part1_questions) : r.part1_questions,
 			part2_cue_card: typeof r.part2_cue_card === 'string' ? JSON.parse(r.part2_cue_card) : r.part2_cue_card,
-			part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions
+			part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions,
+			is_private: r.is_private === true,
+			access_token: r.access_token || undefined
 		}));
 	},
 
@@ -561,7 +562,8 @@ export const pgDb = {
 		const query = `SELECT * FROM ielts_speaking_topics WHERE id = $1`;
 		const { rows } = await pool.query(query, [id]);
 		if (rows.length === 0) {
-			return SEED_IELTS_TOPICS.find((t) => t.id === id) || SEED_IELTS_TOPICS[0];
+			const seed = SEED_IELTS_TOPICS.find((t) => t.id === id) || SEED_IELTS_TOPICS[0];
+			return seed ? { ...seed, is_private: false } : null;
 		}
 		const r = rows[0];
 		return {
@@ -571,7 +573,29 @@ export const pgDb = {
 			description: r.description || undefined,
 			part1_questions: typeof r.part1_questions === 'string' ? JSON.parse(r.part1_questions) : r.part1_questions,
 			part2_cue_card: typeof r.part2_cue_card === 'string' ? JSON.parse(r.part2_cue_card) : r.part2_cue_card,
-			part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions
+			part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions,
+			is_private: r.is_private === true,
+			access_token: r.access_token || undefined
+		};
+	},
+
+	async getIELTSTopicByToken(token: string): Promise<IELTSSpeakingTopic | null> {
+		await ensureDbInitialized();
+		if (!token || !token.trim()) return null;
+		const query = `SELECT * FROM ielts_speaking_topics WHERE access_token = $1 AND active = true`;
+		const { rows } = await pool.query(query, [token.trim()]);
+		if (rows.length === 0) return null;
+		const r = rows[0];
+		return {
+			id: r.id,
+			title: r.title,
+			category: r.category,
+			description: r.description || undefined,
+			part1_questions: typeof r.part1_questions === 'string' ? JSON.parse(r.part1_questions) : r.part1_questions,
+			part2_cue_card: typeof r.part2_cue_card === 'string' ? JSON.parse(r.part2_cue_card) : r.part2_cue_card,
+			part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions,
+			is_private: r.is_private === true,
+			access_token: r.access_token || undefined
 		};
 	},
 
@@ -731,9 +755,11 @@ export const pgDb = {
 	async createIELTSTopic(topic: IELTSSpeakingTopic): Promise<IELTSSpeakingTopic> {
 		await ensureDbInitialized();
 		const id = topic.id || `topic-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+		const isPrivate = Boolean(topic.is_private);
+		const accessToken = topic.access_token || (isPrivate ? crypto.randomUUID().replace(/-/g, '') : null);
 		const query = `
-      INSERT INTO ielts_speaking_topics (id, title, category, description, part1_questions, part2_cue_card, part3_questions, active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+      INSERT INTO ielts_speaking_topics (id, title, category, description, part1_questions, part2_cue_card, part3_questions, active, is_private, access_token)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8, $9)
       RETURNING *;
     `;
 		const values = [
@@ -743,7 +769,9 @@ export const pgDb = {
 			topic.description || null,
 			JSON.stringify(topic.part1_questions || []),
 			JSON.stringify(topic.part2_cue_card || {}),
-			JSON.stringify(topic.part3_questions || [])
+			JSON.stringify(topic.part3_questions || []),
+			isPrivate,
+			accessToken
 		];
 
 		const { rows } = await pool.query(query, values);
@@ -755,7 +783,9 @@ export const pgDb = {
 			description: r.description || undefined,
 			part1_questions: typeof r.part1_questions === 'string' ? JSON.parse(r.part1_questions) : r.part1_questions,
 			part2_cue_card: typeof r.part2_cue_card === 'string' ? JSON.parse(r.part2_cue_card) : r.part2_cue_card,
-			part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions
+			part3_questions: typeof r.part3_questions === 'string' ? JSON.parse(r.part3_questions) : r.part3_questions,
+			is_private: r.is_private === true,
+			access_token: r.access_token || undefined
 		};
 	},
 
@@ -788,6 +818,14 @@ export const pgDb = {
 		if (topic.part3_questions !== undefined) {
 			fields.push(`part3_questions = $${paramIndex++}`);
 			values.push(JSON.stringify(topic.part3_questions));
+		}
+		if (topic.is_private !== undefined) {
+			fields.push(`is_private = $${paramIndex++}`);
+			values.push(topic.is_private);
+		}
+		if (topic.access_token !== undefined) {
+			fields.push(`access_token = $${paramIndex++}`);
+			values.push(topic.access_token);
 		}
 
 		if (fields.length > 0) {

@@ -113,12 +113,17 @@ CREATE TABLE IF NOT EXISTS ielts_speaking_topics (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     category TEXT NOT NULL,
+    description TEXT,
     part1_questions JSONB NOT NULL,
     part2_cue_card JSONB NOT NULL,
     part3_questions JSONB NOT NULL,
     active BOOLEAN DEFAULT TRUE,
+    is_private BOOLEAN DEFAULT FALSE,
+    access_token TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ielts_topics_access_token ON ielts_speaking_topics(access_token) WHERE access_token IS NOT NULL;
 
 -- 7. IELTS Speaking Attempts Table
 CREATE TABLE IF NOT EXISTS ielts_speaking_attempts (
@@ -151,4 +156,3 @@ CREATE TABLE IF NOT EXISTS ielts_speaking_responses (
 
 CREATE INDEX IF NOT EXISTS idx_ielts_attempts_user_id ON ielts_speaking_attempts(user_id);
 CREATE INDEX IF NOT EXISTS idx_ielts_responses_attempt_id ON ielts_speaking_responses(attempt_id);
-

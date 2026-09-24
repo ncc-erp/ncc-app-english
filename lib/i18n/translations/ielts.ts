@@ -44,7 +44,14 @@ export const ieltsEn = {
 		part2CueCardLabel: 'Part 2 Cue Card',
 		part3QuestionsCount: 'Part 3 Questions ({{count}})',
 		closeButton: 'Close',
-		startWithThisSet: 'Start Exam With This Set'
+		startWithThisSet: 'Start Exam With This Set',
+		privateBadge: 'Private',
+		publicBadge: 'Public',
+		privateNotice: 'Exclusive Private Test Set',
+		privateNoticeDesc: 'This test set is private and was shared with you via a special direct link. It is not listed in the public test bank.',
+		invalidTokenTitle: 'Invalid or Expired Link',
+		invalidTokenDesc: 'This private test link is no longer valid, or the test topic has been updated or removed.',
+		startPrivateExam: 'Start Private Exam'
 	},
 	test: {
 		loadError: 'Failed to load test attempt',
@@ -269,7 +276,15 @@ export const ieltsVi = {
 		part2CueCardLabel: 'Thẻ chủ đề Phần 2',
 		part3QuestionsCount: 'Câu hỏi Phần 3 ({{count}})',
 		closeButton: 'Đóng',
-		startWithThisSet: 'Bắt đầu thi với đề này'
+		startWithThisSet: 'Bắt đầu thi với đề này',
+		privateBadge: 'Riêng tư',
+		publicBadge: 'Công khai',
+		privateNotice: 'Đề thi riêng tư được chia sẻ đặc biệt',
+		privateNoticeDesc:
+			'Đề thi này được thiết lập riêng tư và bạn truy cập thông qua liên kết đặc biệt. Đề không hiển thị trên danh sách thi thử công khai.',
+		invalidTokenTitle: 'Liên kết không hợp lệ hoặc đã hết hạn',
+		invalidTokenDesc: 'Liên kết đề thi riêng tư này không còn hiệu lực hoặc đề thi đã bị thay đổi/gỡ bỏ.',
+		startPrivateExam: 'Bắt đầu làm bài thi riêng tư'
 	},
 	test: {
 		loadError: 'Không thể tải lượt làm bài.',

@@ -18,7 +18,7 @@ export async function GET() {
 			return NextResponse.json({ success: false, error: 'Unauthorized. Admin privileges required.' }, { status: 403 });
 		}
 
-		const topics = await pgDb.getIELTSTopics();
+		const topics = await pgDb.getIELTSTopics({ includePrivate: true });
 		return NextResponse.json({ success: true, topics });
 	} catch (error) {
 		if (error instanceof AdminVerificationUnavailableError) {
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 		}
 
 		const body = await req.json();
-		const { title, category, description, part1_questions, part2_cue_card, part3_questions } = body || {};
+		const { title, category, description, part1_questions, part2_cue_card, part3_questions, is_private, access_token } = body || {};
 
 		if (!title || !category) {
 			return NextResponse.json({ success: false, error: 'Title and Category are required.' }, { status: 400 });
@@ -56,7 +56,9 @@ export async function POST(req: NextRequest) {
 				prompt_lead: 'You should say:',
 				bullet_points: ['What it is', 'Where it happened', 'Who was involved']
 			},
-			part3_questions: part3_questions || []
+			part3_questions: part3_questions || [],
+			is_private: Boolean(is_private),
+			access_token: access_token || undefined
 		});
 
 		return NextResponse.json({ success: true, topic: newTopic });

@@ -29,6 +29,8 @@ export interface IELTSSpeakingTopic {
 	part1_questions: IELTSPart1Question[];
 	part2_cue_card: IELTSPart2CueCard;
 	part3_questions: IELTSPart3Question[];
+	is_private?: boolean;
+	access_token?: string;
 }
 
 export type IELTSSpeakingStatus = 'in_progress' | 'part1_completed' | 'part2_completed' | 'part3_completed' | 'submitted' | 'cancelled';

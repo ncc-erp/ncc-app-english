@@ -21,6 +21,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 		const { id } = await params;
 		const body = await req.json();
 
+		if (body.is_private && !body.access_token) {
+			const existing = await pgDb.getIELTSTopic(id);
+			if (!existing?.access_token) {
+				body.access_token = `tok_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 9)}`;
+			}
+		}
+
 		const updatedTopic = await pgDb.updateIELTSTopic(id, body);
 
 		if (!updatedTopic) {
