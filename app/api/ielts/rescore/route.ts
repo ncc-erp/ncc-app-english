@@ -5,7 +5,7 @@ import { evaluateIELTSAttemptWithAI } from '@/lib/ielts/ai-evaluator';
 import { IELTSScoreResult } from '@/types/ielts';
 import { toTeaserResult } from '@/lib/ielts/result-view';
 
-export const maxDuration = 300; // Allow up to 2 retries (85s each) + backoff
+export const maxDuration = 600; // Allow up to 300s AI evaluation + retries, audio download & DB overhead
 
 // In-flight deduplication map to prevent multiple concurrent evaluations for the same attempt
 const inFlightRescores = new Map<string, Promise<IELTSScoreResult | null>>();
@@ -23,9 +23,7 @@ export async function POST(req: NextRequest) {
 
 	const userId = session.user.user_id;
 	const mezonId = session.user.mezon_id;
-	console.log(
-		`[POST /api/ielts/rescore] [Auth OK] User: user_id=${userId}, mezon_id=${mezonId}, clan_member=${session.user.clan_member}`
-	);
+	console.log(`[POST /api/ielts/rescore] [Auth OK] User: user_id=${userId}, mezon_id=${mezonId}, clan_member=${session.user.clan_member}`);
 
 	try {
 		let body: { attemptId?: string };
@@ -89,24 +87,17 @@ export async function POST(req: NextRequest) {
 					const evalDuration = Date.now() - evalStartTime;
 
 					if (res) {
-						console.log(
-							`[POST /api/ielts/rescore] [${attemptId}] AI evaluation succeeded in ${evalDuration}ms. overall_band=${res.overall_band}`
-						);
+						console.log(`[POST /api/ielts/rescore] [${attemptId}] AI evaluation succeeded in ${evalDuration}ms. overall_band=${res.overall_band}`);
 						console.log(`[POST /api/ielts/rescore] [${attemptId}] Updating attempt status in DB to 'submitted'...`);
 						await pgDb.updateIELTSAttemptStatus(attemptId, 'submitted', attempt.current_part || 'part3', res.overall_band, res);
 						console.log(`[POST /api/ielts/rescore] [${attemptId}] DB updated successfully with score result.`);
 					} else {
-						console.error(
-							`[POST /api/ielts/rescore] [${attemptId}] evaluateIELTSAttemptWithAI returned null after ${evalDuration}ms.`
-						);
+						console.error(`[POST /api/ielts/rescore] [${attemptId}] evaluateIELTSAttemptWithAI returned null after ${evalDuration}ms.`);
 					}
 					return res;
 				} catch (evalErr) {
 					const evalDuration = Date.now() - evalStartTime;
-					console.error(
-						`[POST /api/ielts/rescore] [${attemptId}] Exception inside evaluateIELTSAttemptWithAI after ${evalDuration}ms:`,
-						evalErr
-					);
+					console.error(`[POST /api/ielts/rescore] [${attemptId}] Exception inside evaluateIELTSAttemptWithAI after ${evalDuration}ms:`, evalErr);
 					throw evalErr;
 				} finally {
 					inFlightRescores.delete(attemptId);
