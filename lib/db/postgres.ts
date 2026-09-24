@@ -250,8 +250,11 @@ export async function ensureDbInitialized() {
             room_id TEXT,
             room_name TEXT,
             created_by TEXT NOT NULL,
-            created_at TIMESTAMPTZ DEFAULT NOW()
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            noshow_notified_at TIMESTAMPTZ
         );
+
+        ALTER TABLE meetings ADD COLUMN IF NOT EXISTS noshow_notified_at TIMESTAMPTZ;
 
         CREATE TABLE IF NOT EXISTS meeting_participants (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -358,6 +361,33 @@ const USER_COLS = `
   "avatarUrl" AS avatar_url,
   COALESCE((metadata->>'clan_member')::boolean, false) AS clan_member,
   COALESCE(metadata->>'role', 'user') AS role`;
+
+// Reshapes a `meeting_participants JOIN meetings` row (columns aliased m_*) from the reminder
+// queries back into { meeting, participant }, without the meeting's full participant list.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToMeetingParticipantPair(row: any): { meeting: Meeting; participant: MeetingParticipant } {
+	return {
+		meeting: {
+			id: row.m_id,
+			title: row.m_title,
+			scheduled_at: new Date(row.m_scheduled_at).toISOString(),
+			room_id: row.m_room_id || undefined,
+			room_name: row.m_room_name || undefined,
+			created_by: row.m_created_by,
+			created_at: new Date(row.m_created_at).toISOString(),
+			participant_count: 0,
+			participants: []
+		},
+		participant: {
+			mezon_id: row.mezon_id,
+			username: row.username || undefined,
+			display_name: row.display_name || row.username || row.mezon_id,
+			avatar_url: row.avatar_url || undefined,
+			role: row.role || undefined,
+			joined_at: row.joined_at ? new Date(row.joined_at).toISOString() : undefined
+		}
+	};
+}
 
 export const pgDb = {
 	async findOrCreateUser(mezonData: { mezon_id: string; username: string; display_name?: string; avatar_url?: string }): Promise<UserSession> {
@@ -1232,5 +1262,105 @@ export const pgDb = {
 				[m.mezon_id, m.username || null, m.display_name, m.avatar_url || null, m.role, m.clan_id]
 			);
 		}
+	},
+
+	// Mirror of the two upserts above, for the onChannelDeleted / onRoleAssign(user_ids_removed) events.
+	async deleteMeetingRoomCache(roomId: string): Promise<void> {
+		await ensureDbInitialized();
+		await pool.query(`DELETE FROM meeting_rooms_cache WHERE room_id = $1`, [roomId]);
+	},
+
+	async deleteMeetingRosterCache(mezonId: string): Promise<void> {
+		await ensureDbInitialized();
+		await pool.query(`DELETE FROM meeting_roster_cache WHERE mezon_id = $1`, [mezonId]);
+	},
+
+	// Called from the onVoiceJoinedEvent handler. Scoped to meetings using that room within a
+	// +/-2h window of "now" so joining some unrelated, long-past/future meeting in the same
+	// room doesn't get misattributed.
+	async markMeetingParticipantJoinedByRoom(roomId: string, mezonId: string): Promise<boolean> {
+		await ensureDbInitialized();
+		const { rowCount } = await pool.query(
+			`UPDATE meeting_participants mp
+       SET joined_at = NOW()
+       FROM meetings m
+       WHERE mp.meeting_id = m.id
+         AND m.room_id = $1
+         AND mp.mezon_id = $2
+         AND mp.joined_at IS NULL
+         AND m.scheduled_at BETWEEN NOW() - INTERVAL '2 hours' AND NOW() + INTERVAL '2 hours';`,
+			[roomId, mezonId]
+		);
+		return (rowCount ?? 0) > 0;
+	},
+
+	// Participants of meetings starting within MEETING_REMINDER_MINUTES_BEFORE (not yet sent the
+	// T-10 reminder) or that have already started (not yet sent the "starting now" reminder).
+	// Both thresholds are env-configurable so testing doesn't require sitting through real 10/5min waits.
+	async getParticipantsNeeding10MinReminder(): Promise<{ meeting: Meeting; participant: MeetingParticipant }[]> {
+		await ensureDbInitialized();
+		const minutesBefore = parseInt(process.env.MEETING_REMINDER_MINUTES_BEFORE || '10', 10);
+		const { rows } = await pool.query(
+			`SELECT mp.*, m.id AS m_id, m.title AS m_title, m.scheduled_at AS m_scheduled_at, m.room_id AS m_room_id, m.room_name AS m_room_name, m.created_by AS m_created_by, m.created_at AS m_created_at
+       FROM meeting_participants mp
+       JOIN meetings m ON m.id = mp.meeting_id
+       WHERE mp.reminded_10min_at IS NULL
+         AND m.scheduled_at <= NOW() + make_interval(mins => $1::int)
+         AND m.scheduled_at > NOW();`,
+			[minutesBefore]
+		);
+		return rows.map(rowToMeetingParticipantPair);
+	},
+
+	// Grace window after start during which the "starting now" DM still fires - reuses the
+	// no-show threshold as its upper bound so it always fires before the no-show check would run.
+	async getParticipantsNeedingStartReminder(): Promise<{ meeting: Meeting; participant: MeetingParticipant }[]> {
+		await ensureDbInitialized();
+		const minutesAfter = parseInt(process.env.MEETING_NOSHOW_CHECK_MINUTES_AFTER || '5', 10);
+		const { rows } = await pool.query(
+			`SELECT mp.*, m.id AS m_id, m.title AS m_title, m.scheduled_at AS m_scheduled_at, m.room_id AS m_room_id, m.room_name AS m_room_name, m.created_by AS m_created_by, m.created_at AS m_created_at
+       FROM meeting_participants mp
+       JOIN meetings m ON m.id = mp.meeting_id
+       WHERE mp.reminded_start_at IS NULL
+         AND m.scheduled_at <= NOW()
+         AND m.scheduled_at > NOW() - make_interval(mins => $1::int);`,
+			[minutesAfter]
+		);
+		return rows.map(rowToMeetingParticipantPair);
+	},
+
+	async markParticipantReminded10Min(meetingId: string, mezonId: string): Promise<void> {
+		await ensureDbInitialized();
+		await pool.query(`UPDATE meeting_participants SET reminded_10min_at = NOW() WHERE meeting_id = $1 AND mezon_id = $2`, [meetingId, mezonId]);
+	},
+
+	async markParticipantRemindedStart(meetingId: string, mezonId: string): Promise<void> {
+		await ensureDbInitialized();
+		await pool.query(`UPDATE meeting_participants SET reminded_start_at = NOW() WHERE meeting_id = $1 AND mezon_id = $2`, [meetingId, mezonId]);
+	},
+
+	// Meetings that started MEETING_NOSHOW_CHECK_MINUTES_AFTER+ ago and haven't had their no-show
+	// admin notification sent yet.
+	async getMeetingsNeedingNoShowCheck(): Promise<Meeting[]> {
+		await ensureDbInitialized();
+		const minutesAfter = parseInt(process.env.MEETING_NOSHOW_CHECK_MINUTES_AFTER || '5', 10);
+		const { rows } = await pool.query(
+			`SELECT * FROM meetings
+       WHERE noshow_notified_at IS NULL
+         AND scheduled_at <= NOW() - make_interval(mins => $1::int)
+         AND scheduled_at > NOW() - INTERVAL '1 hour';`,
+			[minutesAfter]
+		);
+		const meetings: Meeting[] = [];
+		for (const r of rows) {
+			const meeting = await this.getMeeting(r.id);
+			if (meeting) meetings.push(meeting);
+		}
+		return meetings;
+	},
+
+	async markMeetingNoShowNotified(meetingId: string): Promise<void> {
+		await ensureDbInitialized();
+		await pool.query(`UPDATE meetings SET noshow_notified_at = NOW() WHERE id = $1`, [meetingId]);
 	}
 };

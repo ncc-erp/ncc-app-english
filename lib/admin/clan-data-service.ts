@@ -64,7 +64,7 @@ function isAdminRole(title?: string): boolean {
 /**
  * Checks whether a role title represents a "Student"
  */
-function isStudentRole(title?: string): boolean {
+export function isStudentRole(title?: string): boolean {
 	if (!title) return false;
 	const norm = normalizeText(title);
 	return (
@@ -77,6 +77,23 @@ function isStudentRole(title?: string): boolean {
 		norm.includes('hoc sinh') ||
 		norm.includes('hoc vien') ||
 		norm.includes('sinh vien')
+	);
+}
+
+/**
+ * Checks whether a role title represents a "Teacher"
+ */
+export function isTeacherRole(title?: string): boolean {
+	if (!title) return false;
+	const norm = normalizeText(title);
+	return (
+		norm === 'teacher' ||
+		norm === 'teachers' ||
+		norm === 'giao vien' ||
+		norm === 'giang vien' ||
+		norm.includes('teacher') ||
+		norm.includes('giao vien') ||
+		norm.includes('giang vien')
 	);
 }
 
