@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import {
 	Mic,
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
+import { useAuth } from '@/context/AuthContext';
 
 const FACEBOOK_URL = process.env.NEXT_PUBLIC_FACEBOOK_URL || '#';
 const CLAN_INVITE_URL = process.env.NEXT_PUBLIC_MEZON_CLAN_INVITE_URL || '#';
@@ -60,17 +61,8 @@ interface StatItem {
 
 export default function LandingPage() {
 	const { t, tArray, tList, locale, setLocale } = useTranslation();
-
+	const { login } = useAuth();
 	// Mezon iframe opens the app at /?data=<hash>; verify it here so the session exists before "Thi thử"
-	useEffect(() => {
-		const hashData = new URLSearchParams(window.location.search).get('data');
-		if (!hashData) return;
-		fetch('/api/auth/mezon-hash', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ hashData })
-		}).catch((err) => console.error('Hash auth error:', err));
-	}, []);
 
 	const MENU = useMemo(
 		() => [

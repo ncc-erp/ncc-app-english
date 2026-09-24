@@ -21,6 +21,7 @@ import {
 	Download
 } from 'lucide-react';
 import { IELTSSpeakingAttempt, IELTSPerQuestionAnalysis, IELTSSpeakingResponse } from '@/types/ielts';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 interface StudentProfile {
 	mezon_id: string;
@@ -132,6 +133,7 @@ function extractAttemptQuestions(att: IELTSSpeakingAttempt): QuestionReviewItem[
 }
 
 const AttemptQuestionViewer: React.FC<{ questions: QuestionReviewItem[] }> = ({ questions }) => {
+	const { t } = useTranslation();
 	const [currentIndex, setCurrentIndex] = useState(0);
 
 	if (!questions || questions.length === 0) return null;
@@ -355,14 +357,23 @@ const AttemptQuestionViewer: React.FC<{ questions: QuestionReviewItem[] }> = ({ 
 					</div>
 				)}
 
-				{/* Suggested High-Band Response */}
-				{qItem.analysis?.improved_version && (
+				{/* Suggested Answers */}
+				{(qItem.analysis?.academic_answer || qItem.analysis?.natural_answer || qItem.analysis?.improved_version) && (
 					<div className='p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1'>
 						<div className='text-[10px] font-extrabold text-emerald-800 uppercase flex items-center gap-1'>
 							<CheckCircle2 className='w-3.5 h-3.5 text-emerald-600' />
-							<span>Suggested High-Band Response:</span>
+							<span>{t('ielts.audioReviewer.modelResponseLabel')}:</span>
 						</div>
-						<p className='text-xs text-emerald-950 font-medium leading-relaxed whitespace-pre-wrap break-words'>{qItem.analysis.improved_version}</p>
+						{(qItem.analysis.academic_answer || qItem.analysis.improved_version) && (
+							<p className='text-xs text-emerald-950 font-medium leading-relaxed whitespace-pre-wrap break-words'>
+								<strong>{t('ielts.audioReviewer.academicAnswerLabel')}:</strong> {qItem.analysis.academic_answer || qItem.analysis.improved_version}
+							</p>
+						)}
+						{qItem.analysis.natural_answer && (
+							<p className='text-xs text-emerald-950 font-medium leading-relaxed whitespace-pre-wrap break-words'>
+								<strong>{t('ielts.audioReviewer.naturalAnswerLabel')}:</strong> {qItem.analysis.natural_answer}
+							</p>
+						)}
 					</div>
 				)}
 

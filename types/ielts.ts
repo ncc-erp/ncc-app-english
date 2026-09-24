@@ -86,6 +86,9 @@ export interface IELTSPerQuestionAnalysis {
 	ai_generated_transcript: string;
 	match_percentage: number;
 	feedback: string;
+	academic_answer?: string;
+	natural_answer?: string;
+	/** Kept for score records generated before dual suggested answers. */
 	improved_version?: string;
 	grammar_corrections?: string[];
 }

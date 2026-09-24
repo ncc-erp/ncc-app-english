@@ -171,12 +171,16 @@ export const ieltsEvaluationJsonSchema = {
 						items: { type: 'string' },
 						description: 'Specific grammar or word choice corrections. Keep the corrected English phrases in English.'
 					},
-					improved_version: {
+					academic_answer: {
 						type: 'string',
-						description: 'Concise Band 8.5+ model answer (2-3 sentences max for Part 1/3, 4-5 sentences max for Part 2). Keep in English.'
+						description: 'Academic answer: a polished, grammatically sophisticated Band 8.5+ response. Keep in English. Use 2-3 sentences for Part 1/3 and 4-5 sentences for Part 2.'
+					},
+					natural_answer: {
+						type: 'string',
+						description: 'Natural answer: a fluent, everyday native-like response that sounds conversational while remaining accurate. Keep in English. Use 2-3 sentences for Part 1/3 and 4-5 sentences for Part 2.'
 					}
 				},
-				required: ['question_id', 'live_stt_transcript', 'ai_generated_transcript', 'match_percentage', 'feedback']
+				required: ['question_id', 'live_stt_transcript', 'ai_generated_transcript', 'match_percentage', 'feedback', 'academic_answer', 'natural_answer']
 			}
 		}
 	},

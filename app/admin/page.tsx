@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 import { UserSession } from '@/types';
 import { StudentDetailModal } from '@/components/admin/StudentDetailModal';
 import {
@@ -56,10 +57,12 @@ interface OverallStats {
 
 export default function AdminClassesPage() {
 	const router = useRouter();
+	const { t } = useTranslation();
 
 	const [user, setUser] = useState<UserSession | null>(null);
 	const [authLoading, setAuthLoading] = useState(true);
 	const [isAuthorizedAdmin, setIsAuthorizedAdmin] = useState(false);
+	const [verificationError, setVerificationError] = useState(false);
 
 	const [classes, setClasses] = useState<ClassroomItem[]>([]);
 	const [overallStats, setOverallStats] = useState<OverallStats | null>(null);
@@ -85,7 +88,12 @@ export default function AdminClassesPage() {
 		async function checkAuth() {
 			try {
 				setAuthLoading(true);
+				setVerificationError(false);
 				const res = await fetch('/api/auth/me', { cache: 'no-store' });
+				if (res.status === 503) {
+					setVerificationError(true);
+					return;
+				}
 				const data = await res.json();
 
 				if (data.isLoggedIn && data.user) {
@@ -98,8 +106,7 @@ export default function AdminClassesPage() {
 				}
 			} catch (err) {
 				console.error('Admin auth check error:', err);
-				setUser(null);
-				setIsAuthorizedAdmin(false);
+				setVerificationError(true);
 			} finally {
 				setAuthLoading(false);
 			}
@@ -113,6 +120,10 @@ export default function AdminClassesPage() {
 			setLoadingClasses(true);
 			const url = forceRefresh ? `/api/admin/classes?refresh=true&t=${Date.now()}` : `/api/admin/classes?t=${Date.now()}`;
 			const res = await fetch(url, { cache: 'no-store' });
+			if (res.status === 503) {
+				setVerificationError(true);
+				return [];
+			}
 			const data = await res.json();
 
 			if (res.ok && data.success) {
@@ -127,7 +138,7 @@ export default function AdminClassesPage() {
 			}
 		} catch (err) {
 			console.error('Fetch classes error:', err);
-			setIsAuthorizedAdmin(false);
+			setVerificationError(true);
 			return [];
 		} finally {
 			setLoadingClasses(false);
@@ -241,8 +252,24 @@ export default function AdminClassesPage() {
 			<div className='min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center'>
 				<div className='flex items-center space-x-3'>
 					<Loader2 className='w-6 h-6 animate-spin text-purple-600' />
-					<span className='text-sm font-medium text-slate-600'>Verifying Clan Admin authorization...</span>
+					<span className='text-sm font-medium text-slate-600'>{t('common.adminAccess.verifyingClan')}</span>
 				</div>
+			</div>
+		);
+	}
+
+	if (verificationError) {
+		return (
+			<div className='min-h-screen bg-slate-50 text-slate-900 flex flex-col'>
+				<Navbar user={user} />
+				<main className='flex-1 flex items-center justify-center p-4'>
+					<div className='bg-white border border-slate-200 rounded-3xl p-8 max-w-md w-full text-center space-y-4'>
+						<AlertCircle className='w-8 h-8 text-amber-600 mx-auto' />
+						<h1 className='text-xl font-bold'>{t('common.adminAccess.verificationUnavailableTitle')}</h1>
+						<p role='alert' className='text-sm text-slate-600'>{t('common.adminAccess.verificationUnavailableMessage')}</p>
+						<button onClick={() => window.location.reload()} className='w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl'>{t('common.adminAccess.retry')}</button>
+					</div>
+				</main>
 			</div>
 		);
 	}
@@ -256,15 +283,15 @@ export default function AdminClassesPage() {
 						<div className='w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto border border-rose-200'>
 							<ShieldAlert className='w-7 h-7' />
 						</div>
-						<h1 className='text-xl font-bold text-slate-900'>Access Denied</h1>
+						<h1 className='text-xl font-bold text-slate-900'>{t('common.adminAccess.accessDeniedTitle')}</h1>
 						<p className='text-xs text-slate-600 leading-relaxed'>
-							You must have the <strong>Admin</strong> role in the Mezon Clan to access Classrooms & Students administration.
+							{t('common.adminAccess.classesDeniedMessage')}
 						</p>
 						<button
 							onClick={() => router.push('/login')}
 							className='w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-purple-200'
 						>
-							Sign in Again
+						{t('common.adminAccess.signInAgain')}
 						</button>
 					</div>
 				</main>
