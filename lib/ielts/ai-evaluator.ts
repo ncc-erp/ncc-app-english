@@ -261,7 +261,7 @@ export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, 
 	const callAIWithRetry = async () => {
 		for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
 			const controller = new AbortController();
-			const timeoutId = setTimeout(() => controller.abort(), 120000);
+			const timeoutId = setTimeout(() => controller.abort(), 300000);
 			try {
 				const res = await fetch(endpoint, {
 					method: 'POST',
