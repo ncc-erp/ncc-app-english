@@ -99,11 +99,9 @@ export async function fullSyncMeetingRoster(client: MezonClient): Promise<void> 
 			`[Meeting Sync] [Roster] Classified ${members.length} member(s): ${members.map((m) => `${m.display_name}(${m.role})`).join(', ') || '(none)'}`
 		);
 
-		if (members.length > 0) {
-			console.log('[Meeting Sync] [Roster] Writing to meeting_roster_cache...');
-			await pgDb.upsertMeetingRosterCache(members);
-		}
-		console.log(`[Meeting Sync] [Roster] Done. Seeded ${members.length} Student/Teacher roster entrie(s) from clan ${clanId}.`);
+		console.log('[Meeting Sync] [Roster] Replacing meeting_roster_cache with the current clan roster...');
+		await pgDb.replaceMeetingRosterCache(clanId, members);
+		console.log(`[Meeting Sync] [Roster] Done. Synced ${members.length} Student/Teacher roster entrie(s) from clan ${clanId}.`);
 	} catch (err) {
 		console.error('[Meeting Sync] [Roster] Initial sync failed:', err);
 	}

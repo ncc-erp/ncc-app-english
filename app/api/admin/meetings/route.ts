@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { pgDb } from '@/lib/db/postgres';
 import { checkIsClanAdmin } from '@/lib/admin/clan-data-service';
+import { parseMeetingInput } from '@/lib/admin/meeting-validation';
 
 async function isAdmin(): Promise<boolean> {
 	const session = await getSession();
@@ -34,14 +35,16 @@ export async function POST(req: NextRequest) {
 			return NextResponse.json({ success: false, error: 'Unauthorized. Admin privileges required.' }, { status: 403 });
 		}
 
-		const body = await req.json();
-		const { title, scheduled_at } = body || {};
+		const input = parseMeetingInput(await req.json().catch(() => null));
 
-		if (!title || !scheduled_at) {
-			return NextResponse.json({ success: false, error: 'Title and scheduled_at are required.' }, { status: 400 });
+		if (!input) {
+			return NextResponse.json(
+				{ success: false, error: 'Provide a title (1–200 characters) and a valid scheduled_at with timezone.' },
+				{ status: 400 }
+			);
 		}
 
-		const meeting = await pgDb.createMeeting(title, scheduled_at, user.mezon_id);
+		const meeting = await pgDb.createMeeting(input.title, input.scheduled_at, user.mezon_id);
 		return NextResponse.json({ success: true, meeting });
 	} catch (error) {
 		console.error('[Admin Meetings POST Error]:', error);
