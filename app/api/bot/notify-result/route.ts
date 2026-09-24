@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
-import { notifyExamResult } from '@/lib/bot/bot-messenger';
 
+/**
+ * POST /api/bot/notify-result
+ *
+ * Called by the web app frontend after a user completes an IELTS Speaking test.
+ * Forwards the notification request to the standalone mezon-english-bot
+ * via MEZON_VERIFY_URL (the bot's HTTP API).
+ *
+ * The bot will then send the result to the user as an ephemeral message in Mezon.
+ */
 export async function POST(req: NextRequest) {
 	const session = await getSession();
 
@@ -16,16 +24,36 @@ export async function POST(req: NextRequest) {
 			return NextResponse.json({ success: false, error: 'Missing attemptId in request body.' }, { status: 400 });
 		}
 
-		const result = await notifyExamResult(session.user.mezon_id, attemptId);
+		// Forward to the standalone bot server
+		const botUrl = process.env.MEZON_VERIFY_URL;
+		const botSecret = process.env.BOT_VERIFY_SECRET;
 
-		if (!result.success) {
-			return NextResponse.json({ success: false, error: result.message }, { status: 400 });
+		if (!botUrl) {
+			return NextResponse.json({ success: false, error: 'Bot server URL (MEZON_VERIFY_URL) is not configured.' }, { status: 503 });
+		}
+
+		const botRes = await fetch(`${botUrl.replace(/\/$/, '')}/notify-result`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'x-bot-secret': botSecret || ''
+			},
+			body: JSON.stringify({
+				userId: session.user.mezon_id,
+				attemptId,
+				channelId: process.env.MEZON_EXAM_CHANNEL_ID
+			})
+		});
+
+		const data = await botRes.json();
+
+		if (!botRes.ok || !data.success) {
+			return NextResponse.json({ success: false, error: data.message || 'Bot server returned an error.' }, { status: botRes.status });
 		}
 
 		return NextResponse.json({
 			success: true,
-			message: result.message,
-			channelId: result.channelId
+			message: data.message || 'Notification sent via Mezon bot.'
 		});
 	} catch (error) {
 		console.error('[POST /api/bot/notify-result] Error:', error);

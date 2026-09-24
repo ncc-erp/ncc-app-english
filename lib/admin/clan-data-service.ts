@@ -1,3 +1,4 @@
+//clan-data-service.ts
 import '@/lib/mezon/sdk-patch';
 import { getSharedBotClient } from '@/lib/bot/bot-messenger';
 import { isClanAdminMember, getClanRolesSafely } from '@/lib/mezon/bot-client';
