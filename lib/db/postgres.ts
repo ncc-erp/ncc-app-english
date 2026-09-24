@@ -1103,15 +1103,13 @@ export const pgDb = {
 
 	// List view: each meeting carries only a 10-item participant preview plus the true count,
 	// matching the ticket's "display 10, click through for the rest" requirement.
-	async getMeetings(limit: number = 50): Promise<Meeting[]> {
+	async getMeetings(): Promise<Meeting[]> {
 		await ensureDbInitialized();
-		const { rows: meetingRows } = await pool.query(`SELECT * FROM meetings ORDER BY scheduled_at DESC LIMIT $1`, [limit]);
+		const { rows: meetingRows } = await pool.query(`SELECT * FROM meetings ORDER BY scheduled_at DESC LIMIT 50`);
 		if (meetingRows.length === 0) return [];
 
 		const meetingIds = meetingRows.map((r) => r.id);
-		const { rows: participantRows } = await pool.query(`SELECT * FROM meeting_participants WHERE meeting_id = ANY($1) ORDER BY id ASC`, [
-			meetingIds
-		]);
+		const { rows: participantRows } = await pool.query(`SELECT * FROM meeting_participants WHERE meeting_id = ANY($1) ORDER BY id ASC`, [meetingIds]);
 
 		const participantsByMeeting = new Map<string, MeetingParticipant[]>();
 		participantRows.forEach((p) => {
@@ -1141,6 +1139,18 @@ export const pgDb = {
 				participants: allParticipants.slice(0, 10)
 			};
 		});
+	},
+
+	async updateMeeting(id: string, title: string, scheduledAt: string): Promise<Meeting | null> {
+		await ensureDbInitialized();
+		await pool.query('UPDATE meetings SET title = $2, scheduled_at = $3 WHERE id = $1', [id, title, scheduledAt]);
+		return this.getMeeting(id);
+	},
+
+	async deleteMeeting(id: string): Promise<boolean> {
+		await ensureDbInitialized();
+		const result = await pool.query('DELETE FROM meetings WHERE id = $1', [id]);
+		return !!result.rowCount;
 	},
 
 	async getMeeting(id: string): Promise<Meeting | null> {
@@ -1173,6 +1183,48 @@ export const pgDb = {
 	},
 
 	// Upserts so re-assigning (e.g. changing someone's role) doesn't need a separate remove step.
+	async saveMeetingAssignments(
+		meetingId: string,
+		participants: Omit<MeetingParticipant, 'joined_at'>[] | undefined,
+		room: { id: string; name: string } | undefined,
+		replace: boolean
+	): Promise<Meeting | null> {
+		await ensureDbInitialized();
+		const client = await pool.connect();
+		try {
+			await client.query('BEGIN');
+			const locked = await client.query('SELECT id FROM meetings WHERE id = $1 FOR UPDATE', [meetingId]);
+			if (!locked.rowCount) {
+				await client.query('ROLLBACK');
+				return null;
+			}
+			if (participants !== undefined) {
+				if (replace)
+					await client.query('DELETE FROM meeting_participants WHERE meeting_id = $1 AND NOT (mezon_id = ANY($2::text[]))', [
+						meetingId,
+						participants.map((p) => p.mezon_id)
+					]);
+				for (const p of participants) {
+					await client.query(
+						`INSERT INTO meeting_participants (meeting_id, mezon_id, username, display_name, avatar_url, role)
+					VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (meeting_id, mezon_id) DO UPDATE SET
+					username = EXCLUDED.username, display_name = EXCLUDED.display_name, avatar_url = EXCLUDED.avatar_url, role = EXCLUDED.role`,
+						[meetingId, p.mezon_id, p.username || null, p.display_name, p.avatar_url || null, p.role || null]
+					);
+				}
+			}
+			if (room !== undefined)
+				await client.query('UPDATE meetings SET room_id = $2, room_name = $3 WHERE id = $1', [meetingId, room.id || null, room.name || null]);
+			await client.query('COMMIT');
+		} catch (error) {
+			await client.query('ROLLBACK');
+			throw error;
+		} finally {
+			client.release();
+		}
+		return this.getMeeting(meetingId);
+	},
+
 	async assignMeetingParticipants(meetingId: string, participants: Omit<MeetingParticipant, 'joined_at'>[]): Promise<Meeting | null> {
 		await ensureDbInitialized();
 		for (const p of participants) {
@@ -1261,6 +1313,40 @@ export const pgDb = {
            synced_at = NOW();`,
 				[m.mezon_id, m.username || null, m.display_name, m.avatar_url || null, m.role, m.clan_id]
 			);
+		}
+	},
+
+	// A full Mezon scan is authoritative for one clan: replacing the cache removes people
+	// whose Student/Teacher role was removed while the bot was offline.
+	async replaceMeetingRosterCache(
+		clanId: string,
+		members: {
+			mezon_id: string;
+			username?: string;
+			display_name: string;
+			avatar_url?: string;
+			role: MeetingParticipantRole;
+			clan_id: string;
+		}[]
+	): Promise<void> {
+		await ensureDbInitialized();
+		const client = await pool.connect();
+		try {
+			await client.query('BEGIN');
+			await client.query('DELETE FROM meeting_roster_cache WHERE clan_id = $1', [clanId]);
+			for (const member of members) {
+				await client.query(
+					`INSERT INTO meeting_roster_cache (mezon_id, username, display_name, avatar_url, role, clan_id, synced_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+					[member.mezon_id, member.username || null, member.display_name, member.avatar_url || null, member.role, member.clan_id]
+				);
+			}
+			await client.query('COMMIT');
+		} catch (error) {
+			await client.query('ROLLBACK');
+			throw error;
+		} finally {
+			client.release();
 		}
 	},
 
