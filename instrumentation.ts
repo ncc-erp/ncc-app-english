@@ -13,7 +13,11 @@ export async function register() {
 
 		try {
 			const { initBotService } = await import('./lib/bot/bot-service');
-			await initBotService();
+			// Gateway reconnects can take minutes. Do not block Next.js from
+			// serving pages while the bot establishes its background connection.
+			void initBotService().catch((err) => {
+				console.error('[Instrumentation] Failed to initialize Mezon Bot:', err);
+			});
 		} catch (err) {
 			console.error('[Instrumentation] Failed to initialize Mezon Bot:', err);
 		}
