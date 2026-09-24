@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { checkIsClanAdmin } from '@/lib/admin/clan-data-service';
-import { downloadAudioBuffer } from '@/lib/supabase/storage';
+import { downloadAudioBuffer, extractAudioStoragePath } from '@/lib/storage';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -23,21 +23,16 @@ export async function GET(req: NextRequest) {
 		}
 
 		const { searchParams } = new URL(req.url);
-		let path = searchParams.get('path') || '';
-		const url = searchParams.get('url') || '';
+		const rawPath = searchParams.get('path') || '';
+		const rawUrl = searchParams.get('url') || '';
 
-		if (!path && url) {
-			const match = url.match(/(?:ielts-recordings|ielts-speaking-recordings)\/([^?#]+)/);
-			if (match?.[1]) {
-				path = decodeURIComponent(match[1]);
-			}
-		}
+		const path = extractAudioStoragePath(rawPath || rawUrl);
 
 		if (!path) {
 			return new NextResponse('Audio path is required.', { status: 400 });
 		}
 
-		// Attempt to download the audio buffer from Supabase Storage
+		// Attempt to download the audio buffer from Cloudflare R2 Storage
 		let audioData = await downloadAudioBuffer(path);
 
 		// Fallback: if path omitted extension, try .webm then .ogg

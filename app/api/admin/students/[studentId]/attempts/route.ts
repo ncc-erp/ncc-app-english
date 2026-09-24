@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { checkIsClanAdmin } from '@/lib/admin/clan-data-service';
 import { pgDb } from '@/lib/db/postgres';
+import { extractAudioStoragePath } from '@/lib/storage';
 
 export async function GET(_req: NextRequest, segmentData: { params: Promise<{ studentId: string }> }) {
 	try {
@@ -34,9 +35,8 @@ export async function GET(_req: NextRequest, segmentData: { params: Promise<{ st
 				if (!res) return;
 				let path = res.audio_storage_path;
 				if (!path && res.audio_url) {
-					const match = res.audio_url.match(/(?:ielts-recordings|ielts-speaking-recordings)\/([^?#]+)/);
-					if (match?.[1]) {
-						path = decodeURIComponent(match[1]);
+					path = extractAudioStoragePath(res.audio_url);
+					if (path) {
 						res.audio_storage_path = path;
 					}
 				}

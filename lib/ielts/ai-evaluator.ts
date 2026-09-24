@@ -1,6 +1,6 @@
 import { IELTSSpeakingAttempt, IELTSSpeakingTopic, IELTSScoreResult, IELTSPerQuestionAnalysis } from '@/types/ielts';
 import { getIELTSStatusTitle } from './score-calculator';
-import { downloadAudioAsBase64 } from '@/lib/supabase/storage';
+import { downloadAudioAsBase64, extractAudioStoragePath } from '@/lib/storage';
 
 import { OFFICIAL_IELTS_EXAMINER_PROMPT } from './prompts/examiner';
 
@@ -40,15 +40,14 @@ export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, 
 		return null;
 	}
 
-	// Helper fetch audio qua Supabase Storage hoặc Direct URL
+	// Helper fetch audio qua Cloudflare R2 Storage hoặc Direct URL
 	const fetchAudioForResponse = async (qId: string) => {
 		const resp = attempt.responses?.[qId];
 		if (!resp) return null;
 
 		let storagePath = resp.audio_storage_path;
 		if (!storagePath && resp.audio_url) {
-			const match = resp.audio_url.match(/(?:ielts-recordings|ielts-speaking-recordings)\/([^?#]+)/);
-			if (match?.[1]) storagePath = decodeURIComponent(match[1]);
+			storagePath = extractAudioStoragePath(resp.audio_url);
 		}
 
 		if (storagePath) {

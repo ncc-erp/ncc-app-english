@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { pgDb } from '@/lib/db/postgres';
-import { createSignedAudioUrl, uploadAudio } from '@/lib/supabase/storage';
+import { createSignedAudioUrl, uploadAudio } from '@/lib/storage';
 
 export const runtime = 'nodejs';
 
