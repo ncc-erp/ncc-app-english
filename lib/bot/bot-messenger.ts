@@ -146,13 +146,35 @@ function extractLinksFromText(text: string): Array<{ s: number; e: number }> {
 }
 
 /**
- * Builds a ChannelMessageContent object with text, link ranges (lk), and components.
+ * Locates `#label` in text and returns the Mezon HashtagOnMessage { channelId, s, e } range so
+ * the client renders that substring as a clickable link into the channel (e.g. a voice room).
+ *
+ * Note: if the recipient's client hasn't loaded that clan's channel list yet (e.g. they've never
+ * opened it in this session), it shows a generic "private channel" placeholder until they open
+ * the clan once - at which point it resolves correctly, retroactively, even on old messages.
+ * That's a client-side caching quirk, not a permissions failure - don't mistake it for one.
  */
-function buildMessageContent(text: string, components?: any[]): ChannelMessageContent {
+function buildRoomHashtag(text: string, room: { channelId: string; label: string }): { channelId: string; s: number; e: number } | undefined {
+	const marker = `#${room.label}`;
+	const idx = text.indexOf(marker);
+	if (idx === -1) return undefined;
+	return { channelId: room.channelId, s: idx, e: idx + marker.length };
+}
+
+/**
+ * Builds a ChannelMessageContent object with text, link ranges (lk), room hashtag (hg), and components.
+ */
+function buildMessageContent(text: string, components?: any[], roomMention?: { channelId: string; label: string }): ChannelMessageContent {
 	const content: any = { t: text };
 	const lk = extractLinksFromText(text);
 	if (lk.length > 0) {
 		content.lk = lk;
+	}
+	if (roomMention) {
+		const hashtag = buildRoomHashtag(text, roomMention);
+		if (hashtag) {
+			content.hg = [hashtag];
+		}
 	}
 	if (components && components.length > 0) {
 		content.components = components;
@@ -172,6 +194,8 @@ export async function sendChannelMessage(
 		mentions?: Array<{ user_id: string; username?: string }>;
 		replyToMessageId?: string;
 		components?: any[];
+		// Renders "#label" (must appear verbatim in `text`) as a clickable link into that channel/room.
+		roomMention?: { channelId: string; label: string };
 	}
 ): Promise<boolean> {
 	const client = await getSharedBotClient();
@@ -204,7 +228,7 @@ export async function sendChannelMessage(
 				);
 				for (let i = 0; i < chunks.length; i++) {
 					const isLast = i === chunks.length - 1;
-					const content = buildMessageContent(chunks[i], isLast ? options?.components : undefined);
+					const content = buildMessageContent(chunks[i], isLast ? options?.components : undefined, options?.roomMention);
 					await sendEphemeralMessage(
 						channel,
 						receiverId,
@@ -228,13 +252,21 @@ export async function sendChannelMessage(
 
 		for (let i = 0; i < chunks.length; i++) {
 			const isLast = i === chunks.length - 1;
-			const content = buildMessageContent(chunks[i], isLast ? options?.components : undefined);
+			const chunkText = chunks[i];
+			const content = buildMessageContent(chunkText, isLast ? options?.components : undefined, options?.roomMention);
 			await channel.send(
 				content,
-				mentions.map((m) => ({
-					user_id: m.user_id,
-					username: m.username || ''
-				}))
+				mentions.map((m) => {
+					// Looks for "@username" verbatim in this chunk so the client can render it as
+					// a clickable @mention chip instead of plain text (same s/e mechanism as hg/lk).
+					const marker = m.username ? `@${m.username}` : undefined;
+					const idx = marker ? chunkText.indexOf(marker) : -1;
+					return {
+						user_id: m.user_id,
+						username: m.username || '',
+						...(idx !== -1 ? { s: idx, e: idx + (marker as string).length } : {})
+					};
+				})
 			);
 			if (i < chunks.length - 1) {
 				await new Promise((resolve) => setTimeout(resolve, 300));
@@ -255,6 +287,8 @@ export async function sendDirectMessage(
 	text: string,
 	options?: {
 		components?: any[];
+		// Renders "#label" (must appear verbatim in `text`) as a clickable link into that channel/room.
+		roomMention?: { channelId: string; label: string };
 	}
 ): Promise<boolean> {
 	const client = await getSharedBotClient();
@@ -266,7 +300,7 @@ export async function sendDirectMessage(
 			const chunks = splitTextIntoChunks(text, 3500);
 			for (let i = 0; i < chunks.length; i++) {
 				const isLast = i === chunks.length - 1;
-				const content = buildMessageContent(chunks[i], isLast ? options?.components : undefined);
+				const content = buildMessageContent(chunks[i], isLast ? options?.components : undefined, options?.roomMention);
 				await user.sendDM(content);
 				if (i < chunks.length - 1) {
 					await new Promise((resolve) => setTimeout(resolve, 300));
