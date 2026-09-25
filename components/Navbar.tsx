@@ -1,24 +1,53 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { UserSession } from '@/types';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { Mic, LogOut, User, Sparkles, History, Shield, BookOpen } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
 
 interface NavbarProps {
 	user?: UserSession | null;
 	onLogout?: () => void;
+	containerClassName?: string;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
+export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout, containerClassName = 'max-w-7xl' }) => {
 	const router = useRouter();
 	const pathname = usePathname();
 	const { t, locale, setLocale } = useTranslation();
-	const { user, logout } = useAuth();
+	const [currentUser, setCurrentUser] = useState<UserSession | null | undefined>(propUser);
+
+	useEffect(() => {
+		if (propUser !== undefined) {
+			setCurrentUser(propUser);
+			return;
+		}
+
+		let isMounted = true;
+		async function fetchMe() {
+			try {
+				const res = await fetch('/api/auth/me');
+				const data = await res.json();
+				if (isMounted) {
+					if (data.isLoggedIn && data.user) {
+						setCurrentUser(data.user);
+					} else {
+						setCurrentUser(null);
+					}
+				}
+			} catch {
+				if (isMounted) setCurrentUser(null);
+			}
+		}
+		fetchMe();
+
+		return () => {
+			isMounted = false;
+		};
+	}, [propUser]);
 
 	const handleLogout = async () => {
 		if (onLogout) {
@@ -27,7 +56,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
 		}
 		try {
 			await fetch('/api/auth/logout', { method: 'POST' });
-			logout();
+			setCurrentUser(null);
 			router.push('/');
 			router.refresh();
 		} catch (err) {
@@ -35,12 +64,12 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
 		}
 	};
 
-	const activeUser = propUser !== undefined ? propUser : user;
+	const activeUser = propUser !== undefined ? propUser : currentUser;
 	const isAdmin = activeUser?.role === 'admin';
 
 	return (
 		<header className='bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm'>
-			<div className='max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between'>
+			<div className={`${containerClassName} mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4`}>
 				<Link href='/' className='flex items-center space-x-3 group'>
 					<div className='w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-purple-200 group-hover:scale-105 transition-transform'>
 						<Mic className='w-5 h-5' />
@@ -52,7 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({ user: propUser, onLogout }) => {
 				</Link>
 
 				{/* Center Badge */}
-				<div className='hidden sm:flex items-center gap-2 px-3.5 py-1.5 bg-purple-50 border border-purple-200 rounded-full text-purple-700 text-xs font-semibold'>
+				<div className='hidden sm:flex items-center gap-2 px-3.5 py-1.5 bg-purple-50 border border-purple-200 rounded-full text-purple-700 text-xs font-semibold shrink-0 whitespace-nowrap'>
 					<Sparkles className='w-3.5 h-3.5 text-purple-600' />
 					<span>{t('navbar.badge')}</span>
 				</div>

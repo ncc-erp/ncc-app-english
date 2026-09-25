@@ -74,22 +74,7 @@ export function StudentList({ students, loading, searchQuery, onSelectStudent, o
 	};
 	return (
 		<div className='bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4'>
-			<div className='flex items-center justify-between border-b border-slate-100 pb-4'>
-				<div>
-					<h3 className='text-base font-extrabold text-slate-900 flex items-center gap-2'>
-						<GraduationCap className='w-4 h-4 text-purple-600' />
-						<span>{classId ? `Students: ${currentClass?.name || 'Classroom'}` : 'All Students (Role: Student)'}</span>
-					</h3>
-
-					<p className='text-xs text-slate-500'>
-						Click on any student to inspect test attempts, average band score, and detailed IELTS Speaking evaluations.
-					</p>
-				</div>
-
-				<span className='px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200'>
-					{students.length} {students.length === 1 ? 'student' : 'students'}
-				</span>
-			</div>
+			
 
 			{loading ? (
 				<div className='py-16 text-center text-xs text-slate-500 flex items-center justify-center gap-2'>
@@ -151,7 +136,7 @@ export const StudentListItem = memo(function StudentListItem({ last_attempt, stu
 	return (
 		<div
 			onClick={handleSelect}
-			className='p-4 bg-slate-50/70 hover:bg-purple-50/40 border border-slate-200 hover:border-purple-300 rounded-2xl transition-all cursor-pointer shadow-sm hover:shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 group'
+			className='p-4 bg-slate-50/70 hover:bg-purple-50/40 border border-slate-200 hover:border-purple-300 rounded-2xl transition-all cursor-pointer shadow-sm hover:shadow-md flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4 group'
 		>
 			{/* Student info */}
 			<div className='flex items-center space-x-3.5'>
@@ -178,8 +163,8 @@ export const StudentListItem = memo(function StudentListItem({ last_attempt, stu
 			</div>
 
 			{/* Stats */}
-			<div className='flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60'>
-				<div className='text-left sm:text-right'>
+			<div className='flex items-center justify-between 2xl:justify-end gap-3 sm:gap-4 shrink-0 pt-2 2xl:pt-0 border-t 2xl:border-t-0 border-slate-200/60'>
+				<div className='text-left 2xl:text-right'>
 					<div className='text-[10px] text-slate-400 font-medium'>Tests Taken</div>
 
 					<div className='text-xs font-black text-slate-900 flex items-center gap-1'>
@@ -187,7 +172,7 @@ export const StudentListItem = memo(function StudentListItem({ last_attempt, stu
 						{student.total_speaking_attempts} {student.total_speaking_attempts === 1 ? 'test' : 'tests'}
 					</div>
 				</div>
-				<div className='text-left sm:text-right'>
+				<div className='text-left 2xl:text-right'>
 					<div className='text-[10px] text-slate-400 font-medium'>Last Exam</div>
 					<div
 						className='text-xs font-black text-slate-900 flex items-center gap-1'
@@ -197,7 +182,7 @@ export const StudentListItem = memo(function StudentListItem({ last_attempt, stu
 						<span>{last_attempt}</span>
 					</div>
 				</div>
-				<div className='text-left sm:text-right'>
+				<div className='text-left 2xl:text-right'>
 					<div className='text-[10px] text-slate-400 font-medium'>Average Band</div>
 
 					<div className={`px-2.5 py-0.5 rounded-lg border font-black text-xs inline-block ${band}`}>
