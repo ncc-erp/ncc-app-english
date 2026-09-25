@@ -1,74 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { pgDb } from '@/lib/db/postgres';
-import { evaluateIELTSAttemptWithAI } from '@/lib/ielts/ai-evaluator';
 
 export const maxDuration = 60; // Extend Vercel function timeout for AI scoring
 
 export async function POST(req: NextRequest) {
-  const session = await getSession();
+	const session = await getSession();
 
-  if (!session.user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
+	if (!session.user) {
+		return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+	}
 
-  try {
-    const { attemptId, responses, part2Notes } = await req.json();
+	try {
+		const { attemptId, responses, part2Notes } = await req.json();
 
-    if (!attemptId) {
-      return NextResponse.json({ success: false, error: 'Missing attemptId' }, { status: 400 });
-    }
+		if (!attemptId) {
+			return NextResponse.json({ success: false, error: 'Missing attemptId' }, { status: 400 });
+		}
 
-    const attempt = await pgDb.getIELTSAttempt(attemptId);
-    if (!attempt) {
-      return NextResponse.json({ success: false, error: 'IELTS attempt not found' }, { status: 404 });
-    }
+		const attempt = await pgDb.getIELTSAttempt(attemptId);
+		if (!attempt) {
+			return NextResponse.json({ success: false, error: 'IELTS attempt not found' }, { status: 404 });
+		}
 
-    const topic = await pgDb.getIELTSTopic(attempt.topic_id);
-    if (!topic) {
-      return NextResponse.json({ success: false, error: 'Topic not found' }, { status: 404 });
-    }
+		if (attempt.user_id !== session.user.user_id) {
+			return NextResponse.json({ success: false, error: 'IELTS attempt not found' }, { status: 404 });
+		}
 
-    // Save notes
-    if (part2Notes) {
-      await pgDb.saveIELTSPart2Notes(attemptId, part2Notes);
-      attempt.part2_notes = part2Notes;
-    }
+		const topic = await pgDb.getIELTSTopic(attempt.topic_id);
+		if (!topic) {
+			return NextResponse.json({ success: false, error: 'Topic not found' }, { status: 404 });
+		}
 
-    // Save responses
-    if (responses && typeof responses === 'object') {
-      for (const [qId, res] of Object.entries(responses)) {
-        const item = res as {
-          part?: 'part1' | 'part2' | 'part3';
-          audio_url?: string;
-          audioUrl?: string;
-          transcript?: string;
-          duration_seconds?: number;
-          duration?: number;
-        };
-        const audioUrl = item.audio_url || item.audioUrl;
-        const duration = item.duration_seconds || item.duration || 0;
+		// Save notes
+		if (part2Notes) {
+			await pgDb.saveIELTSPart2Notes(attemptId, part2Notes);
+			attempt.part2_notes = part2Notes;
+		}
 
-        await pgDb.saveIELTSResponse(
-          attemptId,
-          qId,
-          item.part || 'part1',
-          audioUrl,
-          item.transcript,
-          duration
-        );
-      }
-    }
+		// Save responses
+		if (responses && typeof responses === 'object') {
+			for (const [qId, res] of Object.entries(responses)) {
+				const item = res as {
+					part?: 'part1' | 'part2' | 'part3';
+					audio_url?: string;
+					audioUrl?: string;
+					transcript?: string;
+					duration_seconds?: number;
+					duration?: number;
+					audio_storage_path?: string;
+				};
+				const audioUrl = item.audio_url || item.audioUrl;
+				const duration = item.duration_seconds || item.duration || 0;
 
-    // Save status as 'submitted' to PostgreSQL instantly
-    await pgDb.updateIELTSAttemptStatus(attemptId, 'submitted', 'part3');
+				await pgDb.saveIELTSResponse(attemptId, qId, item.part || 'part1', audioUrl, item.transcript, duration, item.audio_storage_path);
+			}
+		}
 
-    return NextResponse.json({
-      success: true,
-      attemptId,
-    });
-  } catch (error) {
-    console.error('[POST /api/ielts/submit] Error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to submit IELTS Speaking test' }, { status: 500 });
-  }
+		// Save status as 'submitted' to PostgreSQL instantly
+		await pgDb.updateIELTSAttemptStatus(attemptId, 'submitted', 'part3');
+
+		return NextResponse.json({
+			success: true,
+			attemptId
+		});
+	} catch (error) {
+		console.error('[POST /api/ielts/submit] Error:', error);
+		return NextResponse.json({ success: false, error: 'Failed to submit IELTS Speaking test' }, { status: 500 });
+	}
 }

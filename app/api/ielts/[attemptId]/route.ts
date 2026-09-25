@@ -1,42 +1,105 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { pgDb } from '@/lib/db/postgres';
+import { createSignedAudioUrl } from '@/lib/storage';
+import { toTeaserResult } from '@/lib/ielts/result-view';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ attemptId: string }> }) {
-  const session = await getSession();
-  const { attemptId } = await params;
+	const session = await getSession();
+	const { attemptId } = await params;
 
-  if (!session.user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
+	if (!session.user) {
+		return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+	}
 
-  try {
-    const attempt = await pgDb.getIELTSAttempt(attemptId);
-    if (!attempt) {
-      return NextResponse.json({ success: false, error: 'IELTS attempt not found' }, { status: 404 });
-    }
+	try {
+		// Refresh clan_member from DB in case session is stale
+		const dbUser = await pgDb.findOrCreateUser({
+			mezon_id: session.user.mezon_id,
+			username: session.user.mezon_username,
+			display_name: session.user.display_name,
+			avatar_url: session.user.avatar_url
+		});
+		if (dbUser.clan_member && !session.user.clan_member) {
+			session.user.clan_member = true;
+			await session.save();
+		}
 
-    const topic = await pgDb.getIELTSTopic(attempt.topic_id);
-    if (!topic) {
-      return NextResponse.json({ success: false, error: 'IELTS topic not found' }, { status: 404 });
-    }
+		const attempt = await pgDb.getIELTSAttempt(attemptId);
+		if (!attempt) {
+			return NextResponse.json({ success: false, error: 'IELTS attempt not found' }, { status: 404 });
+		}
 
-    if (attempt.status === 'submitted') {
-      return NextResponse.json({
-        success: true,
-        attempt,
-        topic,
-        result: attempt.score_result || null,
-      });
-    }
+		if (attempt.user_id !== session.user.user_id && attempt.user_id !== session.user.mezon_id) {
+			return NextResponse.json({ success: false, error: 'IELTS attempt not found' }, { status: 404 });
+		}
 
-    return NextResponse.json({
-      success: true,
-      attempt,
-      topic,
-    });
-  } catch (error) {
-    console.error('[GET /api/ielts/[attemptId]] Error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to fetch IELTS Speaking attempt' }, { status: 500 });
-  }
+		const isUnlocked = session.user?.clan_member === true || attempt.unlocked === true;
+
+		// Signed audio URLs are part of the paid report; only mint them for an
+		// unlocked report or while the candidate is still taking the test.
+		const maySeeRecordings = isUnlocked || attempt.status !== 'submitted';
+
+		for (const response of maySeeRecordings ? Object.values(attempt.responses) : []) {
+			if (response.audio_storage_path) {
+				try {
+					response.audio_url = await createSignedAudioUrl(response.audio_storage_path);
+				} catch (error) {
+					console.error('[GET /api/ielts/[attemptId]] Signed audio URL error:', error);
+					response.audio_url = undefined;
+				}
+			}
+		}
+
+		const topic = await pgDb.getIELTSTopic(attempt.topic_id);
+		if (!topic) {
+			return NextResponse.json({ success: false, error: 'IELTS topic not found' }, { status: 404 });
+		}
+
+		if (attempt.status === 'submitted') {
+			if (!isUnlocked) {
+				// Locked report: strip the stored breakdown and every recording
+				const { score_result: _hidden, ...rest } = attempt;
+				return NextResponse.json({
+					success: true,
+					attempt: { ...rest, responses: {}, unlocked: false },
+					topic,
+					isUnlocked: false,
+					result: attempt.score_result ? toTeaserResult(attempt.score_result) : null
+				});
+			}
+
+			if (!attempt.score_result) {
+				return NextResponse.json({
+					success: true,
+					attempt: { ...attempt, unlocked: true },
+					topic,
+					isUnlocked: true,
+					result: null
+				});
+			}
+
+			return NextResponse.json({
+				success: true,
+				attempt: { ...attempt, unlocked: true },
+				topic,
+				isUnlocked: true,
+				result: {
+					...attempt.score_result,
+					responses: attempt.responses,
+					unlocked: true
+				}
+			});
+		}
+
+		return NextResponse.json({
+			success: true,
+			attempt: { ...attempt, unlocked: isUnlocked },
+			topic,
+			isUnlocked
+		});
+	} catch (error) {
+		console.error('[GET /api/ielts/[attemptId]] Error:', error);
+		return NextResponse.json({ success: false, error: 'Failed to fetch IELTS Speaking attempt' }, { status: 500 });
+	}
 }
