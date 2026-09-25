@@ -285,6 +285,7 @@ export async function ensureDbInitialized() {
 
         ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS end_at TIMESTAMPTZ;
 
+
         -- Synced from the Mezon clan bot (rooms + student/teacher roster). Populated by the
         -- bot sync job; the admin UI only ever reads these two for its assign dropdowns.
         CREATE TABLE IF NOT EXISTS meeting_rooms_cache (
@@ -1438,50 +1439,53 @@ export const pgDb = {
 		await pool.query(`DELETE FROM meeting_roster_cache WHERE mezon_id = $1`, [mezonId]);
 	},
 
-	// Called from the onVoiceJoinedEvent handler. Scoped to meetings using that room within a
-	// +/-2h window of "now" so joining some unrelated, long-past/future meeting in the same
-	// room doesn't get misattributed.
-	async markMeetingParticipantJoinedByRoom(roomId: string, mezonId: string): Promise<boolean> {
+	// Keep only the first valid join for this meeting. A late arrival simply gets a later
+	// joined_at; rejoining never overwrites the original arrival time.
+	async markMeetingParticipantJoinedByRoom(roomId: string, mezonId: string): Promise<{ meeting_id: string; occurred_at: string } | null> {
 		await ensureDbInitialized();
-		const { rowCount } = await pool.query(
+		const { rows } = await pool.query(
 			`UPDATE meeting_participants mp
-       SET joined_at = NOW()
-       FROM meetings m
-       WHERE mp.meeting_id = m.id
-         AND m.room_id = $1
-         AND mp.mezon_id = $2
-         AND mp.joined_at IS NULL
-         AND m.scheduled_at BETWEEN NOW() - INTERVAL '2 hours' AND NOW() + INTERVAL '2 hours';`,
+			 SET joined_at = COALESCE(mp.joined_at, NOW()),
+				 end_at = NULL
+			 WHERE mp.id = (
+				SELECT mp2.id
+				FROM meeting_participants mp2
+				JOIN meetings m ON m.id = mp2.meeting_id
+				WHERE m.room_id = $1
+					AND mp2.mezon_id = $2
+					AND NOW() >= m.scheduled_at
+					AND NOW() <= COALESCE(m.ended_at, m.scheduled_at + INTERVAL '1 hour')
+				ORDER BY m.scheduled_at DESC
+				LIMIT 1
+			 )
+			 RETURNING mp.meeting_id, NOW() AS occurred_at;`,
 			[roomId, mezonId]
 		);
-		return (rowCount ?? 0) > 0;
+		return rows[0] || null;
 	},
 
-	// Counterpart to markMeetingParticipantJoinedByRoom (onVoiceLeavedEvent) - always overwrites,
-	// so a rejoin-then-leave cycle ends up recording the most recent leave, not the first one. No
-	// upper bound on how late the leave can be - it's recorded whenever it actually happens. To
-	// pick the right meeting when the same room has hosted several over time, this targets the
-	// most recently-STARTED meeting for that room+person (highest scheduled_at with scheduled_at
-	// <= NOW()); once a later meeting in that room has started, leave events naturally start
-	// attaching to that one instead.
-	async markMeetingParticipantLeftByRoom(roomId: string, mezonId: string): Promise<boolean> {
+	// Keep overwriting the leave time during the class window so the last valid departure wins.
+	async markMeetingParticipantLeftByRoom(roomId: string, mezonId: string): Promise<{ meeting_id: string; occurred_at: string } | null> {
 		await ensureDbInitialized();
-		const { rowCount } = await pool.query(
+		const { rows } = await pool.query(
 			`UPDATE meeting_participants mp
-       SET end_at = NOW()
-       WHERE mp.id = (
-         SELECT mp2.id
-         FROM meeting_participants mp2
-         JOIN meetings m2 ON m2.id = mp2.meeting_id
-         WHERE m2.room_id = $1
-           AND mp2.mezon_id = $2
-           AND m2.scheduled_at <= NOW()
-         ORDER BY m2.scheduled_at DESC
-         LIMIT 1
-       );`,
+			 SET end_at = NOW()
+			 WHERE mp.id = (
+				SELECT mp2.id
+				FROM meeting_participants mp2
+				JOIN meetings m ON m.id = mp2.meeting_id
+				WHERE m.room_id = $1
+					AND mp2.mezon_id = $2
+					AND mp2.joined_at IS NOT NULL
+					AND NOW() >= m.scheduled_at
+					AND NOW() <= COALESCE(m.ended_at, m.scheduled_at + INTERVAL '1 hour')
+				ORDER BY m.scheduled_at DESC
+				LIMIT 1
+			 )
+			 RETURNING mp.meeting_id, mp.end_at AS occurred_at;`,
 			[roomId, mezonId]
 		);
-		return (rowCount ?? 0) > 0;
+		return rows[0] || null;
 	},
 
 	// Participants of meetings starting within MEETING_REMINDER_MINUTES_BEFORE (not yet sent the

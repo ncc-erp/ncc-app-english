@@ -4,9 +4,30 @@ import { getClanRolesSafely } from '@/lib/mezon/bot-client';
 import { isStudentRole, isTeacherRole } from '@/lib/admin/clan-data-service';
 import { pgDb } from '@/lib/db/postgres';
 import { MeetingParticipantRole } from '@/types/meeting';
+import { sendDirectMessage } from './bot-messenger';
+import { formatMeetingTimeVi, meetingClassLabel, meetingRoomLabel, meetingRoomMention } from '@/lib/admin/meeting-notify';
 
 function targetClanId(): string {
 	return process.env.MEZON_TARGET_CLAN_ID || '';
+}
+
+async function notifyMeetingPresence(
+	meetingId: string,
+	mezonId: string,
+	occurredAt: string,
+	action: 'joined' | 'left'
+): Promise<void> {
+	const meeting = await pgDb.getMeeting(meetingId);
+	const participant = meeting?.participants.find((person) => person.mezon_id === mezonId);
+	if (!meeting || !participant) return;
+
+	const name = participant.display_name || participant.username || mezonId;
+	const activity = action === 'joined' ? 'đã tham gia' : 'đã rời';
+	await sendDirectMessage(
+		mezonId,
+		`${action === 'joined' ? '✅' : '↩️'} ${name} ${activity} phòng ${meetingRoomLabel(meeting)} lúc ${formatMeetingTimeVi(occurredAt)}.${meetingClassLabel(meeting)}`,
+		meetingRoomMention(meeting)
+	);
 }
 
 /** One-time scan to seed meeting_rooms_cache on bot startup; real-time updates come from registerMeetingRoomListeners. */
@@ -235,12 +256,13 @@ export function registerMeetingJoinListener(client: MezonClient): void {
 	client.onVoiceJoinedEvent(async (e) => {
 		console.log(`[Meeting Sync] [Join] onVoiceJoinedEvent: user=${e.user_id}, room=${e.voice_channel_label} (${e.voice_channel_id})`);
 		try {
-			const matched = await pgDb.markMeetingParticipantJoinedByRoom(e.voice_channel_id, e.user_id);
+			const record = await pgDb.markMeetingParticipantJoinedByRoom(e.voice_channel_id, e.user_id);
 			console.log(
-				matched
+				record
 					? `[Meeting Sync] [Join] Marked ${e.user_id} as joined for the meeting in room ${e.voice_channel_id}.`
 					: `[Meeting Sync] [Join] No matching meeting participant found for ${e.user_id} in room ${e.voice_channel_id} (not a tracked meeting right now).`
 			);
+			if (record) await notifyMeetingPresence(record.meeting_id, e.user_id, record.occurred_at, 'joined');
 		} catch (err) {
 			console.error('[Meeting Sync] [Join] Failed to process onVoiceJoinedEvent:', err);
 		}
@@ -254,12 +276,13 @@ export function registerMeetingLeaveListener(client: MezonClient): void {
 	client.onVoiceLeavedEvent(async (e) => {
 		console.log(`[Meeting Sync] [Leave] onVoiceLeavedEvent: user=${e.voice_user_id}, room=${e.voice_channel_id}`);
 		try {
-			const matched = await pgDb.markMeetingParticipantLeftByRoom(e.voice_channel_id, e.voice_user_id);
+			const record = await pgDb.markMeetingParticipantLeftByRoom(e.voice_channel_id, e.voice_user_id);
 			console.log(
-				matched
+				record
 					? `[Meeting Sync] [Leave] Marked ${e.voice_user_id} as left for the meeting in room ${e.voice_channel_id}.`
 					: `[Meeting Sync] [Leave] No matching meeting participant found for ${e.voice_user_id} in room ${e.voice_channel_id} (not a tracked meeting right now).`
 			);
+			if (record) await notifyMeetingPresence(record.meeting_id, e.voice_user_id, record.occurred_at, 'left');
 		} catch (err) {
 			console.error('[Meeting Sync] [Leave] Failed to process onVoiceLeavedEvent:', err);
 		}

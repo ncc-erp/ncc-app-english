@@ -3,7 +3,7 @@
 import { FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useAdminUser, useAdminSidebarVisible } from '@/components/admin/AdminAuthContext';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, GraduationCap, Plus, RefreshCw, ShieldAlert, Sparkles, User, Video, X } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight, GraduationCap, Plus, RefreshCw, ShieldAlert, ShieldCheck, Sparkles, User, Video, X } from 'lucide-react';
 import { Meeting, MeetingParticipant, MeetingRoomOption, MeetingRosterMember, MeetingClassOption } from '@/types/meeting';
 
 const button = 'rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold hover:bg-purple-50 disabled:opacity-50 disabled:cursor-not-allowed';
@@ -642,12 +642,26 @@ export default function AdminMeetingsPage() {
 													{meeting.class_name}
 												</p>
 											)}
-											{meeting.user_name && (
-												<p className='flex items-center gap-2 text-xs text-slate-500'>
-													<User className='h-4 w-4' />
-													{meeting.user_name}
-												</p>
-											)}
+											<div className='flex flex-col items-start gap-2 pt-1'>
+												{user && (
+													<div className='flex items-center gap-2 text-xs font-bold text-amber-700'>
+														<span>{t('meeting.admin')}:</span>
+														<span className='inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-2'>
+															<ShieldCheck className='h-4 w-4' />
+															{user.display_name}
+														</span>
+													</div>
+												)}
+												{meeting.user_name && (
+													<div className='flex items-center gap-2 text-xs font-bold text-emerald-700'>
+														<span>{t('meeting.teacher')}:</span>
+														<span className='inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-2'>
+															<GraduationCap className='h-4 w-4' />
+															{meeting.user_name}
+														</span>
+													</div>
+												)}
+											</div>
 										</div>
 										<div className='flex flex-wrap gap-2'>
 											<button className={button} onClick={() => void openDetail(meeting)}>
@@ -668,19 +682,25 @@ export default function AdminMeetingsPage() {
 											</button>
 										</div>
 									</div>
-									<div className='mt-4 flex flex-wrap items-center gap-3'>
-										<div className='flex -space-x-2'>
-											{meeting.participants.slice(0, 10).map((p) => (
-												<Avatar key={p.mezon_id} person={p} />
-											))}
-										</div>
-										{meeting.participant_count > 10 && (
+									<div className='mt-4 flex flex-wrap items-center gap-2'>
+										{meeting.participant_count > 0 && <span className='text-xs font-bold text-purple-700'>{t('meeting.student')}:</span>}
+										{meeting.participants.slice(0, 5).map((p) => (
+											<span
+												key={p.mezon_id}
+												title={p.display_name}
+												className='inline-flex max-w-40 items-center gap-1.5 truncate rounded-full bg-purple-50 px-3 py-2 text-xs font-bold text-purple-700'
+											>
+												<User className='h-3.5 w-3.5 shrink-0' />
+												{p.display_name}
+											</span>
+										))}
+										{meeting.participant_count > 0 && (
 											<button
 											aria-label={t('meeting.viewAllParticipants', { count: meeting.participant_count })}
 												className={button}
 												onClick={() => void openDetail(meeting)}
 											>
-												+{meeting.participant_count - 10} …
+												...
 											</button>
 										)}
 										<span className='text-xs text-slate-500'>{t('meeting.participants', { count: meeting.participant_count })}</span>
@@ -743,22 +763,46 @@ export default function AdminMeetingsPage() {
 						<>
 							{modal === 'detail' && selected && (
 								<div className='space-y-4'>
-									<h3 className='break-words font-bold'>{selected.title}</h3>
-									<p className='text-sm'>{formatMeetingTimeRange(selected, locale)}</p>
-									<p className='text-sm'>{t('meeting.room')}: {selected.room_name || t('meeting.noRoom')}</p>
-									{selected.class_name && <p className='text-sm'>{t('meeting.class')}: {selected.class_name}</p>}
-									{selected.user_name && <p className='text-sm'>{t('meeting.teacherInCharge')}: {selected.user_name}</p>}
-									<h4 className='font-bold'>{t('meeting.participantDetails', { count: selected.participant_count })}</h4>
-									{!selected.participants.length && <p className='text-sm text-slate-500'>{t('meeting.noParticipants')}</p>}
-									<ul className='space-y-2'>
-										{selected.participants.map((p) => (
-											<li className='flex items-center gap-3' key={p.mezon_id}>
-												<Avatar person={p} />
-												<span className='break-words text-sm'>{p.display_name}</span>
-												<span className='text-xs capitalize text-slate-500'>{p.role}</span>
-											</li>
-										))}
-									</ul>
+									<div className='space-y-2'>
+										<h3 className='break-words font-bold'>{selected.title}</h3>
+										<p className='text-sm'>{formatMeetingTimeRange(selected, locale)}</p>
+										<p className='text-sm'>{t('meeting.room')}: {selected.room_name || t('meeting.noRoom')}</p>
+										{user && (
+											<p className='inline-flex items-center gap-1.5 text-sm font-bold text-amber-700'>
+												<ShieldCheck className='h-4 w-4' />{t('meeting.admin')}: {user.display_name}
+											</p>
+										)}
+										{selected.class_name && <p className='text-sm'>{t('meeting.class')}: {selected.class_name}</p>}
+									</div>
+									<section className='overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm'>
+										<div className='border-l-4 border-emerald-700 px-5 py-5'>
+											<p className='text-xs font-bold uppercase tracking-[0.14em] text-slate-500'>{t('meeting.teacherInCharge')}</p>
+											<p className='mt-2 break-words text-2xl font-extrabold text-emerald-800'>{selected.user_name || t('meeting.noTeacher')}</p>
+											<p className='mt-2 text-sm text-slate-500'>{t('meeting.participants', { count: selected.participant_count })}</p>
+										</div>
+										{!selected.participants.length ? (
+											<p className='border-t border-slate-200 px-5 py-4 text-sm text-slate-500'>{t('meeting.noParticipants')}</p>
+										) : (
+											<div className='overflow-x-auto border-t border-slate-200'>
+												<table className='w-full text-left text-sm'>
+													<thead className='bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500'>
+														<tr>
+															<th className='w-16 px-5 py-3'>STT</th>
+															<th className='px-4 py-3'>Học sinh</th>
+														</tr>
+														</thead>
+														<tbody className='divide-y divide-slate-100'>
+															{selected.participants.map((p, index) => (
+																<tr className='bg-white text-slate-700' key={p.mezon_id}>
+																	<td className='px-5 py-3 text-slate-400'>{index + 1}</td>
+															<td className='px-4 py-3 font-semibold'>{p.display_name}</td>
+																</tr>
+															))}
+														</tbody>
+													</table>
+												</div>
+										)}
+									</section>
 								</div>
 							)}
 							{modal !== 'detail' && (
