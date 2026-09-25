@@ -14,7 +14,7 @@ interface SidebarItem {
 
 const SIDEBAR_ITEMS: SidebarItem[] = [
 	{ label: 'Class Management', href: '/admin', icon: School },
-	{ label: 'Homework Management', href: '/admin/homework', icon: FileText, disabled: true },
+	{ label: 'Homework Management', href: '/admin/homework', icon: FileText },
 	{ label: 'Mock Test Management', href: '/admin/topics', icon: BookOpen },
 	{ label: 'Meeting Management', href: '/admin/meetings', icon: Video }
 ];

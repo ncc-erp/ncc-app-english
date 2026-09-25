@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
-import { useAuth } from '@/context/AuthContext';
 
 const FACEBOOK_URL = process.env.NEXT_PUBLIC_FACEBOOK_URL || '#';
 const CLAN_INVITE_URL = process.env.NEXT_PUBLIC_MEZON_CLAN_INVITE_URL || '#';
@@ -61,7 +60,6 @@ interface StatItem {
 
 export default function LandingPage() {
 	const { t, tArray, tList, locale, setLocale } = useTranslation();
-	const { login } = useAuth();
 	// Mezon iframe opens the app at /?data=<hash>; verify it here so the session exists before "Thi thử"
 
 	const MENU = useMemo(

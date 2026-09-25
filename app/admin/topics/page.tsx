@@ -14,7 +14,6 @@ import {
 	Edit2,
 	Trash2,
 	BookOpen,
-	Sparkles,
 	Layers,
 	HelpCircle,
 	FileText,
@@ -27,6 +26,7 @@ import {
 	School
 } from 'lucide-react';
 import { UserSession } from '@/types';
+import { HeaderTitle } from '../HeaderTitle';
 
 export default function AdminTopicsPage() {
 	const userContext = useAdminUser();
@@ -307,36 +307,29 @@ export default function AdminTopicsPage() {
 		<>
 			<div className='space-y-8'>
 				{/* Portal Header */}
-				<div className='flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm'>
-					<div className='space-y-1'>
-						<div className='inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 border border-purple-200 text-purple-700 text-xs font-bold rounded-full uppercase tracking-wider'>
-							<Sparkles className='w-3.5 h-3.5 text-purple-600' />
-							<span>Admin Portal</span>
+				<HeaderTitle
+					title='IELTS Test Set Management'
+					description='Create, edit, and update IELTS Speaking test sets (Part 1, Part 2 Cue Cards, and Part 3 Questions).'
+					action={
+						<div className='flex items-center gap-3 shrink-0 flex-wrap'>
+							<Link
+								href='/admin'
+								className='inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all'
+							>
+								<School className='w-4 h-4 text-purple-600' />
+								<span>Classes & Student</span>
+							</Link>
+
+							<button
+								onClick={handleOpenCreateModal}
+								className='inline-flex items-center justify-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-purple-200 transition-all hover:scale-105'
+							>
+								<Plus className='w-4 h-4' />
+								<span>Create New Test Set</span>
+							</button>
 						</div>
-						<h1 className='text-2xl md:text-3xl font-extrabold text-slate-900'>IELTS Test Set Management</h1>
-						<p className='text-xs text-slate-600'>
-							Create, edit, and update IELTS Speaking test sets (Part 1, Part 2 Cue Cards, and Part 3 Questions).
-						</p>
-					</div>
-
-					<div className='flex items-center gap-3 shrink-0 flex-wrap'>
-						<Link
-							href='/admin'
-							className='inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all'
-						>
-							<School className='w-4 h-4 text-purple-600' />
-							<span>Classes & Student</span>
-						</Link>
-
-						<button
-							onClick={handleOpenCreateModal}
-							className='inline-flex items-center justify-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-purple-200 transition-all hover:scale-105'
-						>
-							<Plus className='w-4 h-4' />
-							<span>Create New Test Set</span>
-						</button>
-					</div>
-				</div>
+					}
+				/>
 
 				{/* Stats Row */}
 				<div className='grid grid-cols-2 md:grid-cols-4 gap-4'>

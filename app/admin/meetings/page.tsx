@@ -1,7 +1,8 @@
 'use client';
 
 import { useAdminUser, useAdminSidebarVisible } from '@/components/admin/AdminAuthContext';
-import { ShieldAlert, Sparkles, Video, Construction } from 'lucide-react';
+import { ShieldAlert, Video, Construction } from 'lucide-react';
+import { HeaderTitle } from '../HeaderTitle';
 
 export default function AdminMeetingsPage() {
 	const user = useAdminUser();
@@ -24,16 +25,7 @@ export default function AdminMeetingsPage() {
 
 	return (
 		<div className='space-y-7'>
-			<div className='flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm'>
-				<div className='space-y-1.5'>
-					<div className='inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 border border-purple-200 text-purple-700 text-xs font-bold rounded-full uppercase tracking-wider'>
-						<Sparkles className='w-3.5 h-3.5 text-purple-600' />
-						<span>Admin Portal</span>
-					</div>
-					<h1 className='text-2xl md:text-3xl font-extrabold text-slate-900'>Meeting Management</h1>
-					<p className='text-xs text-slate-600 max-w-2xl leading-relaxed'>Schedule and manage clan meetings.</p>
-				</div>
-			</div>
+			<HeaderTitle description='Schedule and manage clan meetings.' title='Meeting Management' />
 
 			<div className='bg-white border border-slate-200 rounded-3xl p-12 shadow-sm flex flex-col items-center justify-center text-center space-y-4'>
 				<div className='w-14 h-14 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center border border-purple-100'>
