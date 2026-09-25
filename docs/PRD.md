@@ -1,346 +1,366 @@
-# Mezon English Exam App — Product Requirements Document
+# Mezon English Platform — Product Requirements Document (PRD)
 
 ## 1. Product Vision & Goals
 
-**Vision**: A lightweight English proficiency assessment tool embedded inside Mezon, designed to evaluate users' English level and drive clan membership growth through a "result-gating" mechanic.
+**Vision**: A comprehensive, AI-powered English proficiency assessment and practice ecosystem embedded inside Mezon. The platform delivers quick general level assessments as well as full-fledged IELTS mock tests (Speaking & Writing) that drive clan community growth through a proven "result-gating / value-unlock" mechanic.
 
 **Growth Loop**:
 
 ```
-User opens Channel App → Takes exam → Sees partial results (teaser)
-    → Joins clan to unlock full results → Stays in clan community
+User opens Channel App → Takes Assessment (General / Speaking / Writing)
+    → Sees Teaser / Initial Score Card
+    → Joins Clan to unlock Full Detailed Analysis & Personalized Learning
+    → Participates in Clan Study Community & Practice Sessions
 ```
 
 **Goals**:
 
-- Provide a quick, credible English level assessment (5-10 minutes)
-- Drive organic clan growth via the result-unlock mechanic
-- Collect user English proficiency data for community insights
-- Zero-friction entry: no signup beyond existing Mezon login
+- Provide quick, credible CEFR assessments (General English MCQ in 8–12 mins).
+- Deliver high-fidelity IELTS Speaking (multimodal audio examiner) and **IELTS Writing (AI auto-graded by senior examiner standards)** with deep diagnostic feedback.
+- Drive organic clan growth through tiered result unlocking.
+- Provide actionable, personalized post-test learning (mistake corrections, grammar structure bank, interactive practice exercises, and band-level model answers).
+- Zero-friction entry: instant authentication via Mezon Channel App WebAppData with standalone OAuth2 fallback.
 
 ---
 
 ## 2. User Personas
 
-| Persona              | Description                                      | Motivation                                |
-| -------------------- | ------------------------------------------------ | ----------------------------------------- |
-| **Curious Learner**  | Mezon user who wants to know their English level | Self-assessment, bragging rights          |
-| **Community Member** | Already in some clans, open to joining new ones  | Content value, community                  |
-| **Clan Admin**       | Wants to grow their clan membership              | Uses the app as a member acquisition tool |
+| Persona | Description | Motivation | Primary Module |
+| :--- | :--- | :--- | :--- |
+| **Curious Learner** | Mezon user who wants a quick snapshot of their English proficiency | Self-assessment, curiosity, bragging rights | General English Exam (30 MCQ) |
+| **IELTS Candidate** | Student preparing for IELTS Academic/General test | Needs rigorous, evidence-based band scoring and detailed writing/speaking feedback | IELTS Speaking & IELTS Writing |
+| **Community Member** | Active clan member seeking ongoing practice and discussion | Continuous skill improvement, peer learning | Practice Exercises & Model Essays |
+| **Clan Admin / Teacher** | Wants to engage and grow their clan community | Member acquisition, hosting exam challenges, tracking member progress | Leaderboard & Assessment Reports |
 
 ---
 
-## 3. User Journey
+## 3. User Journeys
 
-### Entry Points & Authentication
+### 3.1 Authentication & Entry Points
 
-The app supports **two initial entry flows**, both leading to a Mezon-authenticated session:
+1. **Entry Point A (Embedded Mezon Channel App - Primary)**:
+   - User opens the app within a Mezon channel iframe.
+   - App receives signed `?data=...` parameter in the URL.
+   - Auto-authenticates silently via `/api/auth/mezon-hash` (HMAC-SHA256 verification) → Session cookie set.
+   - User lands directly on the Hub / Dashboard ready to select an exam.
 
-- **Entry Point A (Direct Web Access)**:
-  1. User visits the web app URL directly (e.g. `https://english-exam.vercel.app`).
-  2. App detects no active session or hash data.
-  3. Displays Landing Page with overview and prominent **"Login with Mezon"** button.
-  4. User clicks "Login with Mezon" → Redirects to Mezon OAuth2 (`oauth2.mezon.ai/oauth2/auth`).
-  5. User approves → Redirects back to `/api/auth/callback` → Session cookie set → Redirected to `/exam`.
+2. **Entry Point B (Direct Web Access)**:
+   - User navigates directly to the web URL.
+   - Prominent **"Login with Mezon"** button initiates Mezon OAuth2 (`oauth2.mezon.ai/oauth2/auth`).
+   - Callback to `/api/auth/callback` sets session cookie → Redirects to user dashboard.
 
-- **Entry Point B (Embedded Mezon Channel App)**:
-  1. User opens the app from inside a Mezon channel iframe.
-  2. App receives signed `?data=...` parameter in URL.
-  3. App auto-authenticates silently via `/api/auth/mezon-hash` → Session cookie set.
-  4. User arrives directly at the welcome screen ready to start.
+---
 
-### Core Exam & Growth Flow (Post-Login Happy Path)
+### 3.2 Assessment Modules & User Flows
 
-1. **Welcome Screen**: User sees exam overview (30 questions, ~12 mins, CEFR level assessment).
-2. **Start Exam**: User clicks "Start Exam" → Attempt created in DB → Timer starts.
-3. **Take Exam**: Completes 30 questions across Grammar, Vocabulary, and Reading. Answers are autosaved per question.
-4. **Submit Exam**: Server scores attempt, maps score to CEFR level (A1–C2), and sets `result_status = 'partial'`.
-5. **Partial Result Screen (Teaser)**:
-   - Displays CEFR level badge (e.g. "B1 - Intermediate") and overall score percentage.
-   - Displays blurred/locked cards for: Detailed Skill Breakdown, Weakness Analysis, Improvement Tips, and Certificate.
-6. **Clan Join Call-to-Action**:
-   - User sees banner: _"Join [Clan Name] on Mezon to unlock your full detailed report!"_
-   - Clicks "Join Clan" → Opens Mezon clan invite deep link / URL.
-7. **Verify & Unlock**:
-   - User returns to app and clicks "I've Joined — Unlock Report".
-   - App calls `/api/membership/verify` → Server checks Mezon Bot API for user membership.
-   - Upon confirmation, `result_status` updates to `'full'` → Full breakdown unlocked!
+#### Flow 1: General English Assessment (MCQ)
+1. **Welcome Screen**: Overview (30 questions across Grammar, Vocabulary, Reading, ~12 mins).
+2. **Exam Interface**: 30 multiple-choice questions with autosave and countdown timer.
+3. **Submit**: Server calculates weighted score and CEFR level (A1–C2).
+4. **Result Teaser & Clan Unlock**: Free tier sees CEFR badge + score %; clan join unlocks detailed skill breakdown, radar charts, and weakness analysis.
+
+#### Flow 2: IELTS Speaking Assessment
+1. **Topic Selection**: Choose speaking topic from curated seed bank.
+2. **Multimodal Recording**: Candidate records responses for Part 1, Part 2 (with prep notes), and Part 3.
+3. **AI Speech Evaluation**: LLM processes audio inputs + STT transcripts, evaluating Fluency & Coherence, Lexical Resource, Grammatical Range & Accuracy, and Pronunciation.
+4. **Speaking Result**: Band scores, per-question analysis, transcript corrections, and native audio feedback.
+
+#### Flow 3: IELTS Writing Assessment (AI Auto-Graded) — *NEW*
+1. **Task Selection**: Candidate chooses their assessment mode:
+   - **Task 1**: Academic Report / Data Description (≥150 words, recommended 20 mins).
+   - **Task 2**: Discursive Essay (≥250 words, recommended 40 mins).
+   - **Dual Test**: Complete Writing test (Task 1 + Task 2, recommended 60 mins).
+2. **Writing Room (Test Environment)**:
+   - Prompt & visual stimulus display (charts, tables, diagrams for Task 1; prompt topic for Task 2).
+   - Dedicated distraction-free text editor with real-time word counter and timer.
+   - Autosave draft functionality to prevent data loss.
+3. **Submission & AI Evaluation**:
+   - Candidate clicks "Submit & Grade Essay".
+   - Server triggers the **LLM Writing Evaluator** powered by the **IELTS Marking Skill**.
+   - LLM reads the essay against two mandatory anchors:
+     - **IELTS Public Band Descriptors (May 2023)**.
+     - **Steven Lee's Marking Corpus & Decision Anchors**.
+   - Structured JSON output is generated and validated against deterministic rules.
+   - Band scores are computed using classroom standards (whole band criteria, 0.5 round-down).
+4. **Interactive HTML Report Page**:
+   - Candidate receives an extensive, interactive report (equivalent to the 12-page Dual / 6–8 page Single specification) styled with the dedicated `theme.css`.
+   - **Dashboard**: Overall band medal SVG, score formula with classroom disclaimer, 4 concise summary comments in Vietnamese, CEFR vocabulary distribution ledger (0–100% horizontal bars).
+   - **Criterion Breakdown**: Detailed justifications for TA/TR, CC, LR, and GRA citing exact quotes from the student's text.
+   - **Sentence Correction Cards**: Color-coded highlights in original text linked to rewrite cards with `!` diagnosis and Vietnamese explanations (`! [Lỗi] → [Giải thích]`).
+   - **Personalized Learning Extension**: Targeted priority areas, Sentence Structure Bank, interactive MCQ and open-rewrite exercises.
+   - **Band-Level Model Essays**: Complete sample responses for each submitted task with key phrases highlighted.
+   - *Note on Export*: The rich HTML display page with native browser print CSS (`@media print`) serves as the report format for this phase; backend PDF generation is intentionally deferred.
 
 ---
 
 ## 4. Functional Requirements
 
-### Must Have (MVP)
+### 4.1 General English Exam
+- [x] Mezon Channel App WebAppData authentication & OAuth2 fallback.
+- [x] 30-question MCQ test across Grammar, Vocabulary, Reading.
+- [x] Server-side adaptive scoring and CEFR mapping (A1–C2).
+- [x] Clan membership verification via Mezon Bot SDK to unlock full analysis.
+- [x] Mobile-responsive UI with autosave and anti-cheat timer.
 
-- [x] Mezon Channel App hash authentication (WebAppData)
-- [x] OAuth2 fallback for standalone web access
-- [x] 30-question English exam (multiple choice)
-- [x] Adaptive-lite: 3 difficulty tiers (easy/medium/hard)
-- [x] Partial result display (level + score only)
-- [x] Clan membership verification to unlock full results
-- [x] "Re-check membership" button with polling
-- [x] Answer persistence (resume on refresh)
-- [x] Mobile-responsive UI
-- [x] Basic anti-cheat (server-side timing, no answers in client)
+### 4.2 IELTS Speaking Module
+- [x] 3-part official IELTS Speaking format (Part 1 interview, Part 2 cue card, Part 3 discussion).
+- [x] In-browser audio recording with live STT preview.
+- [x] Multimodal audio evaluation via AI SDK (FC, LR, GRA, PR scoring).
+- [x] Band zero detection (silence / off-topic / non-English audio).
+- [x] Teaser vs. Full score breakdown with clan unlock mechanic.
 
-### Should Have (v1.1)
+### 4.3 IELTS Writing Module (AI Auto-Graded) — *NEW*
 
-- [ ] Listening comprehension questions (audio)
-- [ ] Leaderboard within clan
-- [ ] Share result card to Mezon channel
-- [ ] Multiple exam types (General, Business, IELTS-prep)
-- [ ] Admin dashboard for question management
+#### 1. Exam & Submission UI
+- [ ] Task selection: Task 1, Task 2, or Dual Test.
+- [ ] Prompt viewer with image display support (charts, graphs, maps, diagrams).
+- [ ] Text editor with real-time word counting, minimum length indicators (150 / 250 words), and countdown timer.
+- [ ] Auto-draft saving in browser/server.
 
-### Could Have (v2)
+#### 2. LLM Auto-Grading Engine (`ielts-marking-skill` Integration)
+- [ ] **Dual Marking Anchors**:
+  - System prompt grounded in official **IELTS Public Band Descriptors (May 2023)** for Task 1 and Task 2.
+  - Qualitative calibration using **Steven Lee's historical marking decisions** (`scoring_inputs/sl_ielts_2026_09_14/`).
+- [ ] **Evidence-Based Scoring**:
+  - Whole-band scoring (0–9) across all 4 criteria: Task Achievement / Task Response (TA/TR), Coherence & Cohesion (CC), Lexical Resource (LR), Grammatical Range & Accuracy (GRA).
+  - Explicit quote requirement: Every criterion justification must cite authentic text from the candidate's submission.
+  - Vietnamese justifications: Strengths (`strength_vi`), real limitations (`limitation_vi`), why this band was awarded (`why_band_vi`), and why the next band was not reached (`why_not_next_vi`).
+- [ ] **Diagnostic Sentence Corrections**:
+  - Sentence rewrite cards: original sentence → revised version.
+  - Error classification into standard codes: `SP` (Spelling), `WF` (Word Form), `WC` (Word Choice), `GR` (Grammar), `PU` (Punctuation), `ST` (Style/Structure), `CO` (Cohesion).
+  - Diagnostic formatting: `!` marker followed by natural Vietnamese explanation after `→`.
+- [ ] **CEFR Vocabulary Distribution**:
+  - Extraction and categorization of candidate vocabulary items into CEFR levels (A1 through C2).
+  - Contextual quotes and rationale for each classified term.
+  - Ledger representation: Independent 0–100% horizontal bars for each populated level (no circular/stacked charts; CEFR is for lexical illustration only, not converted directly to IELTS band).
+- [ ] **Personalized Learning Extension**:
+  - 2–3 prioritized improvement areas directly linked to candidate error patterns.
+  - **Sentence Structure Bank**: Reusable syntactic templates with example sentences and Vietnamese usage notes.
+  - **Interactive Exercises**: At least 2 Multiple Choice Questions (MCQ with choices, answer, and explanation) + at least 2 Open-ended sentence rewrite challenges with acceptance criteria.
+- [ ] **Band-Level Model Answers**:
+  - Complete, natural model essay for each submitted task (≥150 words for Task 1, ≥250 words for Task 2).
+  - Highlighted key collocations and cohesive structures.
 
-- [ ] AI-generated personalized study plan
-- [ ] Writing assessment (AI-graded)
-- [ ] Multi-language support for instructions
-- [ ] Exam analytics for clan admins
+#### 3. Deterministic Validation & Score Calculation (`standard.ts`)
+- [ ] Strict output validation:
+  - Verify all quotes exist in candidate's original paragraphs.
+  - Verify error spans and structure references.
+- [ ] Classroom calculation formula:
+  - $\text{Task}_{\text{raw}} = \frac{\text{Criterion}_1 + \text{Criterion}_2 + \text{Criterion}_3 + \text{Criterion}_4}{4}$
+  - $\text{Task}_{\text{overall}} = \lfloor \text{Task}_{\text{raw}} \times 2 \rfloor / 2$ (rounded down to nearest 0.5).
+  - $\text{Dual}_{\text{raw}} = \frac{\text{Task1}_{\text{overall}} + 2 \times \text{Task2}_{\text{overall}}}{3}$
+  - $\text{Dual}_{\text{overall}} = \lfloor \text{Dual}_{\text{raw}} \times 2 \rfloor / 2$ (rounded down to nearest 0.5).
+- [ ] Mandatory classroom disclaimer: *"Kết quả chỉ mang tính tham khảo theo chương trình lớp học."*
 
----
-
-## 5. Exam Design (MVP)
-
-### Structure
-
-| Section               | Questions | Time        | Difficulty Mix        |
-| --------------------- | --------- | ----------- | --------------------- |
-| Grammar               | 10        | ~3 min      | 4 easy, 3 med, 3 hard |
-| Vocabulary            | 10        | ~3 min      | 4 easy, 3 med, 3 hard |
-| Reading Comprehension | 10        | ~6 min      | 3 easy, 4 med, 3 hard |
-| **Total**             | **30**    | **~12 min** |                       |
-
-### Question Format
-
-- All multiple choice (4 options, 1 correct)
-- Questions stored in Supabase `questions` table
-- Randomized order within each section
-- Random subset from larger pool (e.g., 30 from 100+)
-
-### Scoring
-
-- Each correct answer = 1 point (raw score: 0-30)
-- Weighted by difficulty: easy=1pt, medium=2pt, hard=3pt
-- Max weighted score: 4×1 + 3×2 + 3×3 = 19 per section = 57 total
-- Map weighted score to CEFR-aligned levels:
-
-| Weighted Score | Level | Label              |
-| -------------- | ----- | ------------------ |
-| 0-10           | A1    | Beginner           |
-| 11-20          | A2    | Elementary         |
-| 21-30          | B1    | Intermediate       |
-| 31-40          | B2    | Upper Intermediate |
-| 41-50          | C1    | Advanced           |
-| 51-57          | C2    | Proficient         |
-
----
-
-## 6. Result Display Strategy
-
-### Shown Immediately (FREE — the "teaser")
-
-- **Level badge** with CEFR label (e.g., "B1 - Intermediate")
-- **Overall score percentage**
-- **Ranking**: "Better than X% of all test takers"
-- **Time taken** to complete
-- A motivational message based on level
-
-### Locked Until Clan Join (the "unlock")
-
-- **Skill breakdown chart** (Grammar: 70%, Vocabulary: 85%, Reading: 60%)
-- **Weakness analysis**: "Your weakest area is Grammar — specifically conditionals and passive voice"
-- **Improvement tips**: 3-5 actionable suggestions per weak area
-- **Percentile comparison**: Detailed radar chart vs. average scores
-- **Downloadable PDF certificate** with name, level, date
-- **Historical progress** (if retaken)
-
-**Why this split works**: The teaser satisfies curiosity ("what's my level?") but creates desire for the detailed breakdown. The locked section has genuine educational value — users feel the clan join is "worth it" rather than just a paywall.
+#### 4. HTML Display Result Page
+- [ ] Web-native multi-page layout implementing `docs/ielts-marking-skill/theme.css`:
+  - Page 1: Dashboard with SVG Score Medal, formula banner, 4 quick comments, and CEFR horizontal bar ledger.
+  - Page 2: Criterion assessment cards with quotes and explanations.
+  - Pages 3–8: Interactive essay view with color-coded highlight spans and paired correction cards.
+  - Page 9: Breakdown & Boost, +1 Band Roadmap, Sentence Structure Bank.
+  - Page 10: Interactive exercise practice block (candidate can select MCQ options and attempt rewrites directly on page).
+  - Pages 11–12: Complete model essays for Task 1 and Task 2.
+- [ ] Print stylesheet integration (`@media print`) enabling clean browser printing (Ctrl+P) without requiring server-side PDF generation.
 
 ---
 
-## 7. Clan-Join Unlock Flow
+## 5. IELTS Writing Assessment Specifications
 
-### Architecture
+### 5.1 Test Structure
+
+| Task | Prompt Type | Min. Word Count | Recommended Time | Assessment Criteria |
+| :--- | :--- | :--- | :--- | :--- |
+| **Task 1** | Academic Data / Process / Map | 150 words | 20 minutes | TA, CC, LR, GRA |
+| **Task 2** | Discursive Essay (Opinion, Discussion, Problem-Solution, Two-part) | 250 words | 40 minutes | TR, CC, LR, GRA |
+| **Dual Test** | Both Task 1 and Task 2 | 400 words total | 60 minutes | Both tasks combined (Task 2 weighted 2x) |
+
+### 5.2 Criteria & Scoring Matrix
+
+1. **Task Achievement (Task 1) / Task Response (Task 2)**:
+   - Task 1: Overview presence, accurate data reporting, key trend selection.
+   - Task 2: Addressing all parts of prompt, clear position throughout, well-developed supporting ideas.
+2. **Coherence & Cohesion (CC)**:
+   - Logical paragraphing, clear central topic per paragraph, flexible use of cohesive devices without mechanical overuse.
+3. **Lexical Resource (LR)**:
+   - Range, precision, natural collocations, awareness of style, accuracy in spelling and word formation.
+4. **Grammatical Range & Accuracy (GRA)**:
+   - Mix of simple and complex sentence forms, accuracy of structures, punctuation management.
+
+---
+
+## 6. Result Display & Gating Strategy
+
+### 6.1 General English Exam
+- **Free Teaser**: CEFR level badge (e.g. "B2 - Upper Intermediate"), total score %, percentile rank.
+- **Clan Locked**: Detailed skill breakdown, radar comparison, weakness diagnosis, study recommendations.
+
+### 6.2 IELTS Speaking & Writing Modules
+- **Free Teaser**:
+  - Overall Band score medal (e.g. "6.5").
+  - 4 quick summary comments.
+  - CEFR vocabulary overview.
+- **Full Report (Unlocked via Clan Join or Unlocked Attempt)**:
+  - Full criterion evidence with authentic quotes and Vietnamese explanations.
+  - Complete sentence-by-sentence correction cards.
+  - Interactive personalized exercises (MCQ + open rewrites) with answers and explanations.
+  - Band-level model essays with key phrase annotations.
+  - Printable HTML report layout.
+
+---
+
+## 7. Data Model
+
+### Core System Tables (PostgreSQL)
+
+```sql
+-- Users
+users (
+  id UUID PRIMARY KEY,
+  mezon_id TEXT UNIQUE,
+  mezon_username TEXT,
+  display_name TEXT,
+  avatar_url TEXT,
+  clan_member BOOLEAN DEFAULT FALSE,
+  clan_joined_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+
+-- General MCQ Questions & Attempts
+questions (id, section, difficulty, question_text, reading_passage, options, correct_option_id, explanation, active);
+attempts (id, user_id, started_at, submitted_at, raw_score, weighted_score, level, percentile, unlocked);
+answers (id, attempt_id, question_id, selected_option_id, is_correct, answered_at);
+
+-- IELTS Speaking Tables
+ielts_speaking_topics (id, title, category, description, part1_questions, part2_cue_card, part3_questions, active);
+ielts_speaking_attempts (id, user_id, topic_id, status, current_part, started_at, submitted_at, overall_band, score_result, unlocked);
+ielts_speaking_responses (id, attempt_id, question_id, part, audio_url, audio_storage_path, transcript, duration_seconds);
+
+-- IELTS Writing Tables (NEW)
+ielts_writing_topics (
+  id TEXT PRIMARY KEY,
+  task_type TEXT NOT NULL,           -- 'task1' | 'task2' | 'dual'
+  title TEXT NOT NULL,
+  prompt_text TEXT NOT NULL,
+  prompt_summary TEXT,
+  image_url TEXT,                    -- stimulus image for Task 1
+  category TEXT,
+  time_limit_minutes INT DEFAULT 40,
+  active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ielts_writing_reviews (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  topic_id TEXT REFERENCES ielts_writing_topics(id),
+  task_type TEXT NOT NULL,           -- 'task1' | 'task2' | 'dual'
+  status TEXT NOT NULL DEFAULT 'submitted', -- 'submitted' | 'graded' | 'error'
+  payload JSONB NOT NULL,            -- full structured review_input JSON
+  score_summary JSONB NOT NULL,      -- { task1, task2, dual, formula }
+  overall_band NUMERIC(3, 1),        -- computed final band
+  unlocked BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_writing_reviews_user ON ielts_writing_reviews(user_id);
+CREATE INDEX IF NOT EXISTS idx_writing_reviews_status ON ielts_writing_reviews(status);
+```
+
+---
+
+## 8. Technical Architecture & File Organization
 
 ```
-User clicks "Unlock" → Opens clan invite link in new tab
-    → User joins clan in Mezon
-    → Returns to exam app
-    → Clicks "I've joined! Check now"
-    → App calls server → Server checks membership via bot API
-    → If member: unlock results, save to DB
-    → If not: "Not found yet. Try again in a moment."
-```
-
-### Membership Verification
-
-**Primary method**: Server-side bot using `mezon-sdk`
-
-- Bot is pre-installed in the target clan
-- On verification request: `clan.users.fetch(userId)`
-- If found → mark `unlocked_at` in Supabase
-- If not found → return "not yet a member"
-
-**Fallback method**: Listen for `AddClanUser` event via bot WebSocket
-
-- When user joins, bot receives event with `user_id`
-- Bot calls webhook to app server → Auto-unlock if pending
-
-### Client UX
-
-- "Check membership" button with 5-second cooldown between clicks
-- Auto-poll every 10 seconds for 2 minutes after user clicks unlock
-- Visual state: "Checking..." → "Not found, try again" / "Unlocked!"
-- Deep link format: `mezon://clan/invite/{INVITE_CODE}` (fallback: web URL)
-
----
-
-## 8. Data Model
-
-### Core Tables (Supabase)
-
-```
-users
-  - id (uuid, PK)
-  - mezon_id (text, unique) — Mezon user ID
-  - mezon_username (text)
-  - display_name (text)
-  - avatar_url (text)
-  - clan_member (boolean, default false)
-  - clan_joined_at (timestamptz)
-  - created_at (timestamptz)
-  - updated_at (timestamptz)
-
-questions
-  - id (uuid, PK)
-  - section (enum: grammar, vocabulary, reading)
-  - difficulty (enum: easy, medium, hard)
-  - question_text (text)
-  - reading_passage (text, nullable) — for reading comp
-  - options (jsonb) — [{id: "a", text: "..."}, ...]
-  - correct_option_id (text) — "a", "b", "c", or "d"
-  - explanation (text) — shown in full results
-  - active (boolean, default true)
-  - created_at (timestamptz)
-
-attempts
-  - id (uuid, PK)
-  - user_id (uuid, FK → users)
-  - started_at (timestamptz)
-  - submitted_at (timestamptz, nullable)
-  - time_limit_seconds (int, default 900)
-  - raw_score (int, nullable)
-  - weighted_score (int, nullable)
-  - level (text, nullable) — A1-C2
-  - percentile (float, nullable)
-  - unlocked (boolean, default false)
-  - unlocked_at (timestamptz, nullable)
-  - question_ids (uuid[], ordered) — the 30 questions for this attempt
-
-answers
-  - id (uuid, PK)
-  - attempt_id (uuid, FK → attempts)
-  - question_id (uuid, FK → questions)
-  - selected_option_id (text, nullable)
-  - is_correct (boolean, nullable) — computed on submit
-  - answered_at (timestamptz)
-
-exam_stats (materialized view or computed)
-  - total_attempts (int)
-  - avg_score (float)
-  - score_distribution (jsonb)
-  - updated_at (timestamptz)
+app/
+├── (exam)/exam/                     # General English MCQ Exam
+├── ielts-speaking/                  # IELTS Speaking Module
+├── ielts-writing/                   # IELTS Writing Module (NEW)
+│   ├── page.tsx                     # Topic selection & test lobby
+│   ├── test/[id]/page.tsx           # Writing exam room (editor, word counter, timer)
+│   └── report/[id]/page.tsx         # Interactive HTML report (styled via theme.css)
+│
+app/api/
+├── auth/                            # Mezon hash & OAuth2 callbacks
+├── exam/                            # MCQ submit & question endpoints
+├── ielts/speaking/                  # Audio upload, launch, rescore
+└── ielts/writing/                   # IELTS Writing API (NEW)
+    ├── topics/route.ts              # Fetch writing topics
+    └── evaluate/route.ts            # Submit essay -> Run AI Evaluator -> Validate -> Store
+│
+lib/
+├── db/postgres.ts                   # PostgreSQL pool & DDL initialization
+├── ielts/
+│   ├── ai-model.ts                  # Shared AI model provider (Vercel AI SDK)
+│   ├── writing/                     # Writing Marking Core (NEW)
+│   │   ├── prompts/
+│   │   │   └── writing-examiner.ts  # LLM prompt with rubrics & Steven Lee anchors
+│   │   ├── schemas/
+│   │   │   └── review-schema.ts     # Zod schema matching review_input.blank.json
+│   │   ├── standard.ts              # Ported score formulas, halfDown, validateReview
+│   │   ├── highlight-policy.ts      # Error tag classifier (SP, WF, WC, GR, PU, ST, CO)
+│   │   ├── learning-extension.ts    # Structure bank & exercise validator
+│   │   └── evaluator.ts             # AI evaluation orchestrator
+│
+public/
+├── fonts/EBGaramond-*.ttf           # Open-source serif font from skill
+└── css/writing-theme.css            # Direct import of skill theme.css
 ```
 
 ---
 
 ## 9. Non-Functional Requirements
 
-### Security & Anti-Cheat
+### Security & Integrity
+- Essay submissions validated server-side for length, spam, and character encoding.
+- AI evaluation pipeline uses structured output (`Output.object` with Zod) ensuring zero schema deviations.
+- Strict deterministic verification: Quotes must exist within the submitted text to prevent AI hallucination of candidate mistakes.
 
-- Questions and correct answers NEVER sent to client
-- Client only receives: question_text, options (without correct flag)
-- Scoring happens server-side only
-- Timing validated server-side (reject if too fast: <30s for 30 questions)
-- Rate limit: max 1 attempt per 24 hours per user
-- Hash validation on every API request (Mezon auth)
+### Performance & Scalability
+- AI evaluation completed within 15–30 seconds for single tasks, under 45 seconds for dual tasks.
+- Responsive HTML report renders instantly in browser with no backend headless browser cold-start delays.
+- PostgreSQL JSONB indexing ensures fast retrieval of historical review payloads.
 
-### Performance
-
-- Page load < 2 seconds
-- Question transition < 200ms
-- Result computation < 1 second
-- Support 100 concurrent users (Supabase free tier)
-
-### Privacy
-
-- No email collection (Mezon profile only)
-- Exam data retained 1 year, then anonymized
-- GDPR: user can request data deletion
-- No third-party analytics in MVP
-
-### Mobile UX
-
-- Touch-friendly option buttons (min 44px tap target)
-- Horizontal swipe between questions
-- Progress bar always visible
-- Works in Mezon mobile app iframe
+### Typography & Presentation
+- Primary typography: Modern responsive sans-serif font stack (`system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif`).
+- Subtitles & Classical accents: EB Garamond Italic (open-source, bundled in `public/fonts/`).
+- Full responsive support: Fluid reading on desktop and tablets, clean stacking on mobile.
+- Zero overflow print rules (`@media print`) matching A4 layout standards.
 
 ---
 
-## 10. Open Questions for Founder
+## 10. Phased Implementation Roadmap
 
-1. **Which clan?** Is this for one specific clan, or configurable per deployment?
-2. **Clan invite link**: Do you have a permanent invite link? Or should the bot auto-generate one?
-3. **Retake policy**: 24h cooldown acceptable? Or different?
-4. **Question content**: Who writes the questions? Do you have a bank, or should we seed with AI-generated ones?
-5. **Branding**: Clan name/logo to display? Custom theme colors?
-6. **Standalone access**: Should users be able to access via web URL (not just Mezon channel), using OAuth2?
-7. **Multiple clans**: Could this be deployed for different clans (multi-tenant)?
-8. **Certificate**: Is a downloadable PDF certificate wanted for MVP?
-9. **Bot setup**: Do you already have a Mezon bot with a token, or do we need to create one?
-10. **Target language**: UI in English only, or Vietnamese + English?
+### Phase 1: MVP (Completed)
+- [x] Mezon Channel App WebAppData authentication & OAuth2.
+- [x] 30 MCQ exam with CEFR mapping and clan-lock gate.
+- [x] Basic user profile and membership verification via bot.
 
----
+### Phase 2: IELTS Expansion (Current Phase)
+- [x] IELTS Speaking module with multimodal audio AI evaluation.
+- [ ] **IELTS Writing Core Integration**:
+  - [ ] Port `standard.ts`, `highlight-policy.ts`, and Zod schema from `docs/ielts-marking-skill`.
+  - [ ] Add `ielts_writing_topics` and `ielts_writing_reviews` tables to `lib/db/postgres.ts`.
+  - [ ] Implement `writing-examiner.ts` prompt and `/api/ielts/writing/evaluate` route.
+  - [ ] Build Writing Exam Room (`/ielts-writing/test/[id]`).
+  - [ ] Build Interactive HTML Report Page (`/ielts-writing/report/[id]`) using `writing-theme.css`.
+  - *(PDF export intentionally excluded for this phase).*
 
-## 11. MVP Scope vs. Later Phases
-
-### MVP (Week 1-2)
-
-- Channel App auth + OAuth2 fallback
-- 30 MCQ exam (seeded question bank)
-- Score + level calculation
-- Partial result display
-- Clan join gate with manual re-check
-- Supabase backend
-- Deploy to Vercel
-
-### Phase 2 (Week 3-4)
-
-- Auto-detect clan join via bot events
-- Leaderboard
-- Result sharing to Mezon channel
-- Admin question management
-- Analytics dashboard
-
-### Phase 3 (Month 2+)
-
-- Multiple exam types
-- AI-powered study recommendations
-- Audio/listening section
-- Writing assessment
-- Multi-tenant (different clans)
+### Phase 3: Community & Growth (Upcoming)
+- [ ] Clan leaderboard for General, Speaking, and Writing scores.
+- [ ] Shareable report cards directly to Mezon channels.
+- [ ] Admin panel for managing topic banks and reviewing member submissions.
+- [ ] Headless PDF Export engine (optional upgrade if offline distribution is required).
 
 ---
 
-## 12. Success Metrics
+## 11. Key Success Metrics
 
-| Metric                | Target (Month 1)           |
-| --------------------- | -------------------------- |
-| Exam completions      | 500+                       |
-| Completion rate       | >70% (started → submitted) |
-| Clan join conversion  | >40% of exam completers    |
-| Clan retention (30d)  | >60% of those who joined   |
-| Avg. time to complete | 8-12 minutes               |
-| Return rate (retake)  | >20% within 30 days        |
+| Metric | Target | Measurement |
+| :--- | :--- | :--- |
+| **Exam Completion Rate** | >75% | Started vs. submitted attempts |
+| **Writing Evaluation Success Rate** | >98% | Completed AI evaluations without schema/timeout errors |
+| **Average Marking Latency** | <35 seconds | Time from submit to full interactive HTML report |
+| **Clan Unlock Conversion** | >45% | Completers who join clan to view full diagnostic report |
+| **Practice Engagement** | >30% | Users who interact with personalized exercises in the report |
