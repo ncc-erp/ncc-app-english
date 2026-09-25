@@ -13,7 +13,8 @@
 		"migrate:storage": "npx tsx scripts/migrate-supabase-to-r2.ts",
 		"docker:build": "./scripts/build-and-push.sh --skip-push",
 		"docker:push": "./scripts/build-and-push.sh",
-		"docker:release": "./scripts/build-and-push.sh"
+		"docker:release": "./scripts/build-and-push.sh",
+		"postinstall": "node scripts/patch-openai-compatible-audio.cjs || true"
 	},
 	"lint-staged": {
 		"*.{js,jsx,ts,tsx}": [
@@ -25,8 +26,10 @@
 		]
 	},
 	"dependencies": {
+		"@ai-sdk/openai-compatible": "^3.0.55",
 		"@aws-sdk/client-s3": "^3.1139.0",
 		"@aws-sdk/s3-request-presigner": "^3.1139.0",
+		"ai": "^7.0.114",
 		"clsx": "^2.1.1",
 		"iron-session": "^8.0.4",
 		"lucide-react": "^0.475.0",
@@ -36,7 +39,8 @@
 		"pg": "^8.16.3",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0",
-		"tailwind-merge": "^3.0.1"
+		"tailwind-merge": "^3.0.1",
+		"zod": "^4.6.5"
 	},
 	"devDependencies": {
 		"@types/node": "^22.13.4",

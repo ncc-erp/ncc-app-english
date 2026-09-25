@@ -1,8 +1,10 @@
+import { generateText, Output, APICallError } from 'ai';
 import { IELTSSpeakingAttempt, IELTSSpeakingTopic, IELTSScoreResult, IELTSPerQuestionAnalysis } from '@/types/ielts';
 import { getIELTSStatusTitle } from './score-calculator';
 import { downloadAudioAsBase64, extractAudioStoragePath } from '@/lib/storage';
-
 import { OFFICIAL_IELTS_EXAMINER_PROMPT } from './prompts/examiner';
+import { getIeltsModel } from './ai-model';
+import { ieltsEvaluationZodSchema } from './schemas/evaluation-zod-schema';
 
 function computeWordSimilarity(text1: string, text2: string): number {
 	const words1 = text1.toLowerCase().split(/\s+/).filter(Boolean);
@@ -13,58 +15,44 @@ function computeWordSimilarity(text1: string, text2: string): number {
 	return Math.round((common / Math.max(words1.length, words2.length)) * 100);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function parseAiJson(jsonStr: string): any {
-	let str = jsonStr.trim();
-	const codeBlockMatch = str.match(/```(?:json)?\s*([\s\S]*?)(?:```|$)/);
-	if (codeBlockMatch && codeBlockMatch[1]) {
-		str = codeBlockMatch[1].trim();
+function isRetryableStatus(err: unknown): boolean {
+	if (APICallError.isInstance(err)) {
+		if (err.statusCode === 499 || err.statusCode === 503) return true;
+		return err.isRetryable;
 	}
-	const firstBrace = str.indexOf('{');
-	const lastBrace = str.lastIndexOf('}');
-	if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-		str = str.substring(firstBrace, lastBrace + 1).trim();
-	} else if (firstBrace > 0) {
-		str = str.substring(firstBrace).trim();
+	// Network/fetch failures surface as RetryError wrapping APICallError — unwrap one level
+	const cause = (err as { cause?: unknown })?.cause;
+	if (cause && APICallError.isInstance(cause)) {
+		if ((cause as InstanceType<typeof APICallError>).statusCode === 499) return true;
+		return (cause as InstanceType<typeof APICallError>).isRetryable;
 	}
-	return JSON.parse(str);
+	return false;
 }
 
 export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, topic: IELTSSpeakingTopic): Promise<IELTSScoreResult | null> {
-	const apiKey = process.env.AI_API_KEY || '';
-	const endpoint = process.env.AI_ENDPOINT || 'https://llm.mrdnd.dev/v1/chat/completions';
-	const model = process.env.AI_MODEL || 'gemini-3.8-flash-high';
-
-	if (!apiKey) {
+	const resolved = getIeltsModel();
+	if (!resolved) {
 		console.warn('[AI Evaluator Warning] Missing AI_API_KEY.');
 		return null;
 	}
+	const { model, modelId, endpoint } = resolved;
 
-	// Helper fetch audio qua Cloudflare R2 Storage hoặc Direct URL
 	const fetchAudioForResponse = async (qId: string) => {
 		const resp = attempt.responses?.[qId];
 		if (!resp) return null;
-
 		let storagePath = resp.audio_storage_path;
-		if (!storagePath && resp.audio_url) {
-			storagePath = extractAudioStoragePath(resp.audio_url);
-		}
-
+		if (!storagePath && resp.audio_url) storagePath = extractAudioStoragePath(resp.audio_url);
 		if (storagePath) {
 			const downloaded = await downloadAudioAsBase64(storagePath);
 			if (downloaded) return downloaded;
 		}
-
 		if (resp.audio_url) {
 			try {
 				const audioRes = await fetch(resp.audio_url);
 				if (audioRes.ok) {
 					const arr = await audioRes.arrayBuffer();
 					const cType = audioRes.headers.get('content-type') || 'audio/webm';
-					return {
-						base64: Buffer.from(arr).toString('base64'),
-						mimeType: cType.split(';')[0].trim()
-					};
+					return { base64: Buffer.from(arr).toString('base64'), mimeType: cType.split(';')[0].trim() };
 				}
 			} catch (err) {
 				console.warn(`[AI Evaluator] Failed to fetch audio for ${qId}:`, err);
@@ -73,13 +61,8 @@ export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, 
 		return null;
 	};
 
-	// Gom toàn bộ câu hỏi
 	const allQuestions = [
-		...topic.part1_questions.map((q) => ({
-			id: q.id,
-			part: 'Part 1',
-			questionText: q.question_text
-		})),
+		...topic.part1_questions.map((q) => ({ id: q.id, part: 'Part 1', questionText: q.question_text })),
 		...(topic.part2_cue_card
 			? [
 					{
@@ -89,14 +72,9 @@ export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, 
 					}
 				]
 			: []),
-		...topic.part3_questions.map((q) => ({
-			id: q.id,
-			part: 'Part 3',
-			questionText: q.question_text
-		}))
+		...topic.part3_questions.map((q) => ({ id: q.id, part: 'Part 3', questionText: q.question_text }))
 	];
 
-	// Tải file audio song song
 	const questionItems = await Promise.all(
 		allQuestions.map(async (q) => {
 			const resp = attempt.responses?.[q.id];
@@ -113,14 +91,9 @@ export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, 
 		})
 	);
 
-	// Kiểm tra nếu không có transcript nào
-	// Audio is what actually gets graded, so a recording alone is enough to
-	// assess. Browser STT can be empty (Deepgram down, unsupported browser)
-	// while the candidate spoke perfectly well.
 	const hasSpokenContent = questionItems.some(
 		(item) => Boolean(item.audioBase64) || (Boolean(item.liveTranscript) && item.liveTranscript.trim().length > 2)
 	);
-
 	if (!hasSpokenContent) {
 		console.log('[AI Evaluator] No assessable speech detected. Return Band 0.');
 		const zeroPerQuestionRecord: Record<string, IELTSPerQuestionAnalysis> = {};
@@ -133,7 +106,6 @@ export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, 
 				feedback: 'Không có âm thanh hoặc câu trả lời nào được ghi lại cho câu hỏi này.'
 			};
 		});
-
 		return {
 			attempt_id: attempt.id,
 			topic_title: topic.title,
@@ -146,34 +118,10 @@ export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, 
 			status_title: getIELTSStatusTitle(0.0),
 			summary_feedback: 'Không phát hiện câu trả lời bằng giọng nói. Vui lòng kiểm tra cài đặt microphone.',
 			criteria_scores: [
-				{
-					code: 'FC',
-					name: 'Fluency & Coherence',
-					score: 0.0,
-					summary: 'Không có phần nói nào được thực hiện.',
-					key_observations: []
-				},
-				{
-					code: 'LR',
-					name: 'Lexical Resource',
-					score: 0.0,
-					summary: 'Không có từ vựng nào được sử dụng.',
-					key_observations: []
-				},
-				{
-					code: 'GRA',
-					name: 'Grammatical Range & Accuracy',
-					score: 0.0,
-					summary: 'Không có ngữ pháp nào được sử dụng.',
-					key_observations: []
-				},
-				{
-					code: 'PR',
-					name: 'Pronunciation',
-					score: 0.0,
-					summary: 'Không có âm thanh nào được ghi nhận.',
-					key_observations: []
-				}
+				{ code: 'FC', name: 'Fluency & Coherence', score: 0.0, summary: 'Không có phần nói nào được thực hiện.', key_observations: [] },
+				{ code: 'LR', name: 'Lexical Resource', score: 0.0, summary: 'Không có từ vựng nào được sử dụng.', key_observations: [] },
+				{ code: 'GRA', name: 'Grammatical Range & Accuracy', score: 0.0, summary: 'Không có ngữ pháp nào được sử dụng.', key_observations: [] },
+				{ code: 'PR', name: 'Pronunciation', score: 0.0, summary: 'Không có âm thanh nào được ghi nhận.', key_observations: [] }
 			],
 			filler_words: [],
 			vocab_upgrades: [],
@@ -190,7 +138,7 @@ export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, 
 		};
 	}
 
-	const MAX_AUDIO_BASE64_BYTES = 3 * 1024 * 1024; // 3 MB
+	const MAX_AUDIO_BASE64_BYTES = 3 * 1024 * 1024;
 	const audioCount = questionItems.filter((item) => {
 		if (!item.audioBase64) return false;
 		if (item.audioBase64.length > MAX_AUDIO_BASE64_BYTES) {
@@ -207,205 +155,172 @@ export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, 
 		return null;
 	}
 
-	// Chuẩn bị payload OpenAI multimodal (input_audio)
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const contentParts: any[] = [
+	// Build AI SDK content parts — text + audio files
+	type UserContentPart = { type: 'text'; text: string } | { type: 'file'; data: Uint8Array; mediaType: string };
+
+	const userContent: UserContentPart[] = [
 		{
 			type: 'text',
 			text: `Exam Topic: "${topic.title}" (Category: ${topic.category})\nPart 2 Preparation Notes: "${attempt.part2_notes || 'None'}"\n\nListen to each audio attached below and evaluate:`
 		}
 	];
 
-	questionItems.forEach((item) => {
+	for (const item of questionItems) {
 		const isSilent = !item.liveTranscript || item.liveTranscript.trim().length === 0;
 		const sttNote = isSilent ? '\n🔇 Browser STT was empty.' : `\n📝 STT reference: "${item.liveTranscript.trim().slice(0, 80)}"`;
-
-		contentParts.push({
+		userContent.push({
 			type: 'text',
 			text: `\n---\n[Question ID: ${item.id} | ${item.part}]\nPrompt: "${item.questionText}"\nDuration: ${item.duration}s${sttNote}`
 		});
-
 		if (item.audioBase64 && item.audioMimeType) {
-			const format = item.audioMimeType.split('/')[1]?.split(';')[0] || 'webm';
-			contentParts.push({
-				type: 'input_audio',
-				input_audio: {
-					data: item.audioBase64,
-					format: format === 'mpeg' ? 'mp3' : format
-				}
+			const mime = item.audioMimeType.split(';')[0].trim() || 'audio/webm';
+			// Normalize to a mediaType the patched SDK accepts; underlying bytes are unchanged
+			// so the proxy (Gemini) still decodes the real codec from the payload.
+			userContent.push({
+				type: 'file',
+				data: Buffer.from(item.audioBase64, 'base64'),
+				mediaType: mime
 			});
 		}
-	});
-
-	contentParts.push({
+	}
+	userContent.push({
 		type: 'text',
 		text: '\nOutput ONLY valid JSON strictly conforming to the JSON Schema. Do NOT include markdown code ticks or commentary outside the JSON object.'
 	});
 
-	const requestBody = JSON.stringify({
-		model,
-		max_tokens: 8192,
-		messages: [
-			{ role: 'system', content: OFFICIAL_IELTS_EXAMINER_PROMPT },
-			{ role: 'user', content: contentParts }
-		],
-		response_format: { type: 'json_object' }
-	});
+	const estBytes = questionItems.reduce((s, q) => s + (q.audioBase64?.length ?? 0), 0);
+	console.log(
+		`[AI Evaluator] Sending request via AI SDK: ${audioCount} audio clip(s), ~${(estBytes / 1024 / 1024).toFixed(2)} MB base64, model=${modelId}, endpoint=${endpoint}`
+	);
 
-	// Log payload size to help diagnose upstream rejections
-	console.log(`[AI Evaluator] Sending request: ${audioCount} audio clip(s), payload size: ${(requestBody.length / 1024 / 1024).toFixed(2)} MB`);
-
-	// Retry helper: up to maxAttempts tries with exponential backoff on 499/503/timeout
 	const MAX_RETRIES = 2;
-	const callAIWithRetry = async () => {
-		for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-			const controller = new AbortController();
-			const timeoutId = setTimeout(() => controller.abort(), 300000);
-			try {
-				const res = await fetch(endpoint, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						Authorization: `Bearer ${apiKey}`
-					},
-					body: requestBody,
-					signal: controller.signal
-				});
-				clearTimeout(timeoutId);
+	const TIMEOUT_MS = 300_000;
 
-				// Retry on transient gateway errors
-				if ((res.status === 499 || res.status === 503) && attempt < MAX_RETRIES) {
-					const bodyText = await res.text();
-					console.warn(
-						`[AI Evaluator Warning] API status ${res.status} (attempt ${attempt + 1}/${MAX_RETRIES + 1}): ${bodyText}. Retrying in ${(attempt + 1) * 3}s…`
-					);
-					await new Promise((r) => setTimeout(r, (attempt + 1) * 3000));
-					continue;
-				}
-
-				if (!res.ok) {
-					console.warn(`[AI Evaluator Warning] API status ${res.status}: ${await res.text()}`);
-					return null;
-				}
-				return res;
-			} catch (fetchErr) {
-				clearTimeout(timeoutId);
-				const isTimeout = fetchErr instanceof Error && fetchErr.name === 'AbortError';
-				if (isTimeout && attempt < MAX_RETRIES) {
-					console.warn(`[AI Evaluator Warning] Request timed out (attempt ${attempt + 1}/${MAX_RETRIES + 1}). Retrying in ${(attempt + 1) * 3}s…`);
-					await new Promise((r) => setTimeout(r, (attempt + 1) * 3000));
-					continue;
-				}
-				throw fetchErr;
-			}
-		}
-		return null;
-	};
-
-	try {
-		const res = await callAIWithRetry();
-		if (!res) return null;
-
-		const resJson = await res.json();
-		const rawContent = resJson.choices?.[0]?.message?.content || '';
-		if (!rawContent) return null;
-
-		let parsed: any;
+	for (let attemptIdx = 0; attemptIdx <= MAX_RETRIES; attemptIdx++) {
+		const abortController = new AbortController();
+		const timeoutId = setTimeout(() => abortController.abort(), TIMEOUT_MS);
 		try {
-			parsed = parseAiJson(rawContent);
-		} catch (parseErr) {
-			console.error('[AI Evaluator Error] Failed to parse model response as JSON. Raw snippet:', rawContent.slice(0, 500));
-			throw parseErr;
-		}
+			const { output: parsed } = await generateText({
+				model,
+				output: Output.object({ schema: ieltsEvaluationZodSchema }),
+				system: OFFICIAL_IELTS_EXAMINER_PROMPT,
+				messages: [{ role: 'user', content: userContent }],
+				maxOutputTokens: 8192,
+				abortSignal: abortController.signal,
+				// Let the SDK handle standard retries (5xx/429/408); we handle 499 + timeout ourselves below
+				maxRetries: 2
+			});
+			if (!parsed) throw new Error('AI returned no structured output');
+			clearTimeout(timeoutId);
 
-		const parseScore = (val: unknown) => {
-			const num = Number(val);
-			return !isNaN(num) && num >= 0.0 && num <= 9.0 ? num : 0.0;
-		};
-
-		const fcScore = parseScore(parsed.fluency_coherence);
-		const lrScore = parseScore(parsed.lexical_resource);
-		const graScore = parseScore(parsed.grammatical_range_accuracy);
-		const prScore = parseScore(parsed.pronunciation);
-
-		const rawOverall = Number(parsed.overall_band);
-		const overallBand =
-			!isNaN(rawOverall) && rawOverall >= 0.0 && rawOverall <= 9.0 ? rawOverall : Math.round(((fcScore + lrScore + graScore + prScore) / 4) * 2) / 2;
-
-		const parsedItems = Array.isArray(parsed.per_question_items) ? parsed.per_question_items : [];
-
-		const perQuestionRecord: Record<string, IELTSPerQuestionAnalysis> = {};
-		questionItems.forEach((qItem, idx) => {
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const matched = parsedItems.find((item: any) => item.question_id === qItem.id) || parsedItems[idx];
-
-			const liveStt = attempt.responses?.[qItem.id]?.transcript || matched?.live_stt_transcript || qItem.liveTranscript || '';
-			const aiTranscript = matched?.ai_generated_transcript || liveStt || 'Audio analyzed';
-
-			perQuestionRecord[qItem.id] = {
-				question_id: qItem.id,
-				live_stt_transcript: liveStt,
-				ai_generated_transcript: aiTranscript,
-				match_percentage: matched?.match_percentage ?? (liveStt ? computeWordSimilarity(liveStt, aiTranscript) : 100),
-				feedback: matched?.feedback || 'Đã đánh giá.',
-				academic_answer: matched?.academic_answer,
-				natural_answer: matched?.natural_answer,
-				improved_version: matched?.improved_version,
-				grammar_corrections: matched?.grammar_corrections
+			const parseScore = (val: unknown) => {
+				const num = Number(val);
+				return !isNaN(num) && num >= 0 && num <= 9 ? num : 0;
 			};
-		});
+			const fcScore = parseScore(parsed.fluency_coherence);
+			const lrScore = parseScore(parsed.lexical_resource);
+			const graScore = parseScore(parsed.grammatical_range_accuracy);
+			const prScore = parseScore(parsed.pronunciation);
+			const rawOverall = Number(parsed.overall_band);
+			const overallBand =
+				!isNaN(rawOverall) && rawOverall >= 0 && rawOverall <= 9 ? rawOverall : Math.round(((fcScore + lrScore + graScore + prScore) / 4) * 2) / 2;
 
-		return {
-			attempt_id: attempt.id,
-			topic_title: topic.title,
-			part1_questions: topic.part1_questions,
-			part2_cue_card: topic.part2_cue_card,
-			part3_questions: topic.part3_questions,
-			responses: attempt.responses,
-			part2_notes: attempt.part2_notes,
-			overall_band: overallBand,
-			status_title: getIELTSStatusTitle(overallBand),
-			summary_feedback: parsed.overall_feedback || 'Đã hoàn tất đánh giá bằng AI.',
-			criteria_scores: [
-				{
-					code: 'FC',
-					name: 'Fluency & Coherence',
-					score: fcScore,
-					summary: parsed.criterion_feedback?.fluency || '',
-					key_observations: parsed.criterion_key_observations?.fluency || []
-				},
-				{
-					code: 'LR',
-					name: 'Lexical Resource',
-					score: lrScore,
-					summary: parsed.criterion_feedback?.vocabulary || '',
-					key_observations: parsed.criterion_key_observations?.vocabulary || []
-				},
-				{
-					code: 'GRA',
-					name: 'Grammatical Range & Accuracy',
-					score: graScore,
-					summary: parsed.criterion_feedback?.grammar || '',
-					key_observations: parsed.criterion_key_observations?.grammar || []
-				},
-				{
-					code: 'PR',
-					name: 'Pronunciation',
-					score: prScore,
-					summary: parsed.criterion_feedback?.pronunciation || '',
-					key_observations: parsed.criterion_key_observations?.pronunciation || []
+			const parsedItems = Array.isArray(parsed.per_question_items) ? parsed.per_question_items : [];
+			const perQuestionRecord: Record<string, IELTSPerQuestionAnalysis> = {};
+			questionItems.forEach((qItem, idx) => {
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const matched = (parsedItems as any[]).find((x: any) => x.question_id === qItem.id) || parsedItems[idx];
+				const liveStt = attempt.responses?.[qItem.id]?.transcript || matched?.live_stt_transcript || qItem.liveTranscript || '';
+				const aiTranscript = matched?.ai_generated_transcript || liveStt || 'Audio analyzed';
+				perQuestionRecord[qItem.id] = {
+					question_id: qItem.id,
+					live_stt_transcript: liveStt,
+					ai_generated_transcript: aiTranscript,
+					match_percentage: matched?.match_percentage ?? (liveStt ? computeWordSimilarity(liveStt, aiTranscript) : 100),
+					feedback: matched?.feedback || 'Đã đánh giá.',
+					academic_answer: matched?.academic_answer,
+					natural_answer: matched?.natural_answer,
+					grammar_corrections: matched?.grammar_corrections
+				};
+			});
+
+			return {
+				attempt_id: attempt.id,
+				topic_title: topic.title,
+				part1_questions: topic.part1_questions,
+				part2_cue_card: topic.part2_cue_card,
+				part3_questions: topic.part3_questions,
+				responses: attempt.responses,
+				part2_notes: attempt.part2_notes,
+				overall_band: overallBand,
+				status_title: getIELTSStatusTitle(overallBand),
+				summary_feedback: parsed.overall_feedback || 'Đã hoàn tất đánh giá bằng AI.',
+				criteria_scores: [
+					{
+						code: 'FC',
+						name: 'Fluency & Coherence',
+						score: fcScore,
+						summary: parsed.criterion_feedback.fluency || '',
+						key_observations: parsed.criterion_key_observations.fluency || []
+					},
+					{
+						code: 'LR',
+						name: 'Lexical Resource',
+						score: lrScore,
+						summary: parsed.criterion_feedback.vocabulary || '',
+						key_observations: parsed.criterion_key_observations.vocabulary || []
+					},
+					{
+						code: 'GRA',
+						name: 'Grammatical Range & Accuracy',
+						score: graScore,
+						summary: parsed.criterion_feedback.grammar || '',
+						key_observations: parsed.criterion_key_observations.grammar || []
+					},
+					{
+						code: 'PR',
+						name: 'Pronunciation',
+						score: prScore,
+						summary: parsed.criterion_feedback.pronunciation || '',
+						key_observations: parsed.criterion_key_observations.pronunciation || []
+					}
+				],
+				filler_words: parsed.filler_words || [],
+				vocab_upgrades: parsed.vocab_upgrades || [],
+				strengths: parsed.strengths || [],
+				areas_for_improvement: parsed.weaknesses || [],
+				criterion_feedback: parsed.criterion_feedback,
+				estimated_band_reason: parsed.estimated_band_reason,
+				per_question_analysis: perQuestionRecord
+			};
+		} catch (err) {
+			clearTimeout(timeoutId);
+			const isTimeout = err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError');
+			const retryable = isTimeout || isRetryableStatus(err);
+
+			if (retryable && attemptIdx < MAX_RETRIES) {
+				const delay = (attemptIdx + 1) * 3000;
+				if (isTimeout) {
+					console.warn(`[AI Evaluator Warning] Request timed out (attempt ${attemptIdx + 1}/${MAX_RETRIES + 1}). Retrying in ${delay / 1000}s…`);
+				} else {
+					const code = APICallError.isInstance(err) ? err.statusCode : (err as { statusCode?: number })?.statusCode;
+					console.warn(
+						`[AI Evaluator Warning] API status ${code ?? 'unknown'} (attempt ${attemptIdx + 1}/${MAX_RETRIES + 1}). Retrying in ${delay / 1000}s…`
+					);
 				}
-			],
-			filler_words: parsed.filler_words || [],
-			vocab_upgrades: parsed.vocab_upgrades || [],
-			strengths: parsed.strengths || [],
-			areas_for_improvement: parsed.weaknesses || [],
-			criterion_feedback: parsed.criterion_feedback,
-			estimated_band_reason: parsed.estimated_band_reason,
-			per_question_analysis: perQuestionRecord
-		};
-	} catch (err) {
-		console.error('[AI Evaluator Error]:', err);
-		return null;
+				await new Promise((r) => setTimeout(r, delay));
+				continue;
+			}
+
+			if (isTimeout) {
+				console.error('[AI Evaluator Error] Request timed out after retries:', err);
+			} else if (APICallError.isInstance(err) || (err as { name?: string })?.name === 'AI_NoObjectGeneratedError') {
+				console.warn(`[AI Evaluator Warning] AI SDK error:`, err);
+			} else {
+				console.error('[AI Evaluator Error]:', err);
+			}
+			return null;
+		}
 	}
+	return null;
 }
