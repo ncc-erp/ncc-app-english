@@ -1,7 +1,7 @@
 'use client';
 
-import { UserSession } from '@/types';
-import { createContext, useContext, useState, type ReactNode } from 'react';
+import { createContext, use, useState, type ReactNode } from 'react';
+import type { UserSession } from '@/types';
 
 interface AuthContextValue {
 	user: UserSession | null;
@@ -10,7 +10,7 @@ interface AuthContextValue {
 	logout: () => void;
 }
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const AuthContext = createContext<AuthContextValue | null>(null);
 
 interface AuthProviderProps {
 	children: ReactNode;
@@ -29,24 +29,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
 		localStorage.removeItem('user');
 	};
 
-	return (
-		<AuthContext.Provider
-			value={{
-				user,
-				isAuthenticated: !!user,
-				login,
-				logout
-			}}
-		>
-			{children}
-		</AuthContext.Provider>
-	);
+	const value: AuthContextValue = {
+		user,
+		isAuthenticated: user !== null,
+		login,
+		logout
+	};
+
+	return <AuthContext value={value}>{children}</AuthContext>;
 }
 
-export function useAuth() {
-	const context = useContext(AuthContext);
+export function useAuth(): AuthContextValue {
+	const context = use(AuthContext);
 
-	if (!context) {
+	if (context === null) {
 		throw new Error('useAuth must be used within AuthProvider');
 	}
 

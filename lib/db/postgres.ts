@@ -511,39 +511,7 @@ export const pgDb = {
 	// ============================================================
 	async getIELTSTopics(): Promise<IELTSSpeakingTopic[]> {
 		await ensureDbInitialized();
-		try {
-			await pool.query(`ALTER TABLE ielts_speaking_topics ADD COLUMN IF NOT EXISTS description TEXT;`);
-		} catch {
-			// Ignore if alter fails
-		}
 		let { rows } = await pool.query(`SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`);
-
-		if (rows.length < SEED_IELTS_TOPICS.length) {
-			for (const t of SEED_IELTS_TOPICS) {
-				await pool.query(
-					`INSERT INTO ielts_speaking_topics (id, title, category, description, part1_questions, part2_cue_card, part3_questions)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)
-           ON CONFLICT (id) DO UPDATE SET
-             title = EXCLUDED.title,
-             category = EXCLUDED.category,
-             description = EXCLUDED.description,
-             part1_questions = EXCLUDED.part1_questions,
-             part2_cue_card = EXCLUDED.part2_cue_card,
-             part3_questions = EXCLUDED.part3_questions;`,
-					[
-						t.id,
-						t.title,
-						t.category,
-						t.description || null,
-						JSON.stringify(t.part1_questions),
-						JSON.stringify(t.part2_cue_card),
-						JSON.stringify(t.part3_questions)
-					]
-				);
-			}
-			const reQuery = await pool.query(`SELECT * FROM ielts_speaking_topics WHERE active = true ORDER BY created_at DESC`);
-			rows = reQuery.rows;
-		}
 
 		return rows.map((r) => ({
 			id: r.id,

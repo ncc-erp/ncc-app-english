@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { Sparkles, Layers, Search, BookOpen, Eye, ChevronLeft, ChevronRight, Play, X, AlertCircle } from 'lucide-react';
@@ -16,7 +16,6 @@ export default function IELTSSpeakingPortalPage() {
 	const [loading, setLoading] = useState(true);
 	const [startingTopicId, setStartingTopicId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
-
 	// Search & Filter state
 	const [searchQuery, setSearchQuery] = useState('');
 	const [selectedCategory, setSelectedCategory] = useState('all');
@@ -35,8 +34,6 @@ export default function IELTSSpeakingPortalPage() {
 				const data = await res.json();
 				if (data.success && Array.isArray(data.topics)) {
 					setTopics(data.topics);
-				} else if (data.success && data.topic) {
-					setTopics([data.topic]);
 				}
 			} catch (err) {
 				console.error('Failed to load IELTS topics:', err);
