@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { IELTSSpeakingAttempt, IELTSPerQuestionAnalysis, IELTSSpeakingResponse } from '@/types/ielts';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
+import { extractAudioStoragePath } from '@/lib/storage/utils';
 
 interface StudentProfile {
 	mezon_id: string;
@@ -158,9 +159,9 @@ const AttemptQuestionViewer: React.FC<{ questions: QuestionReviewItem[] }> = ({ 
 		if (rawAudioUrl.startsWith('/api/admin/audio')) {
 			audioSrc = rawAudioUrl;
 		} else {
-			const match = rawAudioUrl.match(/(?:ielts-recordings|ielts-speaking-recordings)\/([^?#]+)/);
-			if (match?.[1]) {
-				audioSrc = `/api/admin/audio?path=${encodeURIComponent(decodeURIComponent(match[1]))}`;
+			const extracted = extractAudioStoragePath(rawAudioUrl);
+			if (extracted) {
+				audioSrc = `/api/admin/audio?path=${encodeURIComponent(extracted)}`;
 			} else {
 				audioSrc = rawAudioUrl;
 			}

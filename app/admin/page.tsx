@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAdminSidebarVisible } from '@/components/admin/AdminAuthContext';
 import { StudentDetailModal } from '@/components/admin/StudentDetailModal';
+import Link from 'next/link';
 import {
 	ShieldAlert,
 	Search,
@@ -18,7 +19,8 @@ import {
 	School,
 	CheckCircle2,
 	AlertCircle,
-	Lock
+	Lock,
+	BookOpen
 } from 'lucide-react';
 import { E_SORT_STUDENT_SCORE } from '@/lib/types/type';
 import { StudentList } from './StudentList';
@@ -278,6 +280,22 @@ export default function AdminClassesPage() {
 							<RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-purple-600' : ''}`} />
 							<span>{isSyncing ? 'Syncing...' : 'Sync Clan'}</span>
 						</button>
+
+						<Link
+							href='/admin/topics'
+							className='inline-flex items-center gap-2 px-4 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold rounded-xl transition-all'
+						>
+							<BookOpen className='w-3.5 h-3.5' />
+							<span>Manage IELTS Topics</span>
+						</Link>
+
+						<Link
+							href='/admin/scoring'
+							className='inline-flex items-center gap-2 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold rounded-xl transition-all'
+						>
+							<Award className='w-3.5 h-3.5' />
+							<span>Batch Scoring</span>
+						</Link>
 					</div>
 				</div>
 

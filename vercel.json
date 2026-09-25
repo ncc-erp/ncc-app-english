@@ -5,7 +5,7 @@
 			"maxDuration": 300
 		},
 		"app/api/ielts/submit/route.ts": {
-			"maxDuration": 60
+			"maxDuration": 300
 		}
 	}
 }

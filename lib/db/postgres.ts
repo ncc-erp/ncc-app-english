@@ -711,7 +711,7 @@ export const pgDb = {
 		await ensureDbInitialized();
 		const query = `
       UPDATE ielts_speaking_attempts
-      SET status = $1, current_part = $2, overall_band = $3, score_result = $4, submitted_at = NOW()
+      SET status = $1, current_part = $2, overall_band = $3, score_result = $4, submitted_at = COALESCE(submitted_at, NOW())
       WHERE id = $5;
     `;
 		await pool.query(query, [status, currentPart, overallBand || null, scoreResult ? JSON.stringify(scoreResult) : null, attemptId]);
@@ -750,6 +750,37 @@ export const pgDb = {
 			band_score: r.overall_band ? parseFloat(r.overall_band) : undefined,
 			responses: {}
 		}));
+	},
+
+	/**
+	 * Thin rows for the admin batch-scoring queue: submitted attempts that have never
+	 * been AI-scored. Filter is `score_result IS NULL` only — NOT `overall_band IS NULL`,
+	 * because the Band-0.0 path stores a non-null score_result while `overall_band` lands
+	 * as NULL, which would re-queue those attempts forever. Rows are thin on purpose; the
+	 * runner hydrates each one via getIELTSAttempt() right before scoring it.
+	 */
+	async getUnscoredIELTSAttempts(): Promise<{ id: string; user_id: string; topic_id: string; submitted_at: string | null; started_at: string }[]> {
+		await ensureDbInitialized();
+		const query = `
+      SELECT id, user_id, topic_id, submitted_at, started_at
+      FROM ielts_speaking_attempts
+      WHERE status = 'submitted' AND score_result IS NULL
+      ORDER BY COALESCE(submitted_at, started_at) ASC;
+    `;
+		const { rows } = await pool.query(query);
+		return rows.map((r) => ({
+			id: r.id,
+			user_id: r.user_id,
+			topic_id: r.topic_id,
+			submitted_at: r.submitted_at ? new Date(r.submitted_at).toISOString() : null,
+			started_at: new Date(r.started_at).toISOString()
+		}));
+	},
+
+	async countUnscoredIELTSAttempts(): Promise<number> {
+		await ensureDbInitialized();
+		const { rows } = await pool.query(`SELECT COUNT(*)::int AS cnt FROM ielts_speaking_attempts WHERE status = 'submitted' AND score_result IS NULL`);
+		return rows[0]?.cnt ?? 0;
 	},
 
 	async createIELTSTopic(topic: IELTSSpeakingTopic): Promise<IELTSSpeakingTopic> {
@@ -838,7 +869,7 @@ export const pgDb = {
 
 	async deleteIELTSTopic(id: string): Promise<boolean> {
 		await ensureDbInitialized();
-		const query = `DELETE FROM ielts_speaking_topics WHERE id = $1`;
+		const query = `UPDATE ielts_speaking_topics SET active = false WHERE id = $1`;
 		const result = await pool.query(query, [id]);
 		return (result.rowCount ?? 0) > 0;
 	},
