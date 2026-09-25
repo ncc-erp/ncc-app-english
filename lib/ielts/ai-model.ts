@@ -6,7 +6,7 @@ export function getIeltsModel() {
 	const modelId = process.env.AI_MODEL || 'gemini-3.8-flash-high';
 	if (!apiKey) return null;
 
-	const baseURL = endpoint.replace(/\/chat\/completions\/?$/, '');
+	const baseURL = endpoint.replace(/\/+$/, '').replace(/\/chat\/completions$/, '');
 
 	return {
 		modelId,
