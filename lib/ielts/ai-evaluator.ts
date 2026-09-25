@@ -1,6 +1,6 @@
 import { IELTSSpeakingAttempt, IELTSSpeakingTopic, IELTSScoreResult, IELTSPerQuestionAnalysis } from '@/types/ielts';
 import { getIELTSStatusTitle } from './score-calculator';
-import { downloadAudioAsBase64 } from '@/lib/supabase/storage';
+import { downloadAudioAsBase64, extractAudioStoragePath } from '@/lib/storage';
 
 import { OFFICIAL_IELTS_EXAMINER_PROMPT } from './prompts/examiner';
 
@@ -33,22 +33,21 @@ function parseAiJson(jsonStr: string): any {
 export async function evaluateIELTSAttemptWithAI(attempt: IELTSSpeakingAttempt, topic: IELTSSpeakingTopic): Promise<IELTSScoreResult | null> {
 	const apiKey = process.env.AI_API_KEY || '';
 	const endpoint = process.env.AI_ENDPOINT || 'https://llm.mrdnd.dev/v1/chat/completions';
-	const model = process.env.AI_MODEL || 'gemini-3.7-flash-high';
+	const model = process.env.AI_MODEL || 'gemini-3.8-flash-high';
 
 	if (!apiKey) {
 		console.warn('[AI Evaluator Warning] Missing AI_API_KEY.');
 		return null;
 	}
 
-	// Helper fetch audio qua Supabase Storage hoặc Direct URL
+	// Helper fetch audio qua Cloudflare R2 Storage hoặc Direct URL
 	const fetchAudioForResponse = async (qId: string) => {
 		const resp = attempt.responses?.[qId];
 		if (!resp) return null;
 
 		let storagePath = resp.audio_storage_path;
 		if (!storagePath && resp.audio_url) {
-			const match = resp.audio_url.match(/(?:ielts-recordings|ielts-speaking-recordings)\/([^?#]+)/);
-			if (match?.[1]) storagePath = decodeURIComponent(match[1]);
+			storagePath = extractAudioStoragePath(resp.audio_url);
 		}
 
 		if (storagePath) {

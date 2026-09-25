@@ -3,7 +3,7 @@
 import React, { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BookOpen, ShieldCheck, Sparkles, AlertCircle, ArrowRight, UserCheck, Lock, User, Loader2 } from 'lucide-react';
+import { Mic, ShieldCheck, Sparkles, AlertCircle, ArrowRight, UserCheck, Lock, User, Loader2 } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 
@@ -76,8 +76,8 @@ function LoginContent() {
 			</div>
 
 			<div className='bg-slate-900/80 backdrop-blur-xl rounded-3xl border border-slate-800 shadow-2xl max-w-md w-full p-8 text-center space-y-6 relative z-10'>
-				<div className='w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white mx-auto shadow-lg shadow-indigo-500/25 ring-4 ring-indigo-500/20'>
-					<BookOpen className='w-8 h-8' />
+				<div className='w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white mx-auto shadow-lg shadow-purple-500/25 ring-4 ring-purple-500/20'>
+					<Mic className='w-8 h-8' />
 				</div>
 
 				<div className='space-y-2'>

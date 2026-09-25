@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { pgDb } from '@/lib/db/postgres';
-import { createSignedAudioUrl } from '@/lib/supabase/storage';
+import { createSignedAudioUrl } from '@/lib/storage';
 import { toTeaserResult } from '@/lib/ielts/result-view';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ attemptId: string }> }) {

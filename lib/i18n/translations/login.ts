@@ -1,6 +1,6 @@
 export const loginEn = {
 	loadingPage: 'Loading login page...',
-	badge: 'Mezon IELTS Platform',
+	badge: 'IELTS Thầy Huy Platform',
 	title: 'Account Authentication',
 	subtitlePasswordForm: 'Enter your username and password to sign in.',
 	subtitleDefault: 'Sign in with your Mezon account or Admin account to access the system.',
@@ -31,7 +31,7 @@ export const loginEn = {
 
 export const loginVi = {
 	loadingPage: 'Đang tải trang đăng nhập...',
-	badge: 'Nền tảng Mezon IELTS',
+	badge: 'Nền tảng IELTS Thầy Huy',
 	title: 'Xác thực tài khoản',
 	subtitlePasswordForm: 'Nhập tên đăng nhập và mật khẩu để đăng nhập.',
 	subtitleDefault: 'Đăng nhập bằng tài khoản Mezon hoặc tài khoản Admin để truy cập hệ thống.',
