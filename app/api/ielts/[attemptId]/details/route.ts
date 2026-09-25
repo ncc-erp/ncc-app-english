@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pgDb } from '@/lib/db/postgres';
-import { createSignedAudioUrl } from '@/lib/supabase/storage';
+import { createSignedAudioUrl } from '@/lib/storage';
 import { verifyLaunchToken } from '@/lib/auth/launch-token';
 import { AdminVerificationUnavailableError } from '@/lib/admin/clan-data-service';
 import { checkIsClanAdmin } from '@/lib/admin/clan-data-service';
