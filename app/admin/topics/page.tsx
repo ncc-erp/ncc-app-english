@@ -2,11 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useAdminUser, useAdminSidebarVisible } from '@/components/admin/AdminAuthContext';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 import { IELTSSpeakingTopic } from '@/types/ielts';
-import { UserSession } from '@/types';
 import {
 	ShieldAlert,
 	Plus,
@@ -14,7 +14,6 @@ import {
 	Edit2,
 	Trash2,
 	BookOpen,
-	Sparkles,
 	Layers,
 	HelpCircle,
 	FileText,
@@ -26,12 +25,17 @@ import {
 	Eye,
 	School
 } from 'lucide-react';
+import { UserSession } from '@/types';
+import { HeaderTitle } from '../HeaderTitle';
 
 export default function AdminTopicsPage() {
+	const userContext = useAdminUser();
+	const isAuthorized = userContext.role === 'admin';
+	useAdminSidebarVisible(isAuthorized);
 	const router = useRouter();
 	const { t } = useTranslation();
 
-	const [user, setUser] = useState<UserSession | null>(null);
+	const [user, setUser] = useState<UserSession | null>(userContext);
 	const [authLoading, setAuthLoading] = useState(true);
 	const [verificationError, setVerificationError] = useState(false);
 
@@ -60,8 +64,14 @@ export default function AdminTopicsPage() {
 	const [saving, setSaving] = useState(false);
 	const [errorMsg, setErrorMsg] = useState('');
 
-	// 1. Verify Admin Session
+	// 1. Fetch Topics List (session/role already gated by the /admin layout + isAuthorized check below)
 	useEffect(() => {
+		if (isAuthorized) {
+			fetchTopics();
+		} else {
+			setLoading(false);
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 		async function checkAuth() {
 			try {
 				setAuthLoading(true);
@@ -236,7 +246,7 @@ export default function AdminTopicsPage() {
 		return matchesSearch && matchesCat;
 	});
 
-	if (authLoading) {
+	if (!isAuthorized) {
 		return (
 			<div className='min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center'>
 				<div className='flex items-center space-x-3'>
@@ -255,8 +265,15 @@ export default function AdminTopicsPage() {
 					<div className='bg-white border border-slate-200 rounded-3xl p-8 max-w-md w-full text-center space-y-4'>
 						<AlertCircle className='w-8 h-8 text-amber-600 mx-auto' />
 						<h1 className='text-xl font-bold'>{t('common.adminAccess.verificationUnavailableTitle')}</h1>
-						<p role='alert' className='text-sm text-slate-600'>{t('common.adminAccess.verificationUnavailableMessage')}</p>
-						<button onClick={() => window.location.reload()} className='w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl'>{t('common.adminAccess.retry')}</button>
+						<p role='alert' className='text-sm text-slate-600'>
+							{t('common.adminAccess.verificationUnavailableMessage')}
+						</p>
+						<button
+							onClick={() => window.location.reload()}
+							className='w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl'
+						>
+							{t('common.adminAccess.retry')}
+						</button>
 					</div>
 				</main>
 			</div>
@@ -273,14 +290,12 @@ export default function AdminTopicsPage() {
 							<ShieldAlert className='w-7 h-7' />
 						</div>
 						<h1 className='text-xl font-bold text-slate-900'>{t('common.adminAccess.accessDeniedTitle')}</h1>
-						<p className='text-xs text-slate-600 leading-relaxed'>
-							{t('common.adminAccess.topicsDeniedMessage')}
-						</p>
+						<p className='text-xs text-slate-600 leading-relaxed'>{t('common.adminAccess.topicsDeniedMessage')}</p>
 						<button
 							onClick={() => router.push('/login')}
 							className='w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-purple-200'
 						>
-						{t('common.adminAccess.goToLogin')}
+							{t('common.adminAccess.goToLogin')}
 						</button>
 					</div>
 				</main>
@@ -289,41 +304,32 @@ export default function AdminTopicsPage() {
 	}
 
 	return (
-		<div className='min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans'>
-			<Navbar user={user} />
-
-			<main className='flex-1 max-w-6xl mx-auto px-4 py-8 w-full space-y-8'>
+		<>
+			<div className='space-y-8'>
 				{/* Portal Header */}
-				<div className='flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm'>
-					<div className='space-y-1'>
-						<div className='inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 border border-purple-200 text-purple-700 text-xs font-bold rounded-full uppercase tracking-wider'>
-							<Sparkles className='w-3.5 h-3.5 text-purple-600' />
-							<span>Admin Portal</span>
+				<HeaderTitle
+					title='IELTS Test Set Management'
+					description='Create, edit, and update IELTS Speaking test sets (Part 1, Part 2 Cue Cards, and Part 3 Questions).'
+					action={
+						<div className='flex items-center gap-3 shrink-0 flex-wrap'>
+							<Link
+								href='/admin'
+								className='inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all'
+							>
+								<School className='w-4 h-4 text-purple-600' />
+								<span>Classes & Student</span>
+							</Link>
+
+							<button
+								onClick={handleOpenCreateModal}
+								className='inline-flex items-center justify-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-purple-200 transition-all hover:scale-105'
+							>
+								<Plus className='w-4 h-4' />
+								<span>Create New Test Set</span>
+							</button>
 						</div>
-						<h1 className='text-2xl md:text-3xl font-extrabold text-slate-900'>IELTS Test Set Management</h1>
-						<p className='text-xs text-slate-600'>
-							Create, edit, and update IELTS Speaking test sets (Part 1, Part 2 Cue Cards, and Part 3 Questions).
-						</p>
-					</div>
-
-					<div className='flex items-center gap-3 shrink-0 flex-wrap'>
-						<Link
-							href='/admin'
-							className='inline-flex items-center justify-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition-all'
-						>
-							<School className='w-4 h-4 text-purple-600' />
-							<span>Classes & Student</span>
-						</Link>
-
-						<button
-							onClick={handleOpenCreateModal}
-							className='inline-flex items-center justify-center gap-2 px-5 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-purple-200 transition-all hover:scale-105'
-						>
-							<Plus className='w-4 h-4' />
-							<span>Create New Test Set</span>
-						</button>
-					</div>
-				</div>
+					}
+				/>
 
 				{/* Stats Row */}
 				<div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
@@ -487,7 +493,7 @@ export default function AdminTopicsPage() {
 						))}
 					</div>
 				)}
-			</main>
+			</div>
 
 			{/* Create / Edit Modal */}
 			{isCreateModalOpen && (
@@ -844,6 +850,6 @@ export default function AdminTopicsPage() {
 					</div>
 				</div>
 			)}
-		</div>
+		</>
 	);
 }

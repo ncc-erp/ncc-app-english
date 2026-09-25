@@ -181,7 +181,20 @@ async function resolveIsClanAdmin(mezonUserId: string): Promise<boolean> {
 		}
 	}
 
-	return false;
+	// 3. Query live Mezon Clan roles directly via bot client
+	try {
+		const client = await getBotClientWithTimeout(10_000);
+		const clanId = process.env.MEZON_TARGET_CLAN_ID || '';
+
+		if (client && clanId) {
+			return await isClanAdminMember(client, mezonUserId, clanId);
+		}
+	} catch (error) {
+		console.error('[Clan Data Service] Error checking clan admin role:', error);
+		throw new AdminVerificationUnavailableError('Clan admin verification is unavailable', { cause: error });
+	}
+
+	throw new AdminVerificationUnavailableError('Clan admin verification is not configured');
 }
 
 /**

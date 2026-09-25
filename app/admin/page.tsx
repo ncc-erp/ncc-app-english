@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useAdminSidebarVisible } from '@/components/admin/AdminAuthContext';
 import { useRouter } from 'next/navigation';
 import { Navbar } from '@/components/Navbar';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
@@ -10,23 +10,24 @@ import { StudentDetailModal } from '@/components/admin/StudentDetailModal';
 import {
 	ShieldAlert,
 	Search,
-	BookOpen,
-	Sparkles,
 	Users,
 	Mic,
 	Award,
 	Layers,
 	ChevronRight,
 	Loader2,
-	RefreshCw,
 	GraduationCap,
 	School,
 	CheckCircle2,
 	AlertCircle,
-	Lock
+	Lock,
+	BookOpen,
+	RefreshCw
 } from 'lucide-react';
 import { E_SORT_STUDENT_SCORE } from '@/lib/types/type';
 import { StudentList } from './StudentList';
+import { HeaderTitle } from './HeaderTitle';
+import Link from 'next/link';
 
 interface ClassroomItem {
 	id: string;
@@ -62,6 +63,9 @@ export default function AdminClassesPage() {
 	const [user, setUser] = useState<UserSession | null>(null);
 	const [authLoading, setAuthLoading] = useState(true);
 	const [isAuthorizedAdmin, setIsAuthorizedAdmin] = useState(false);
+
+	// Hide the shared sidebar unless we're still checking or the user actually has Clan Admin permission
+	useAdminSidebarVisible(authLoading || isAuthorizedAdmin);
 	const [verificationError, setVerificationError] = useState(false);
 
 	const [classes, setClasses] = useState<ClassroomItem[]>([]);
@@ -83,7 +87,7 @@ export default function AdminClassesPage() {
 	// Selected student for detail evaluation modal
 	const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
-	// 1. Verify User Session & Clan Admin Authorization
+	// 1. Verify Clan Admin Authorization (session itself is already verified by the /admin layout)
 	useEffect(() => {
 		async function checkAuth() {
 			try {
@@ -249,7 +253,7 @@ export default function AdminClassesPage() {
 
 	if (authLoading) {
 		return (
-			<div className='min-h-screen bg-slate-50 text-slate-900 flex items-center justify-center'>
+			<div className='flex items-center justify-center py-24'>
 				<div className='flex items-center space-x-3'>
 					<Loader2 className='w-6 h-6 animate-spin text-purple-600' />
 					<span className='text-sm font-medium text-slate-600'>{t('common.adminAccess.verifyingClan')}</span>
@@ -266,15 +270,22 @@ export default function AdminClassesPage() {
 					<div className='bg-white border border-slate-200 rounded-3xl p-8 max-w-md w-full text-center space-y-4'>
 						<AlertCircle className='w-8 h-8 text-amber-600 mx-auto' />
 						<h1 className='text-xl font-bold'>{t('common.adminAccess.verificationUnavailableTitle')}</h1>
-						<p role='alert' className='text-sm text-slate-600'>{t('common.adminAccess.verificationUnavailableMessage')}</p>
-						<button onClick={() => window.location.reload()} className='w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl'>{t('common.adminAccess.retry')}</button>
+						<p role='alert' className='text-sm text-slate-600'>
+							{t('common.adminAccess.verificationUnavailableMessage')}
+						</p>
+						<button
+							onClick={() => window.location.reload()}
+							className='w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl'
+						>
+							{t('common.adminAccess.retry')}
+						</button>
 					</div>
 				</main>
 			</div>
 		);
 	}
 
-	if (!user || !isAuthorizedAdmin) {
+	if (!isAuthorizedAdmin) {
 		return (
 			<div className='min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans'>
 				<Navbar />
@@ -284,14 +295,12 @@ export default function AdminClassesPage() {
 							<ShieldAlert className='w-7 h-7' />
 						</div>
 						<h1 className='text-xl font-bold text-slate-900'>{t('common.adminAccess.accessDeniedTitle')}</h1>
-						<p className='text-xs text-slate-600 leading-relaxed'>
-							{t('common.adminAccess.classesDeniedMessage')}
-						</p>
+						<p className='text-xs text-slate-600 leading-relaxed'>{t('common.adminAccess.classesDeniedMessage')}</p>
 						<button
 							onClick={() => router.push('/login')}
 							className='w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-purple-200'
 						>
-						{t('common.adminAccess.signInAgain')}
+							{t('common.adminAccess.signInAgain')}
 						</button>
 					</div>
 				</main>
@@ -302,60 +311,45 @@ export default function AdminClassesPage() {
 	const currentClass = classes.find((c) => c.id === selectedClassId);
 
 	return (
-		<div className='min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans'>
-			<Navbar user={user} />
-
-			<main className='flex-1 max-w-7xl mx-auto px-4 py-8 w-full space-y-7'>
+		<>
+			<div className='space-y-7'>
 				{/* Header & Portal Tabs */}
-				<div className='flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm'>
-					<div className='space-y-1.5'>
-						<div className='flex items-center gap-2 flex-wrap'>
-							<div className='inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 border border-purple-200 text-purple-700 text-xs font-bold rounded-full uppercase tracking-wider'>
-								<Sparkles className='w-3.5 h-3.5 text-purple-600' />
-								<span>Admin Clan Portal</span>
-							</div>
-							<span className='px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200'>
-								Category: LỚP HỌC
-							</span>
-						</div>
-						<h1 className='text-2xl md:text-3xl font-extrabold text-slate-900'>Classrooms & Students Management</h1>
-						<p className='text-xs text-slate-600 max-w-2xl leading-relaxed'>
-							Monitor classrooms from Category "LỚP HỌC", students with role "Student", and review detailed IELTS Speaking test performance.
-						</p>
-					</div>
+				<HeaderTitle
+					title='Classrooms & Students Management'
+					description='Monitor classrooms from Category "LỚP HỌC", students with role "Student", and review detailed IELTS Speaking test performance.'
+					action={
+						<>
+							<button
+								onClick={handleSyncClan}
+								disabled={isSyncing}
+								className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all shadow-sm ${
+									isSyncing
+										? 'bg-purple-100 text-purple-700 cursor-not-allowed border border-purple-200'
+										: 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:border-purple-300'
+								}`}
+								title='Fetch latest live data directly from Mezon Clan'
+							>
+								<RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-purple-600' : ''}`} />
+								<span>{isSyncing ? 'Syncing...' : 'Sync Clan'}</span>
+							</button>
+							<Link
+								href='/admin/topics'
+								className='inline-flex items-center gap-2 px-4 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold rounded-xl transition-all'
+							>
+								<BookOpen className='w-3.5 h-3.5' />
+								<span>Manage IELTS Topics</span>
+							</Link>
 
-					<div className='flex items-center gap-2.5 shrink-0'>
-						<button
-							onClick={handleSyncClan}
-							disabled={isSyncing}
-							className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl transition-all shadow-sm ${
-								isSyncing
-									? 'bg-purple-100 text-purple-700 cursor-not-allowed border border-purple-200'
-									: 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 hover:border-purple-300'
-							}`}
-							title='Fetch latest live data directly from Mezon Clan'
-						>
-							<RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-purple-600' : ''}`} />
-							<span>{isSyncing ? 'Syncing...' : 'Sync Clan'}</span>
-						</button>
-
-						<Link
-							href='/admin/topics'
-							className='inline-flex items-center gap-2 px-4 py-2.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold rounded-xl transition-all'
-						>
-							<BookOpen className='w-3.5 h-3.5' />
-							<span>Manage IELTS Topics</span>
-						</Link>
-
-						<Link
-							href='/admin/scoring'
-							className='inline-flex items-center gap-2 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold rounded-xl transition-all'
-						>
-							<Award className='w-3.5 h-3.5' />
-							<span>Batch Scoring</span>
-						</Link>
-					</div>
-				</div>
+							<Link
+								href='/admin/scoring'
+								className='inline-flex items-center gap-2 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold rounded-xl transition-all'
+							>
+								<Award className='w-3.5 h-3.5' />
+								<span>Batch Scoring</span>
+							</Link>
+						</>
+					}
+				/>
 
 				{/* Sync Notification Banner */}
 				{syncNotification && (
@@ -450,7 +444,7 @@ export default function AdminClassesPage() {
 								{/* All Classes Button */}
 								<button
 									onClick={() => handleSelectClass(null)}
-									className={`w-full text-left p-3.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-between ${
+									className={`w-full text-left p-2.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-between ${
 										selectedClassId === null
 											? 'bg-purple-600 text-white shadow-md shadow-purple-200'
 											: 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/80'
@@ -480,7 +474,7 @@ export default function AdminClassesPage() {
 										<button
 											key={cls.id}
 											onClick={() => handleSelectClass(cls.id)}
-											className={`w-full text-left p-3.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-between ${
+											className={`w-full text-left p-2.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-between ${
 												isSelected
 													? 'bg-purple-600 text-white shadow-md shadow-purple-200'
 													: 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/80'
@@ -617,10 +611,10 @@ export default function AdminClassesPage() {
 						</div>
 					</div>
 				</div>
-			</main>
+			</div>
 
 			{/* Student Detail Evaluation Modal */}
 			{selectedStudentId && <StudentDetailModal studentId={selectedStudentId} onClose={() => setSelectedStudentId(null)} />}
-		</div>
+		</>
 	);
 }

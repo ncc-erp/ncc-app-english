@@ -7,6 +7,13 @@
 	--foreground: #0f172a;
 }
 
+html {
+	/* Reserve the scrollbar's width even on short pages, so navigating between a tall page
+	   and a short one (e.g. admin sidebar routes) doesn't reflow content horizontally when
+	   the scrollbar appears/disappears. */
+	scrollbar-gutter: stable;
+}
+
 body {
 	color: var(--foreground);
 	background: var(--background);

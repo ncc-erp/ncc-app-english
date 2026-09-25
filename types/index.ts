@@ -96,3 +96,23 @@ export interface DailySubmitUser {
 	metadata: { display_name: string };
 	count: number;
 }
+export type FormHomework = {
+	name: string;
+	description: string;
+	startDate: number;
+	dueDate: number;
+
+	speaking: string[];
+	listening: string[];
+	reading: string[];
+	writing: string[];
+};
+export type Homework = {
+	id: string;
+	name: string;
+	start_date: Date;
+	due_date: Date;
+	description: string;
+	created_at: Date;
+	updated_at: Date;
+};

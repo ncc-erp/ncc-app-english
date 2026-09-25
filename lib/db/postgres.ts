@@ -14,7 +14,7 @@ try {
 	// ignore
 }
 
-import { DailySubmitUser, ExamAttempt, Question, UserSession } from '@/types';
+import { DailySubmitUser, ExamAttempt, Homework, Question, UserSession } from '@/types';
 import { SEED_QUESTIONS } from '@/lib/exam/questions';
 import { SEED_IELTS_TOPICS } from '@/lib/ielts/questions';
 import { IELTSSpeakingAttempt, IELTSSpeakingResponse, IELTSSpeakingTopic, IELTSSpeakingStatus, IELTSPart, IELTSScoreResult } from '@/types/ielts';
@@ -1091,5 +1091,52 @@ ORDER BY s.count DESC;
     `;
 		const { rows } = await pool.query(query);
 		return rows as DailySubmitUser[];
+	},
+	async createHomework(name: string, startDate: Date, dueDate: Date, description: string): Promise<Homework> {
+		await ensureDbInitialized();
+
+		const query = `
+		INSERT INTO homework (
+			name,
+			start_date,
+			due_date,
+			description
+		)
+		VALUES ($1, $2, $3, $4)
+		RETURNING
+			id,
+			name,
+			start_date,
+			due_date,
+			description,
+			created_at,
+			updated_at;
+	`;
+
+		const values = [name, startDate, dueDate, description];
+
+		const { rows } = await pool.query<Homework>(query, values);
+
+		return rows[0];
+	},
+	async getListHomework(): Promise<Homework[]> {
+		await ensureDbInitialized();
+
+		const query = `
+		SELECT
+			id,
+			name,
+			start_date,
+			due_date,
+			description,
+			created_at,
+			updated_at
+		FROM homework
+		ORDER BY created_at DESC;
+	`;
+
+		const { rows } = await pool.query<Homework>(query);
+
+		return rows;
 	}
 };
