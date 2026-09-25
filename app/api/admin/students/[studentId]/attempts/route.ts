@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
+import { AdminVerificationUnavailableError } from '@/lib/admin/clan-data-service';
 import { checkIsClanAdmin } from '@/lib/admin/clan-data-service';
 import { pgDb } from '@/lib/db/postgres';
 import { extractAudioStoragePath } from '@/lib/storage';
@@ -13,7 +14,15 @@ export async function GET(_req: NextRequest, segmentData: { params: Promise<{ st
 			return NextResponse.json({ success: false, error: 'Unauthorized. Login required.' }, { status: 401 });
 		}
 
-		const isAdmin = await checkIsClanAdmin(user.mezon_id);
+		let isAdmin: boolean;
+		try {
+			isAdmin = await checkIsClanAdmin(user.mezon_id);
+		} catch (error) {
+			if (error instanceof AdminVerificationUnavailableError) {
+				return NextResponse.json({ success: false, error: 'Admin verification is temporarily unavailable. Please try again.' }, { status: 503 });
+			}
+			throw error;
+		}
 		if (!isAdmin) {
 			return NextResponse.json({ success: false, error: 'Forbidden. Admin role in clan required.' }, { status: 403 });
 		}

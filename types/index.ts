@@ -88,3 +88,11 @@ export interface ExamResultResponse {
 	recommendations?: string[];
 	explanations?: Record<string, { correct_option_id: string; explanation: string }>;
 }
+
+export interface DailySubmitUser {
+	id: string;
+	mezonUserId: string;
+	avatarUrl: string;
+	metadata: { display_name: string };
+	count: number;
+}

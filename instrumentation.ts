@@ -1,3 +1,5 @@
+// import { startScheduler } from './lib/scheduler';
+
 export async function register() {
 	if (process.env.NEXT_RUNTIME === 'nodejs') {
 		// Crucial: Do NOT run bot during static build / compile phase (npm run build)
@@ -13,7 +15,15 @@ export async function register() {
 
 		try {
 			const { initBotService } = await import('./lib/bot/bot-service');
-			await initBotService();
+			// Gateway reconnects can take minutes. Do not block Next.js from
+			// serving pages while the bot establishes its background connection.
+			void initBotService().catch((err) => {
+				console.error('[Instrumentation] Failed to initialize Mezon Bot:', err);
+			});
+
+			const { startScheduler } = await import('./lib/scheduler');
+
+			startScheduler();
 		} catch (err) {
 			console.error('[Instrumentation] Failed to initialize Mezon Bot:', err);
 		}

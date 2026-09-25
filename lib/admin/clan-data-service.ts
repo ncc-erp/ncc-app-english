@@ -32,6 +32,27 @@ export interface StudentData {
 // not after some TTL expires.
 const inFlightAdminChecks = new Map<string, Promise<boolean>>();
 
+export class AdminVerificationUnavailableError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = 'AdminVerificationUnavailableError';
+	}
+}
+
+async function getBotClientWithTimeout(timeoutMs: number) {
+	let timer: NodeJS.Timeout | undefined;
+	try {
+		return await Promise.race([
+			getSharedBotClient(),
+			new Promise<never>((_resolve, reject) => {
+				timer = setTimeout(() => reject(new AdminVerificationUnavailableError('Bot connection timed out')), timeoutMs);
+			})
+		]);
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
+}
+
 /**
  * Normalizes text for case-insensitive and accent-tolerant comparisons
  */
@@ -145,12 +166,18 @@ async function resolveIsClanAdmin(mezonUserId: string): Promise<boolean> {
 	if (verifyUrl) {
 		try {
 			const res = await fetch(`${verifyUrl.replace(/\/$/, '')}/verify-admin?userId=${encodeURIComponent(mezonUserId)}`, {
-				headers: { 'x-bot-secret': process.env.BOT_VERIFY_SECRET || '' }
+				headers: { 'x-bot-secret': process.env.BOT_VERIFY_SECRET || '' },
+				signal: AbortSignal.timeout(10_000),
+				cache: 'no-store'
 			});
 			const data = await res.json();
-			return res.ok && data.isAdmin === true;
+			if (!res.ok || typeof data.isAdmin !== 'boolean') {
+				throw new AdminVerificationUnavailableError('Remote admin verification returned an invalid response');
+			}
+			return data.isAdmin;
 		} catch (error) {
 			console.error('[Clan Data Service] Remote verify-admin failed:', error);
+			throw new AdminVerificationUnavailableError('Remote admin verification is unavailable', { cause: error });
 		}
 	}
 

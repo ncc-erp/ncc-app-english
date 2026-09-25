@@ -9,9 +9,17 @@ export async function GET() {
 		return NextResponse.json({ isLoggedIn: false });
 	}
 
-	const isClanAdmin = await checkIsClanAdmin(session.user.mezon_id);
-	// Respect BOTH DB/session role (for password-login admins) AND clan role
-	const resolvedRole = isClanAdmin || session.user.role === 'admin' ? 'admin' : 'user';
+	let isAdmin: boolean;
+	try {
+		isAdmin = await checkIsClanAdmin(session.user.mezon_id);
+	} catch (error) {
+		console.error('[Auth Me] Admin verification unavailable:', error);
+		return NextResponse.json(
+			{ isLoggedIn: true, error: 'Admin verification is temporarily unavailable. Please try again.' },
+			{ status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '5' } }
+		);
+	}
+	const resolvedRole = isAdmin ? 'admin' : 'user';
 
 	// Sync cookie session when role changes so other routes
 	// that check session.user.role stay consistent

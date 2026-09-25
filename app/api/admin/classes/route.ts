@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
-import { checkIsClanAdmin, getClanClassrooms } from '@/lib/admin/clan-data-service';
+import { AdminVerificationUnavailableError, getClanClassrooms } from '@/lib/admin/clan-data-service';
+import { checkIsClanAdmin } from '@/lib/admin/clan-data-service';
 import { pgDb } from '@/lib/db/postgres';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,18 @@ export async function GET(req: NextRequest) {
 			return NextResponse.json({ success: false, error: 'Unauthorized. Login required.' }, { status: 401 });
 		}
 
-		const isAdmin = await checkIsClanAdmin(user.mezon_id);
+		let isAdmin: boolean;
+		try {
+			isAdmin = await checkIsClanAdmin(user.mezon_id);
+		} catch (error) {
+			if (error instanceof AdminVerificationUnavailableError) {
+				return NextResponse.json(
+					{ success: false, error: 'Admin verification is temporarily unavailable. Please try again.' },
+					{ status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '5' } }
+				);
+			}
+			throw error;
+		}
 		if (!isAdmin) {
 			return NextResponse.json({ success: false, error: 'Forbidden. Admin role in clan required.' }, { status: 403 });
 		}

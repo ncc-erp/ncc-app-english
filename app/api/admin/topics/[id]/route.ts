@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { pgDb } from '@/lib/db/postgres';
+import { AdminVerificationUnavailableError } from '@/lib/admin/clan-data-service';
 import { checkIsClanAdmin } from '@/lib/admin/clan-data-service';
 
 async function isAdmin(): Promise<boolean> {
@@ -28,6 +29,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 		return NextResponse.json({ success: true, topic: updatedTopic });
 	} catch (error) {
+		if (error instanceof AdminVerificationUnavailableError) {
+			return NextResponse.json({ success: false, error: 'Admin verification is temporarily unavailable. Please try again.' }, { status: 503 });
+		}
 		console.error('[Admin Topic PUT Error]:', error);
 		return NextResponse.json({ success: false, error: 'Failed to update topic' }, { status: 500 });
 	}
@@ -49,6 +53,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
 		return NextResponse.json({ success: true, message: 'Topic deleted successfully' });
 	} catch (error) {
+		if (error instanceof AdminVerificationUnavailableError) {
+			return NextResponse.json({ success: false, error: 'Admin verification is temporarily unavailable. Please try again.' }, { status: 503 });
+		}
 		console.error('[Admin Topic DELETE Error]:', error);
 		return NextResponse.json({ success: false, error: 'Failed to delete topic' }, { status: 500 });
 	}

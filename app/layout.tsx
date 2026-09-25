@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { LanguageProvider } from '@/lib/i18n/LanguageContext';
+import { AuthProvider } from '@/context/AuthContext';
 
 const SITE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 const TITLE = 'IELTS Thầy Huy – Luyện IELTS Speaking cùng giám khảo AI';
@@ -32,7 +33,9 @@ export default function RootLayout({
 	return (
 		<html lang='vi' className='scroll-smooth'>
 			<body className='antialiased bg-slate-50 text-slate-900 min-h-screen'>
-				<LanguageProvider>{children}</LanguageProvider>
+				<LanguageProvider>
+					<AuthProvider>{children}</AuthProvider>
+				</LanguageProvider>
 			</body>
 		</html>
 	);
