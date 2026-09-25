@@ -164,25 +164,7 @@ export default function AdminClassesPage() {
 			const data = await res.json();
 
 			if (res.ok && data.success) {
-				const dataSet = data.students.map((item: StudentItem) => ({
-					...item,
-					average_speaking_band: Number((Math.random() * 6 + 1).toFixed(1))
-				}));
-
-				const fakeUsers = Array.from({ length: 50 }, (_, index) => ({
-					mezon_id: `fake_${index + 1}`,
-					username: `fake.user${index + 1}`,
-					display_name: `Fake User ${index + 1}`,
-					avatar_url: `https://i.pravatar.cc/150?img=${index + 1}`,
-					clan_nick: '',
-					class_ids: ['2102580084283019264', '2100121662304292864', '2100121724203831296', '2102644343058731008'],
-					total_speaking_attempts: Math.floor(Math.random() * 51),
-					average_speaking_band: Number((Math.random() * 6 + 1).toFixed(1)),
-					highest_speaking_band: Number((Math.random() * 6 + 1).toFixed(1)),
-					latest_attempt_at: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString()
-				}));
-				const result = [...dataSet, ...fakeUsers];
-				setAllStudents(result || []);
+				setAllStudents(data.students || []);
 				return data.students;
 			}
 			return [];
