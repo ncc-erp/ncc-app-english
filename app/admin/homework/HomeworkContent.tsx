@@ -2,7 +2,8 @@
 
 import { createPortal } from 'react-dom';
 import { useEffect, useState } from 'react';
-import { Check, LoaderCircle, Plus, Search, X } from 'lucide-react';
+import { Check, Plus, Search, X } from 'lucide-react';
+import { FormHomework } from '@/types';
 
 interface Topic {
 	id: string;
@@ -19,12 +20,20 @@ export default function HomeworkContent({ selectedSkill, onSelectTopics }: Homew
 	const [topics, setTopics] = useState<Topic[]>([]);
 	const [selectedTopics, setSelectedTopics] = useState<Topic[]>([]);
 
-	const [loading, setLoading] = useState(false);
-	const [verificationError, setVerificationError] = useState(false);
-
 	const [showTopicPopup, setShowTopicPopup] = useState(false);
 	const [search, setSearch] = useState('');
 	const [mounted, setMounted] = useState(false);
+
+	const [formHomework, setFormHomework] = useState<FormHomework>({
+		name: '',
+		dueDate: 0,
+		description: '',
+		startDate: 0,
+		speaking: [],
+		listening: [],
+		reading: [],
+		writing: []
+	});
 
 	useEffect(() => {
 		setMounted(true);
@@ -32,13 +41,9 @@ export default function HomeworkContent({ selectedSkill, onSelectTopics }: Homew
 
 	const fetchTopics = async () => {
 		try {
-			setLoading(true);
-			setVerificationError(false);
-
 			const res = await fetch('/api/admin/topics');
 
 			if (res.status === 503) {
-				setVerificationError(true);
 				return;
 			}
 
@@ -50,7 +55,6 @@ export default function HomeworkContent({ selectedSkill, onSelectTopics }: Homew
 		} catch (err) {
 			console.error('Fetch admin topics error:', err);
 		} finally {
-			setLoading(false);
 		}
 	};
 
@@ -83,40 +87,6 @@ export default function HomeworkContent({ selectedSkill, onSelectTopics }: Homew
 
 		return topic.title.toLowerCase().includes(keyword) || topic.description?.toLowerCase().includes(keyword);
 	});
-
-	if (loading) {
-		return (
-			<div className='flex min-h-[400px] items-center justify-center'>
-				<div className='flex flex-col items-center gap-3'>
-					<LoaderCircle className='h-7 w-7 animate-spin text-purple-600' />
-
-					<p className='text-sm text-slate-500'>Loading topics...</p>
-				</div>
-			</div>
-		);
-	}
-
-	if (verificationError) {
-		return (
-			<div className='flex min-h-[400px] items-center justify-center text-center'>
-				<div>
-					<div className='mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-500'>!</div>
-
-					<h3 className='mt-4 font-bold text-slate-900'>Unable to load topics</h3>
-
-					<p className='mt-1 text-sm text-slate-500'>Please try again later.</p>
-
-					<button
-						type='button'
-						onClick={fetchTopics}
-						className='mt-4 rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-purple-700'
-					>
-						Try again
-					</button>
-				</div>
-			</div>
-		);
-	}
 
 	return (
 		<div className='min-h-full'>
