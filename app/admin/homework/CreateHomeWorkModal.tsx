@@ -5,7 +5,7 @@ import { BookOpen, Check, Headphones, LayoutDashboard, Mic2, PenLine, Plus, X } 
 import HomeworkContent from './HomeworkContent';
 import HomeworkGeneralModal from './HomeworkGeneral';
 
-interface CreateHomeworkModalProps {
+interface CreateHomeworkDetailModalProps {
 	onClose: () => void;
 }
 
@@ -62,7 +62,7 @@ export default function CreateHomeworkButton() {
 	);
 }
 
-function CreateHomeworkModal({ onClose }: CreateHomeworkModalProps) {
+export function CreateHomeworkDetailModal({ onClose }: CreateHomeworkDetailModalProps) {
 	const [selectedSkill, setSelectedSkill] = useState('speaking');
 	const [selectedPart, setSelectedPart] = useState<number | null>(null);
 
@@ -94,37 +94,6 @@ function CreateHomeworkModal({ onClose }: CreateHomeworkModalProps) {
 				<div className='flex min-h-0 flex-1'>
 					{/* Sidebar */}
 					<div className='w-56 shrink-0 overflow-y-auto border-r border-slate-100 bg-slate-50/70 p-4'>
-						<p className='mb-3 px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400'>Homework General </p>
-						<div className='space-y-1.5'>
-							<button
-								key={GENERAL_HOMEWORK.id}
-								type='button'
-								onClick={() => handleSelectSkill(GENERAL_HOMEWORK.id)}
-								className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition-all ${
-									selectedSkill === GENERAL_HOMEWORK.id
-										? 'bg-white text-purple-700 shadow-sm ring-1 ring-slate-200'
-										: 'text-slate-600 hover:bg-white/70'
-								}`}
-							>
-								<div
-									className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-										selectedSkill === GENERAL_HOMEWORK.id ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-400'
-									}`}
-								>
-									<LayoutDashboard className='h-4 w-4' />
-								</div>
-
-								<div className='min-w-0'>
-									<p className='text-sm font-bold'>{GENERAL_HOMEWORK.title}</p>
-
-									<p className='mt-0.5 text-[10px] text-slate-400'>{GENERAL_HOMEWORK.description}</p>
-								</div>
-
-								{selectedSkill === GENERAL_HOMEWORK.id && (
-									<div className='absolute right-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-l-full bg-purple-600' />
-								)}
-							</button>
-						</div>
 						<p className='mb-3 mt-3 px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400'>IELTS Skills</p>
 
 						<div className='space-y-1.5'>
