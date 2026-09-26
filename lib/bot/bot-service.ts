@@ -2,6 +2,15 @@ import '@/lib/mezon/sdk-patch';
 import { MezonClient } from 'mezon-sdk';
 import { handleResultCommand, handleHistoryCommand, handleTestingNowCommand, getHelpMessage } from './bot-commands';
 import { setSharedBotClient, sendChannelMessage, sendDirectMessage } from './bot-messenger';
+import {
+	fullSyncMeetingRooms,
+	fullSyncMeetingRoster,
+	registerMeetingRoomListeners,
+	registerMeetingRosterListener,
+	registerMeetingJoinListener,
+	registerMeetingLeaveListener
+} from './meeting-sync';
+import { startMeetingScheduler } from './meeting-scheduler';
 
 declare global {
 	// eslint-disable-next-line no-var
@@ -238,6 +247,21 @@ export async function initBotService(): Promise<MezonClient | null> {
 				}
 			} catch (clanErr) {
 				console.warn('[Mezon Bot Service] Could not enumerate clans:', clanErr);
+			}
+
+			// Meeting management: real-time room/roster/join-tracking listeners, one-time cache
+			// seed, and the reminder + no-show check loop. See lib/bot/meeting-sync.ts and
+			// lib/bot/meeting-scheduler.ts.
+			try {
+				registerMeetingRoomListeners(client);
+				registerMeetingRosterListener(client);
+				registerMeetingJoinListener(client);
+				registerMeetingLeaveListener(client);
+				await fullSyncMeetingRooms(client);
+				await fullSyncMeetingRoster(client);
+				startMeetingScheduler();
+			} catch (meetingErr) {
+				console.error('[Mezon Bot Service] Failed to set up meeting management:', meetingErr);
 			}
 
 			// Also explicitly join Exam Channel if defined

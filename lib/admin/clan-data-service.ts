@@ -1,8 +1,10 @@
 import '@/lib/mezon/sdk-patch';
+import { ChannelType } from 'mezon-sdk';
 import { getSharedBotClient } from '@/lib/bot/bot-messenger';
 import { isClanAdminMember, getClanRolesSafely } from '@/lib/mezon/bot-client';
 import { pgDb } from '@/lib/db/postgres';
 import { ClanUserList, ListClanUsersRequest, ChannelUserList, ListChannelUsersRequest } from 'mezon-sdk/dist/cjs/api/api';
+import { MeetingRosterMember, MeetingClassOption } from '@/types/meeting';
 
 export interface ClassroomData {
 	id: string;
@@ -85,7 +87,7 @@ function isAdminRole(title?: string): boolean {
 /**
  * Checks whether a role title represents a "Student"
  */
-function isStudentRole(title?: string): boolean {
+export function isStudentRole(title?: string): boolean {
 	if (!title) return false;
 	const norm = normalizeText(title);
 	return (
@@ -98,6 +100,23 @@ function isStudentRole(title?: string): boolean {
 		norm.includes('hoc sinh') ||
 		norm.includes('hoc vien') ||
 		norm.includes('sinh vien')
+	);
+}
+
+/**
+ * Checks whether a role title represents a "Teacher"
+ */
+export function isTeacherRole(title?: string): boolean {
+	if (!title) return false;
+	const norm = normalizeText(title);
+	return (
+		norm === 'teacher' ||
+		norm === 'teachers' ||
+		norm === 'giao vien' ||
+		norm === 'giang vien' ||
+		norm.includes('teacher') ||
+		norm.includes('giao vien') ||
+		norm.includes('giang vien')
 	);
 }
 
@@ -233,6 +252,118 @@ export async function getClanClassrooms(forceRefresh: boolean = false): Promise<
 	}
 
 	return classrooms;
+}
+
+/**
+ * Lists plain text channels (not voice/DM/forum/etc.) in the target clan, for the meeting
+ * "class" filter - picking one narrows the people picker to that channel's members only.
+ * Not restricted to category "LỚP HỌC" like getClanClassrooms - any text channel can double
+ * as a class roster (e.g. "Lớp cơ bản", "Lớp nâng cao").
+ */
+export async function listMeetingClassChannels(): Promise<MeetingClassOption[]> {
+	const options: MeetingClassOption[] = [];
+	try {
+		const client = await getSharedBotClient();
+		const clanId = process.env.MEZON_TARGET_CLAN_ID || '';
+		if (!client || !clanId) return options;
+
+		const targetClan = client.clans.get(clanId);
+		if (!targetClan) return options;
+
+		// loadChannels() is a no-op once the clan's channels have already been cached once in
+		// this process, so a channel created after that point wouldn't show up. reloadChannels()
+		// forces a fresh fetch (same fix as getClanClassrooms/getClanStudents use).
+		if (typeof (targetClan as any).reloadChannels === 'function') {
+			await (targetClan as any).reloadChannels();
+		} else {
+			await targetClan.loadChannels();
+		}
+		for (const ch of Array.from(targetClan.channels.values())) {
+			// "general" (and any other default public channel) has no explicit channel-membership
+			// record in Mezon - every clan member can post there without ever being "added", so
+			// scanChannelMembers/ListChannelUsers always comes back empty for it. Listing it here
+			// would just be a class option that's guaranteed to show zero people.
+			if (ch.channel_type === ChannelType.CHANNEL_TYPE_CHANNEL && ch.id && ch.name && ch.name.trim().toLowerCase() !== 'general') {
+				options.push({ channel_id: ch.id, channel_name: ch.name, category_name: ch.category_name });
+			}
+		}
+	} catch (err) {
+		console.warn('[Clan Data Service] Failed to list meeting class channels:', err);
+	}
+	return options;
+}
+
+/**
+ * Members of one text channel, cross-referenced with the synced Student/Teacher roster
+ * (meeting_roster_cache) so the result has the same shape the meeting assign UI already expects.
+ * Someone in the channel but without a Student/Teacher role in the clan is left out.
+ */
+export async function getMeetingClassRoster(channelId: string): Promise<MeetingRosterMember[]> {
+	try {
+		const client = await getSharedBotClient();
+		const clanId = process.env.MEZON_TARGET_CLAN_ID || '';
+		if (!client || !clanId) return [];
+
+		const targetClan = client.clans.get(clanId);
+		if (!targetClan) return [];
+
+		if (!targetClan.channels.get(channelId)) {
+			// Not cached yet - force a fresh fetch rather than trusting a possibly-stale load.
+			if (typeof (targetClan as any).reloadChannels === 'function') {
+				await (targetClan as any).reloadChannels();
+			} else {
+				await targetClan.loadChannels();
+			}
+		}
+		const channel = targetClan.channels.get(channelId);
+		if (!channel) return [];
+
+		const internalClient = client as unknown as {
+			apiClient: { invokeMezonApi: (path: string, body: Uint8Array, options: unknown) => Promise<ChannelUserList> };
+		};
+		const scan = await scanChannelMembers(internalClient, clanId, channel);
+
+		const roster = await pgDb.getMeetingRosterCache();
+		return roster.filter((person) => scan.memberUserIds.has(person.mezon_id));
+	} catch (err) {
+		console.warn('[Clan Data Service] Failed to scan meeting class roster:', err);
+		return [];
+	}
+}
+
+/**
+ * Raw member ids of one channel - used to decide whether a @mention sent there will actually
+ * resolve for readers (e.g. the meeting no-show admin channel), independent of clan-wide roster
+ * data. A user outside the channel still renders, just as plain (unstyled, unclickable) text.
+ */
+export async function getChannelMemberIds(channelId: string): Promise<Set<string>> {
+	try {
+		const client = await getSharedBotClient();
+		const clanId = process.env.MEZON_TARGET_CLAN_ID || '';
+		if (!client || !clanId) return new Set();
+
+		const targetClan = client.clans.get(clanId);
+		if (!targetClan) return new Set();
+
+		if (!targetClan.channels.get(channelId)) {
+			if (typeof (targetClan as any).reloadChannels === 'function') {
+				await (targetClan as any).reloadChannels();
+			} else {
+				await targetClan.loadChannels();
+			}
+		}
+		const channel = targetClan.channels.get(channelId);
+		if (!channel) return new Set();
+
+		const internalClient = client as unknown as {
+			apiClient: { invokeMezonApi: (path: string, body: Uint8Array, options: unknown) => Promise<ChannelUserList> };
+		};
+		const scan = await scanChannelMembers(internalClient, clanId, channel);
+		return scan.memberUserIds;
+	} catch (err) {
+		console.warn('[Clan Data Service] Failed to scan channel members:', err);
+		return new Set();
+	}
 }
 
 interface ScannedChannelData {

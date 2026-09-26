@@ -1,5 +1,5 @@
 import path from 'path';
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { loadEnvConfig } from '@next/env';
 
 // Ensure .env.local and .env are loaded even when run outside Next.js process (e.g. bot server worker)
@@ -18,6 +18,7 @@ import { DailySubmitUser, ExamAttempt, Question, UserSession } from '@/types';
 import { SEED_QUESTIONS } from '@/lib/exam/questions';
 import { SEED_IELTS_TOPICS } from '@/lib/ielts/questions';
 import { IELTSSpeakingAttempt, IELTSSpeakingResponse, IELTSSpeakingTopic, IELTSSpeakingStatus, IELTSPart, IELTSScoreResult } from '@/types/ielts';
+import { Meeting, MeetingParticipant, MeetingParticipantRole, MeetingRoomOption, MeetingRosterMember } from '@/types/meeting';
 
 // Global PostgreSQL connection pool instance for Next.js hot-reload handling
 const globalForPg = global as unknown as {
@@ -241,6 +242,74 @@ export async function ensureDbInitialized() {
             jti TEXT PRIMARY KEY,
             used_at TIMESTAMPTZ DEFAULT NOW()
         );
+
+        CREATE TABLE IF NOT EXISTS meetings (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            scheduled_at TIMESTAMPTZ NOT NULL,
+            ended_at TIMESTAMPTZ,
+            room_id TEXT,
+            room_name TEXT,
+            class_id TEXT,
+            class_name TEXT,
+            -- The teacher in charge (their Mezon user id), picked separately from meeting_participants.
+            user_id TEXT,
+            user_name TEXT,
+            created_by TEXT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            -- Scheduler bookkeeping, each set once: start-of-class presence check (T+0), no-show
+            -- check (T+5), attendance closed out after the end.
+            start_presence_checked_at TIMESTAMPTZ,
+            noshow_notified_at TIMESTAMPTZ,
+            presence_finalized_at TIMESTAMPTZ
+        );
+
+        CREATE TABLE IF NOT EXISTS meeting_participants (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            meeting_id TEXT REFERENCES meetings(id) ON DELETE CASCADE,
+            mezon_id TEXT NOT NULL,
+            username TEXT,
+            display_name TEXT,
+            avatar_url TEXT,
+            role TEXT,
+            -- First arrival and last departure within the class window.
+            joined_at TIMESTAMPTZ,
+            end_at TIMESTAMPTZ,
+            reminded_10min_at TIMESTAMPTZ,
+            reminded_start_at TIMESTAMPTZ,
+            CONSTRAINT unique_meeting_participant UNIQUE(meeting_id, mezon_id)
+        );
+
+        -- Upgrades dev databases created from earlier versions of these two tables.
+        ALTER TABLE meetings
+            ADD COLUMN IF NOT EXISTS ended_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS class_id TEXT,
+            ADD COLUMN IF NOT EXISTS class_name TEXT,
+            ADD COLUMN IF NOT EXISTS user_id TEXT,
+            ADD COLUMN IF NOT EXISTS user_name TEXT,
+            ADD COLUMN IF NOT EXISTS start_presence_checked_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS noshow_notified_at TIMESTAMPTZ,
+            ADD COLUMN IF NOT EXISTS presence_finalized_at TIMESTAMPTZ;
+        ALTER TABLE meeting_participants ADD COLUMN IF NOT EXISTS end_at TIMESTAMPTZ;
+
+        -- Synced from the Mezon clan bot (rooms + student/teacher roster). Populated by the
+        -- bot sync job; the admin UI only ever reads these two for its assign dropdowns.
+        CREATE TABLE IF NOT EXISTS meeting_rooms_cache (
+            room_id TEXT PRIMARY KEY,
+            room_name TEXT NOT NULL,
+            clan_id TEXT NOT NULL,
+            synced_at TIMESTAMPTZ DEFAULT NOW()
+        );
+
+        CREATE TABLE IF NOT EXISTS meeting_roster_cache (
+            mezon_id TEXT PRIMARY KEY,
+            username TEXT,
+            display_name TEXT NOT NULL,
+            avatar_url TEXT,
+            role TEXT NOT NULL,
+            clan_id TEXT NOT NULL,
+            synced_at TIMESTAMPTZ DEFAULT NOW()
+        );
       `);
 
 			// 2. Check if questions table is populated
@@ -314,6 +383,86 @@ const USER_COLS = `
   "avatarUrl" AS avatar_url,
   COALESCE((metadata->>'clan_member')::boolean, false) AS clan_member,
   COALESCE(metadata->>'role', 'user') AS role`;
+
+// Reshapes a `meeting_participants JOIN meetings` row (columns aliased m_*) from the reminder
+// queries back into { meeting, participant }, without the meeting's full participant list.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToMeetingParticipantPair(row: any): { meeting: Meeting; participant: MeetingParticipant } {
+	return {
+		meeting: {
+			id: row.m_id,
+			title: row.m_title,
+			scheduled_at: new Date(row.m_scheduled_at).toISOString(),
+			room_id: row.m_room_id || undefined,
+			room_name: row.m_room_name || undefined,
+			class_id: row.m_class_id || undefined,
+			class_name: row.m_class_name || undefined,
+			created_by: row.m_created_by,
+			created_at: new Date(row.m_created_at).toISOString(),
+			participant_count: 0,
+			participants: []
+		},
+		participant: {
+			mezon_id: row.mezon_id,
+			username: row.username || undefined,
+			display_name: row.display_name || row.username || row.mezon_id,
+			avatar_url: row.avatar_url || undefined,
+			role: row.role || undefined,
+			joined_at: row.joined_at ? new Date(row.joined_at).toISOString() : undefined,
+			end_at: row.end_at ? new Date(row.end_at).toISOString() : undefined
+		}
+	};
+}
+
+// A meeting's end as SQL (alias m); legacy rows without ended_at count as a 1-hour block.
+const MEETING_END_SQL = `COALESCE(m.ended_at, m.scheduled_at + INTERVAL '1 hour')`;
+
+// Join/leave updates can touch several meetings at once; the notification is about the most
+// recently started one.
+function latestPresenceRecord(rows: { meeting_id: string; scheduled_at: Date; occurred_at: Date }[]): { meeting_id: string; occurred_at: string } | null {
+	if (!rows.length) return null;
+	const latest = rows.reduce((a, b) => (new Date(b.scheduled_at) > new Date(a.scheduled_at) ? b : a));
+	return { meeting_id: latest.meeting_id, occurred_at: new Date(latest.occurred_at).toISOString() };
+}
+
+// Scalar subquery resolving a meeting's created_by (a Mezon user id) to that user's display name.
+function createdByNameSql(createdByColumn: string): string {
+	return `SELECT COALESCE(u.metadata->>'display_name', u.username) FROM users u WHERE u."mezonUserId" = ${createdByColumn}`;
+}
+
+// Thrown by updateMeeting/saveMeetingAssignments when a room would double-book: same room_id,
+// overlapping [scheduled_at, ended_at) with another meeting. Carries the conflicting meeting so
+// the API route can build a message naming it, instead of a generic failure.
+export class RoomConflictError extends Error {
+	conflict: { id: string; title: string; scheduled_at: string; ended_at: string | null };
+	constructor(conflict: { id: string; title: string; scheduled_at: string; ended_at: string | null }) {
+		super(`Room already booked by meeting "${conflict.title}" for an overlapping time.`);
+		this.name = 'RoomConflictError';
+		this.conflict = conflict;
+	}
+}
+
+// Legacy rows may have no ended_at - treat those as a 1-hour block for overlap purposes (matches
+// the admin UI's own default end-time when one isn't picked).
+async function assertNoRoomConflict(client: PoolClient, roomId: string, scheduledAt: string, endedAt: string, excludeMeetingId: string): Promise<void> {
+	const { rows } = await client.query(
+		`SELECT id, title, scheduled_at, ended_at FROM meetings
+     WHERE room_id = $1 AND id != $2
+       AND scheduled_at < $4
+       AND COALESCE(ended_at, scheduled_at + interval '1 hour') > $3
+     ORDER BY scheduled_at ASC
+     LIMIT 1;`,
+		[roomId, excludeMeetingId, scheduledAt, endedAt]
+	);
+	if (rows[0]) {
+		throw new RoomConflictError({
+			id: rows[0].id,
+			title: rows[0].title,
+			scheduled_at: new Date(rows[0].scheduled_at).toISOString(),
+			ended_at: rows[0].ended_at ? new Date(rows[0].ended_at).toISOString() : null
+		});
+	}
+}
 
 export const pgDb = {
 	async findOrCreateUser(mezonData: { mezon_id: string; username: string; display_name?: string; avatar_url?: string }): Promise<UserSession> {
@@ -1091,5 +1240,541 @@ ORDER BY s.count DESC;
     `;
 		const { rows } = await pool.query(query);
 		return rows as DailySubmitUser[];
+	},
+
+	// ============================================================
+	// MEETING MANAGEMENT
+	// ============================================================
+	async createMeeting(title: string, scheduledAt: string, endedAt: string, createdBy: string): Promise<Meeting> {
+		await ensureDbInitialized();
+		const id = `meeting-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+		const query = `
+      INSERT INTO meetings (id, title, scheduled_at, ended_at, created_by)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *, (${createdByNameSql('meetings.created_by')}) AS created_by_name;
+    `;
+		const { rows } = await pool.query(query, [id, title, scheduledAt, endedAt, createdBy]);
+		const r = rows[0];
+		return {
+			id: r.id,
+			title: r.title,
+			scheduled_at: new Date(r.scheduled_at).toISOString(),
+			ended_at: r.ended_at ? new Date(r.ended_at).toISOString() : undefined,
+			room_id: r.room_id || undefined,
+			room_name: r.room_name || undefined,
+			class_id: r.class_id || undefined,
+			class_name: r.class_name || undefined,
+			user_id: r.user_id || undefined,
+			user_name: r.user_name || undefined,
+			created_by: r.created_by,
+			created_by_name: r.created_by_name || undefined,
+			created_at: new Date(r.created_at).toISOString(),
+			participant_count: 0,
+			participants: []
+		};
+	},
+
+	// List view: each meeting carries only a 10-item participant preview plus the true count,
+	// matching the ticket's "display 10, click through for the rest" requirement.
+	async getMeetings(): Promise<Meeting[]> {
+		await ensureDbInitialized();
+		const { rows: meetingRows } = await pool.query(
+			`SELECT m.*, (${createdByNameSql('m.created_by')}) AS created_by_name FROM meetings m ORDER BY m.scheduled_at DESC LIMIT 50`
+		);
+		if (meetingRows.length === 0) return [];
+
+		const meetingIds = meetingRows.map((r) => r.id);
+		const { rows: participantRows } = await pool.query(`SELECT * FROM meeting_participants WHERE meeting_id = ANY($1) ORDER BY id ASC`, [meetingIds]);
+
+		const participantsByMeeting = new Map<string, MeetingParticipant[]>();
+		participantRows.forEach((p) => {
+			const list = participantsByMeeting.get(p.meeting_id) || [];
+			list.push({
+				mezon_id: p.mezon_id,
+				username: p.username || undefined,
+				display_name: p.display_name || p.username || p.mezon_id,
+				avatar_url: p.avatar_url || undefined,
+				role: p.role || undefined,
+				joined_at: p.joined_at ? new Date(p.joined_at).toISOString() : undefined,
+				end_at: p.end_at ? new Date(p.end_at).toISOString() : undefined
+			});
+			participantsByMeeting.set(p.meeting_id, list);
+		});
+
+		return meetingRows.map((r) => {
+			const allParticipants = participantsByMeeting.get(r.id) || [];
+			return {
+				id: r.id,
+				title: r.title,
+				scheduled_at: new Date(r.scheduled_at).toISOString(),
+				ended_at: r.ended_at ? new Date(r.ended_at).toISOString() : undefined,
+				room_id: r.room_id || undefined,
+				room_name: r.room_name || undefined,
+				class_id: r.class_id || undefined,
+				class_name: r.class_name || undefined,
+				user_id: r.user_id || undefined,
+				user_name: r.user_name || undefined,
+				created_by: r.created_by,
+				created_by_name: r.created_by_name || undefined,
+				created_at: new Date(r.created_at).toISOString(),
+				participant_count: allParticipants.length,
+				participants: allParticipants.slice(0, 10)
+			};
+		});
+	},
+
+	async updateMeeting(id: string, title: string, scheduledAt: string, endedAt: string): Promise<Meeting | null> {
+		await ensureDbInitialized();
+		const client = await pool.connect();
+		try {
+			await client.query('BEGIN');
+			const { rows } = await client.query('SELECT room_id FROM meetings WHERE id = $1 FOR UPDATE', [id]);
+			if (!rows.length) {
+				await client.query('ROLLBACK');
+				return null;
+			}
+			// Moving the time can create a room clash even without touching the room itself.
+			if (rows[0].room_id) await assertNoRoomConflict(client, rows[0].room_id, scheduledAt, endedAt, id);
+			await client.query('UPDATE meetings SET title = $2, scheduled_at = $3, ended_at = $4 WHERE id = $1', [id, title, scheduledAt, endedAt]);
+			await client.query('COMMIT');
+		} catch (error) {
+			await client.query('ROLLBACK');
+			throw error;
+		} finally {
+			client.release();
+		}
+		return this.getMeeting(id);
+	},
+
+	async deleteMeeting(id: string): Promise<boolean> {
+		await ensureDbInitialized();
+		const result = await pool.query('DELETE FROM meetings WHERE id = $1', [id]);
+		return !!result.rowCount;
+	},
+
+	async getMeeting(id: string): Promise<Meeting | null> {
+		await ensureDbInitialized();
+		const { rows } = await pool.query(`SELECT m.*, (${createdByNameSql('m.created_by')}) AS created_by_name FROM meetings m WHERE m.id = $1`, [id]);
+		if (rows.length === 0) return null;
+		const r = rows[0];
+
+		const { rows: participantRows } = await pool.query(`SELECT * FROM meeting_participants WHERE meeting_id = $1 ORDER BY id ASC`, [id]);
+		const participants: MeetingParticipant[] = participantRows.map((p) => ({
+			mezon_id: p.mezon_id,
+			username: p.username || undefined,
+			display_name: p.display_name || p.username || p.mezon_id,
+			avatar_url: p.avatar_url || undefined,
+			role: p.role || undefined,
+			joined_at: p.joined_at ? new Date(p.joined_at).toISOString() : undefined,
+			end_at: p.end_at ? new Date(p.end_at).toISOString() : undefined
+		}));
+
+		return {
+			id: r.id,
+			title: r.title,
+			scheduled_at: new Date(r.scheduled_at).toISOString(),
+			ended_at: r.ended_at ? new Date(r.ended_at).toISOString() : undefined,
+			room_id: r.room_id || undefined,
+			room_name: r.room_name || undefined,
+			class_id: r.class_id || undefined,
+			class_name: r.class_name || undefined,
+			user_id: r.user_id || undefined,
+			user_name: r.user_name || undefined,
+			created_by: r.created_by,
+			created_by_name: r.created_by_name || undefined,
+			created_at: new Date(r.created_at).toISOString(),
+			participant_count: participants.length,
+			participants
+		};
+	},
+
+	// Upserts so re-assigning (e.g. changing someone's role) doesn't need a separate remove step.
+	async saveMeetingAssignments(
+		meetingId: string,
+		participants: Omit<MeetingParticipant, 'joined_at'>[] | undefined,
+		room: { id: string; name: string } | undefined,
+		replace: boolean,
+		classInfo?: { id: string; name: string },
+		userInfo?: { id: string; name: string }
+	): Promise<Meeting | null> {
+		await ensureDbInitialized();
+		const client = await pool.connect();
+		try {
+			await client.query('BEGIN');
+			const locked = await client.query('SELECT id, scheduled_at, ended_at FROM meetings WHERE id = $1 FOR UPDATE', [meetingId]);
+			if (!locked.rowCount) {
+				await client.query('ROLLBACK');
+				return null;
+			}
+			// Assigning a non-empty room to this meeting's existing time slot - reject if another
+			// meeting already has that room for an overlapping window.
+			if (room?.id) {
+				const meetingRow = locked.rows[0];
+				const thisStart = new Date(meetingRow.scheduled_at);
+				const thisEnd = meetingRow.ended_at ? new Date(meetingRow.ended_at) : new Date(thisStart.getTime() + 60 * 60 * 1000);
+				await assertNoRoomConflict(client, room.id, thisStart.toISOString(), thisEnd.toISOString(), meetingId);
+			}
+			if (participants !== undefined) {
+				if (replace)
+					await client.query('DELETE FROM meeting_participants WHERE meeting_id = $1 AND NOT (mezon_id = ANY($2::text[]))', [
+						meetingId,
+						participants.map((p) => p.mezon_id)
+					]);
+				for (const p of participants) {
+					await client.query(
+						`INSERT INTO meeting_participants (meeting_id, mezon_id, username, display_name, avatar_url, role)
+					VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (meeting_id, mezon_id) DO UPDATE SET
+					username = EXCLUDED.username, display_name = EXCLUDED.display_name, avatar_url = EXCLUDED.avatar_url, role = EXCLUDED.role`,
+						[meetingId, p.mezon_id, p.username || null, p.display_name, p.avatar_url || null, p.role || null]
+					);
+				}
+			}
+			if (room !== undefined)
+				await client.query('UPDATE meetings SET room_id = $2, room_name = $3 WHERE id = $1', [meetingId, room.id || null, room.name || null]);
+			if (classInfo !== undefined)
+				await client.query('UPDATE meetings SET class_id = $2, class_name = $3 WHERE id = $1', [meetingId, classInfo.id || null, classInfo.name || null]);
+			if (userInfo !== undefined)
+				await client.query('UPDATE meetings SET user_id = $2, user_name = $3 WHERE id = $1', [meetingId, userInfo.id || null, userInfo.name || null]);
+			await client.query('COMMIT');
+		} catch (error) {
+			await client.query('ROLLBACK');
+			throw error;
+		} finally {
+			client.release();
+		}
+		return this.getMeeting(meetingId);
+	},
+
+	// Read side of the room/roster cache — the assign UI queries these regardless of whether
+	// the bot sync job has run yet (empty tables just mean empty dropdowns).
+	async getMeetingRoomsCache(): Promise<MeetingRoomOption[]> {
+		await ensureDbInitialized();
+		const { rows } = await pool.query(`SELECT * FROM meeting_rooms_cache ORDER BY room_name ASC`);
+		return rows.map((r) => ({
+			room_id: r.room_id,
+			room_name: r.room_name,
+			clan_id: r.clan_id,
+			synced_at: new Date(r.synced_at).toISOString()
+		}));
+	},
+
+	async getMeetingRosterCache(): Promise<MeetingRosterMember[]> {
+		await ensureDbInitialized();
+		const { rows } = await pool.query(`SELECT * FROM meeting_roster_cache ORDER BY display_name ASC`);
+		return rows.map((r) => ({
+			mezon_id: r.mezon_id,
+			username: r.username || undefined,
+			display_name: r.display_name,
+			avatar_url: r.avatar_url || undefined,
+			role: r.role,
+			clan_id: r.clan_id,
+			synced_at: new Date(r.synced_at).toISOString()
+		}));
+	},
+
+	// Write side of the cache — this is what the Mezon bot sync job (Person B) calls after
+	// pulling rooms/members from the "IELTS thầy Huy" clan.
+	async upsertMeetingRoomsCache(rooms: { room_id: string; room_name: string; clan_id: string }[]): Promise<void> {
+		await ensureDbInitialized();
+		for (const room of rooms) {
+			await pool.query(
+				`INSERT INTO meeting_rooms_cache (room_id, room_name, clan_id, synced_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (room_id) DO UPDATE SET room_name = EXCLUDED.room_name, clan_id = EXCLUDED.clan_id, synced_at = NOW();`,
+				[room.room_id, room.room_name, room.clan_id]
+			);
+		}
+	},
+
+	async upsertMeetingRosterCache(
+		members: {
+			mezon_id: string;
+			username?: string;
+			display_name: string;
+			avatar_url?: string;
+			role: MeetingParticipantRole;
+			clan_id: string;
+		}[]
+	): Promise<void> {
+		await ensureDbInitialized();
+		for (const m of members) {
+			await pool.query(
+				`INSERT INTO meeting_roster_cache (mezon_id, username, display_name, avatar_url, role, clan_id, synced_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())
+         ON CONFLICT (mezon_id) DO UPDATE SET
+           username = EXCLUDED.username,
+           display_name = EXCLUDED.display_name,
+           avatar_url = EXCLUDED.avatar_url,
+           role = EXCLUDED.role,
+           clan_id = EXCLUDED.clan_id,
+           synced_at = NOW();`,
+				[m.mezon_id, m.username || null, m.display_name, m.avatar_url || null, m.role, m.clan_id]
+			);
+		}
+	},
+
+	// A full Mezon scan is authoritative for one clan: replacing the cache removes people
+	// whose Student/Teacher role was removed while the bot was offline.
+	async replaceMeetingRosterCache(
+		clanId: string,
+		members: {
+			mezon_id: string;
+			username?: string;
+			display_name: string;
+			avatar_url?: string;
+			role: MeetingParticipantRole;
+			clan_id: string;
+		}[]
+	): Promise<void> {
+		await ensureDbInitialized();
+		const client = await pool.connect();
+		try {
+			await client.query('BEGIN');
+			await client.query('DELETE FROM meeting_roster_cache WHERE clan_id = $1', [clanId]);
+			for (const member of members) {
+				await client.query(
+					`INSERT INTO meeting_roster_cache (mezon_id, username, display_name, avatar_url, role, clan_id, synced_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NOW())`,
+					[member.mezon_id, member.username || null, member.display_name, member.avatar_url || null, member.role, member.clan_id]
+				);
+			}
+			await client.query('COMMIT');
+		} catch (error) {
+			await client.query('ROLLBACK');
+			throw error;
+		} finally {
+			client.release();
+		}
+	},
+
+	// Mirror of the two upserts above, for the onChannelDeleted / onRoleAssign(user_ids_removed) events.
+	async deleteMeetingRoomCache(roomId: string): Promise<void> {
+		await ensureDbInitialized();
+		await pool.query(`DELETE FROM meeting_rooms_cache WHERE room_id = $1`, [roomId]);
+	},
+
+	async deleteMeetingRosterCache(mezonId: string): Promise<void> {
+		await ensureDbInitialized();
+		await pool.query(`DELETE FROM meeting_roster_cache WHERE mezon_id = $1`, [mezonId]);
+	},
+
+	// Join events only count between the start and the end. Anyone already in the room at the start
+	// is checked in by the scheduler's start-of-class presence check (joined_at = scheduled_at), so
+	// arriving early needs no handling here. The first join wins - rejoining only clears end_at.
+	// Updates every matching meeting, so someone rejoining during class A who is also in
+	// back-to-back class B (same room) reopens both. Returns the most recently started meeting for
+	// the notification.
+	async markMeetingParticipantJoinedByRoom(roomId: string, mezonId: string): Promise<{ meeting_id: string; occurred_at: string } | null> {
+		await ensureDbInitialized();
+		const { rows } = await pool.query(
+			`UPDATE meeting_participants mp
+			 SET joined_at = COALESCE(mp.joined_at, NOW()),
+				 end_at = NULL
+			 FROM meetings m
+			 WHERE m.id = mp.meeting_id
+				AND m.room_id = $1
+				AND mp.mezon_id = $2
+				AND NOW() >= m.scheduled_at
+				AND NOW() <= ${MEETING_END_SQL}
+			 RETURNING mp.meeting_id, m.scheduled_at, NOW() AS occurred_at;`,
+			[roomId, mezonId]
+		);
+		return latestPresenceRecord(rows);
+	},
+
+	// Counterpart to markMeetingParticipantJoinedByRoom, over the same window; the last departure
+	// wins. Leaves after the end are ignored - finalizeMeetingPresence closes out whoever is still
+	// in the room at that point with end_at = the class end.
+	async markMeetingParticipantLeftByRoom(roomId: string, mezonId: string): Promise<{ meeting_id: string; occurred_at: string } | null> {
+		await ensureDbInitialized();
+		const { rows } = await pool.query(
+			`UPDATE meeting_participants mp
+			 SET end_at = NOW()
+			 FROM meetings m
+			 WHERE m.id = mp.meeting_id
+				AND m.room_id = $1
+				AND mp.mezon_id = $2
+				AND mp.joined_at IS NOT NULL
+				AND NOW() >= m.scheduled_at
+				AND NOW() <= ${MEETING_END_SQL}
+			 RETURNING mp.meeting_id, m.scheduled_at, NOW() AS occurred_at;`,
+			[roomId, mezonId]
+		);
+		return latestPresenceRecord(rows);
+	},
+
+	// Live-presence backfill for participants found in the room right now. No join recorded (sat
+	// there since before the class started, or the bot wasn't listening when they came in): real
+	// arrival is unknown, so they are recorded as on time, joined_at = scheduled_at. Recorded as
+	// having left although they're back (rejoin event missed): the first join is kept, end_at cleared.
+	async backfillMeetingParticipantsJoined(meetingId: string, mezonIds: string[]): Promise<number> {
+		await ensureDbInitialized();
+		if (!mezonIds.length) return 0;
+		const { rowCount } = await pool.query(
+			`UPDATE meeting_participants mp
+			 SET joined_at = COALESCE(mp.joined_at, m.scheduled_at),
+				 end_at = NULL
+			 FROM meetings m
+			 WHERE m.id = mp.meeting_id
+				AND mp.meeting_id = $1
+				AND mp.mezon_id = ANY($2)
+				AND (mp.joined_at IS NULL OR mp.end_at IS NOT NULL);`,
+			[meetingId, mezonIds]
+		);
+		return rowCount ?? 0;
+	},
+
+	// Meetings running right now that have a room, for reconciling against live voice presence.
+	// startPresenceUnchecked narrows it to those whose start-of-class check hasn't run yet;
+	// without it (scheduler startup) it recovers joins that happened while the bot was down.
+	async getMeetingsInProgress(opts: { startPresenceUnchecked?: boolean } = {}): Promise<Meeting[]> {
+		await ensureDbInitialized();
+		const { rows } = await pool.query(
+			`SELECT m.id FROM meetings m
+			 WHERE m.room_id IS NOT NULL
+				AND NOW() >= m.scheduled_at
+				AND NOW() <= ${MEETING_END_SQL}
+				${opts.startPresenceUnchecked ? 'AND m.start_presence_checked_at IS NULL' : ''};`
+		);
+		const meetings: Meeting[] = [];
+		for (const r of rows) {
+			const meeting = await this.getMeeting(r.id);
+			if (meeting) meetings.push(meeting);
+		}
+		return meetings;
+	},
+
+	async markMeetingStartPresenceChecked(meetingId: string): Promise<void> {
+		await ensureDbInitialized();
+		await pool.query(`UPDATE meetings SET start_presence_checked_at = NOW() WHERE id = $1`, [meetingId]);
+	},
+
+	// Ended meetings whose attendance hasn't been closed out yet. Capped at a day back so the first
+	// run after deploy doesn't sweep the whole history.
+	async getMeetingsNeedingPresenceFinalize(): Promise<Meeting[]> {
+		await ensureDbInitialized();
+		const { rows } = await pool.query(
+			`SELECT m.id FROM meetings m
+			 WHERE m.presence_finalized_at IS NULL
+				AND NOW() > ${MEETING_END_SQL}
+				AND NOW() <= ${MEETING_END_SQL} + INTERVAL '1 day';`
+		);
+		const meetings: Meeting[] = [];
+		for (const r of rows) {
+			const meeting = await this.getMeeting(r.id);
+			if (meeting) meetings.push(meeting);
+		}
+		return meetings;
+	},
+
+	// Closes out attendance once a meeting has ended. presentMezonIds (who is in the room right now,
+	// or null when that is unknown / no longer meaningful) backfills joined_at for anyone missed.
+	// Everyone who joined and has no end_at - still in the room, or left while the bot wasn't
+	// listening - gets end_at = the class end.
+	async finalizeMeetingPresence(meetingId: string, presentMezonIds: string[] | null): Promise<void> {
+		await ensureDbInitialized();
+		const client = await pool.connect();
+		try {
+			await client.query('BEGIN');
+			if (presentMezonIds?.length) {
+				await client.query(
+					`UPDATE meeting_participants mp
+					 SET joined_at = m.scheduled_at
+					 FROM meetings m
+					 WHERE m.id = mp.meeting_id
+						AND mp.meeting_id = $1
+						AND mp.mezon_id = ANY($2)
+						AND mp.joined_at IS NULL;`,
+					[meetingId, presentMezonIds]
+				);
+			}
+			await client.query(
+				`UPDATE meeting_participants mp
+				 SET end_at = ${MEETING_END_SQL}
+				 FROM meetings m
+				 WHERE m.id = mp.meeting_id
+					AND mp.meeting_id = $1
+					AND mp.joined_at IS NOT NULL
+					AND mp.end_at IS NULL;`,
+				[meetingId]
+			);
+			await client.query(`UPDATE meetings SET presence_finalized_at = NOW() WHERE id = $1`, [meetingId]);
+			await client.query('COMMIT');
+		} catch (error) {
+			await client.query('ROLLBACK');
+			throw error;
+		} finally {
+			client.release();
+		}
+	},
+
+	// Participants of meetings starting within MEETING_REMINDER_MINUTES_BEFORE (not yet sent the
+	// T-10 reminder) or that have already started (not yet sent the "starting now" reminder).
+	// Both thresholds are env-configurable so testing doesn't require sitting through real 10/5min waits.
+	async getParticipantsNeeding10MinReminder(): Promise<{ meeting: Meeting; participant: MeetingParticipant }[]> {
+		await ensureDbInitialized();
+		const minutesBefore = parseInt(process.env.MEETING_REMINDER_MINUTES_BEFORE || '10', 10);
+		const { rows } = await pool.query(
+			`SELECT mp.*, m.id AS m_id, m.title AS m_title, m.scheduled_at AS m_scheduled_at, m.room_id AS m_room_id, m.room_name AS m_room_name, m.class_id AS m_class_id, m.class_name AS m_class_name, m.created_by AS m_created_by, m.created_at AS m_created_at
+       FROM meeting_participants mp
+       JOIN meetings m ON m.id = mp.meeting_id
+       WHERE mp.reminded_10min_at IS NULL
+         AND m.scheduled_at <= NOW() + make_interval(mins => $1::int)
+         AND m.scheduled_at > NOW();`,
+			[minutesBefore]
+		);
+		return rows.map(rowToMeetingParticipantPair);
+	},
+
+	// Grace window after start during which the "starting now" DM still fires - reuses the
+	// no-show threshold as its upper bound so it always fires before the no-show check would run.
+	async getParticipantsNeedingStartReminder(): Promise<{ meeting: Meeting; participant: MeetingParticipant }[]> {
+		await ensureDbInitialized();
+		const minutesAfter = parseInt(process.env.MEETING_NOSHOW_CHECK_MINUTES_AFTER || '5', 10);
+		const { rows } = await pool.query(
+			`SELECT mp.*, m.id AS m_id, m.title AS m_title, m.scheduled_at AS m_scheduled_at, m.room_id AS m_room_id, m.room_name AS m_room_name, m.class_id AS m_class_id, m.class_name AS m_class_name, m.created_by AS m_created_by, m.created_at AS m_created_at
+       FROM meeting_participants mp
+       JOIN meetings m ON m.id = mp.meeting_id
+       WHERE mp.reminded_start_at IS NULL
+         AND m.scheduled_at <= NOW()
+         AND m.scheduled_at > NOW() - make_interval(mins => $1::int);`,
+			[minutesAfter]
+		);
+		return rows.map(rowToMeetingParticipantPair);
+	},
+
+	async markParticipantReminded10Min(meetingId: string, mezonId: string): Promise<void> {
+		await ensureDbInitialized();
+		await pool.query(`UPDATE meeting_participants SET reminded_10min_at = NOW() WHERE meeting_id = $1 AND mezon_id = $2`, [meetingId, mezonId]);
+	},
+
+	async markParticipantRemindedStart(meetingId: string, mezonId: string): Promise<void> {
+		await ensureDbInitialized();
+		await pool.query(`UPDATE meeting_participants SET reminded_start_at = NOW() WHERE meeting_id = $1 AND mezon_id = $2`, [meetingId, mezonId]);
+	},
+
+	// Meetings that started MEETING_NOSHOW_CHECK_MINUTES_AFTER+ ago and haven't had their no-show
+	// admin notification sent yet.
+	async getMeetingsNeedingNoShowCheck(): Promise<Meeting[]> {
+		await ensureDbInitialized();
+		const minutesAfter = parseInt(process.env.MEETING_NOSHOW_CHECK_MINUTES_AFTER || '5', 10);
+		const { rows } = await pool.query(
+			`SELECT * FROM meetings
+       WHERE noshow_notified_at IS NULL
+         AND scheduled_at <= NOW() - make_interval(mins => $1::int)
+         AND scheduled_at > NOW() - INTERVAL '1 hour';`,
+			[minutesAfter]
+		);
+		const meetings: Meeting[] = [];
+		for (const r of rows) {
+			const meeting = await this.getMeeting(r.id);
+			if (meeting) meetings.push(meeting);
+		}
+		return meetings;
+	},
+
+	async markMeetingNoShowNotified(meetingId: string): Promise<void> {
+		await ensureDbInitialized();
+		await pool.query(`UPDATE meetings SET noshow_notified_at = NOW() WHERE id = $1`, [meetingId]);
 	}
 };

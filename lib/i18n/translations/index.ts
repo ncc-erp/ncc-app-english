@@ -5,6 +5,8 @@ import { examEn, examVi } from './exam';
 import { ieltsEn, ieltsVi } from './ielts';
 import { landingEn, landingVi } from './landing';
 import { maintenanceEn, maintenanceVi } from './maintenance';
+import { meetingEn, meetingVi } from './meeting';
+import { adminSidebarEn, adminSidebarVi } from './adminSidebar';
 
 export type Locale = 'vi' | 'en';
 
@@ -16,7 +18,9 @@ export const translations = {
 		exam: examEn,
 		ielts: ieltsEn,
 		landing: landingEn,
-		maintenance: maintenanceEn
+		maintenance: maintenanceEn,
+		meeting: meetingEn,
+		adminSidebar: adminSidebarEn
 	},
 	vi: {
 		common: commonVi,
@@ -25,6 +29,8 @@ export const translations = {
 		exam: examVi,
 		ielts: ieltsVi,
 		landing: landingVi,
-		maintenance: maintenanceVi
+		maintenance: maintenanceVi,
+		meeting: meetingVi,
+		adminSidebar: adminSidebarVi
 	}
 };

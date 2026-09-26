@@ -151,7 +151,7 @@ export const StudentListItem = memo(function StudentListItem({ last_attempt, stu
 	return (
 		<div
 			onClick={handleSelect}
-			className='p-4 bg-slate-50/70 hover:bg-purple-50/40 border border-slate-200 hover:border-purple-300 rounded-2xl transition-all cursor-pointer shadow-sm hover:shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 group'
+			className='p-4 bg-slate-50/70 hover:bg-purple-50/40 border border-slate-200 hover:border-purple-300 rounded-2xl transition-all cursor-pointer shadow-sm hover:shadow-md flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4 group'
 		>
 			{/* Student info */}
 			<div className='flex items-center space-x-3.5'>
@@ -178,8 +178,8 @@ export const StudentListItem = memo(function StudentListItem({ last_attempt, stu
 			</div>
 
 			{/* Stats */}
-			<div className='flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-200/60'>
-				<div className='text-left sm:text-right'>
+			<div className='flex items-center justify-between 2xl:justify-end gap-3 sm:gap-4 shrink-0 pt-2 2xl:pt-0 border-t 2xl:border-t-0 border-slate-200/60'>
+				<div className='text-left 2xl:text-right'>
 					<div className='text-[10px] text-slate-400 font-medium'>Tests Taken</div>
 
 					<div className='text-xs font-black text-slate-900 flex items-center gap-1'>
@@ -187,7 +187,7 @@ export const StudentListItem = memo(function StudentListItem({ last_attempt, stu
 						{student.total_speaking_attempts} {student.total_speaking_attempts === 1 ? 'test' : 'tests'}
 					</div>
 				</div>
-				<div className='text-left sm:text-right'>
+				<div className='text-left 2xl:text-right'>
 					<div className='text-[10px] text-slate-400 font-medium'>Last Exam</div>
 					<div
 						className='text-xs font-black text-slate-900 flex items-center gap-1'
@@ -197,7 +197,7 @@ export const StudentListItem = memo(function StudentListItem({ last_attempt, stu
 						<span>{last_attempt}</span>
 					</div>
 				</div>
-				<div className='text-left sm:text-right'>
+				<div className='text-left 2xl:text-right'>
 					<div className='text-[10px] text-slate-400 font-medium'>Average Band</div>
 
 					<div className={`px-2.5 py-0.5 rounded-lg border font-black text-xs inline-block ${band}`}>

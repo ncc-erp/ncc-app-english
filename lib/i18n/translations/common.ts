@@ -14,6 +14,8 @@ export const commonEn = {
 		accessDeniedTitle: 'Access Denied',
 		classesDeniedMessage: 'You must have the Admin role in the Mezon Clan to access Classrooms & Students administration.',
 		topicsDeniedMessage: 'You must be logged in as an Administrator to access the IELTS Topic Management Portal.',
+		scoringDeniedMessage: 'You must have the Admin role to run batch scoring.',
+		loginRequiredMessage: 'You must be logged in to access the Admin Portal.',
 		signInAgain: 'Sign in Again',
 		goToLogin: 'Go to Login Page'
 	}
@@ -33,6 +35,8 @@ export const commonVi = {
 		accessDeniedTitle: 'Không có quyền truy cập',
 		classesDeniedMessage: 'Bạn cần có vai trò Admin trong Mezon Clan để truy cập quản lý Lớp học và Học viên.',
 		topicsDeniedMessage: 'Bạn cần đăng nhập bằng tài khoản Quản trị viên để truy cập trang quản lý bộ đề IELTS.',
+		scoringDeniedMessage: 'Bạn cần có vai trò Admin để chạy chấm điểm hàng loạt.',
+		loginRequiredMessage: 'Bạn cần đăng nhập để truy cập trang Quản trị.',
 		signInAgain: 'Đăng nhập lại',
 		goToLogin: 'Đến trang đăng nhập'
 	}
